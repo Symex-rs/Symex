@@ -1,9 +1,3 @@
-use anyhow::{anyhow, Result};
-use cargo_project::{Artifact, Profile, Project};
-#[cfg(feature = "llvm")]
-use log::debug;
-#[cfg(feature = "llvm")]
-use regex::Regex;
 use std::env;
 #[cfg(feature = "llvm")]
 use std::{
@@ -13,6 +7,13 @@ use std::{
 };
 #[cfg(not(feature = "llvm"))]
 use std::{path::PathBuf, process::Command};
+
+use anyhow::{anyhow, Result};
+use cargo_project::{Artifact, Profile, Project};
+#[cfg(feature = "llvm")]
+use log::debug;
+#[cfg(feature = "llvm")]
+use regex::Regex;
 
 /// Build settings.
 pub struct Settings {
@@ -44,14 +45,12 @@ impl Settings {
         let meta = rustc_version::version_meta()?;
         let project = Project::query(cwd).map_err(|err| anyhow!(err.to_string()))?;
         let host = meta.host;
-        let mut path = project
-            .path(artifact, profile, None, &host)
-            .map_err(|err| anyhow::anyhow!("{err}"))?;
+        let mut path = project.path(artifact, profile, None, &host).map_err(|err| anyhow::anyhow!("{err}"))?;
         path = path.parent().expect("unreachable").to_path_buf();
 
         // Binary files --bin are in the `/deps` folder.
         if matches!(artifact, Artifact::Bin(_)) {
-            path = path.join("deps");
+            //path = path.join("deps");
         }
 
         Ok(path)
@@ -214,19 +213,14 @@ pub fn get_latest_bc(dir: impl AsRef<Path>, file_prefix: &str) -> Result<Option<
         // Skip if file does not start with prefix.
         let starts_with = match path.file_stem() {
             None => false,
-            Some(stem) => stem
-                .to_str()
-                .map(|stem| stem.starts_with(file_prefix))
-                .unwrap_or(false),
+            Some(stem) => stem.to_str().map(|stem| stem.starts_with(file_prefix)).unwrap_or(false),
         };
         if !starts_with {
             continue;
         }
 
         let modified = path.metadata()?.modified()?;
-        let update_result = last_modified
-            .map(|last_modified| modified > last_modified)
-            .unwrap_or(true);
+        let update_result = last_modified.map(|last_modified| modified > last_modified).unwrap_or(true);
 
         if update_result {
             result = Some(path);

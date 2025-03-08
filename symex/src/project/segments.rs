@@ -51,7 +51,7 @@ impl Segments {
             if address >= segment.start_address && address < segment.end_address {
                 let offset = (address - segment.start_address) as usize;
                 if (offset + bytes) as u64 > segment.end_address {
-                    warn!("Trying to read accross memory segments!");
+                    warn!("Trying to read across memory segments!");
                     return None;
                 }
                 let data_slice = &segment.data[offset..(offset + bytes)];

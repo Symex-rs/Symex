@@ -37,6 +37,6 @@ pub(super) fn arm_isa<'a, T: ObjectSection<'a>>(section: &T) -> Result<ArmIsa, A
         // Cortex-m4
         13 => Ok(ArmIsa::ArmV7EM),
 
-        _ => Err(ArchError::UnsuportedArchitechture),
+        _ => Err(ArchError::UnsupportedArchitechture),
     }
 }

@@ -9,8 +9,8 @@ pub use valid_derive::Validate;
 
 /// Assume the condition.
 ///
-/// Adds a constraint that the passed condition must be true. If the condition can never be true,
-/// this will lead to an `Unsat` error.
+/// Adds a constraint that the passed condition must be true. If the condition
+/// can never be true, this will lead to an `Unsat` error.
 ///
 /// # Example
 ///
@@ -79,9 +79,9 @@ pub fn end_cyclecount() {
 
 /// Creates a new symbolic value for `value`. This removes all constraints.
 ///
-/// This creates a new symbolic variable and assigns overwrites the passed `value`. This must be
-/// performed since constraints added to the solver cannot be removed, and the previous value may
-/// have constraints associated with it.
+/// This creates a new symbolic variable and assigns overwrites the passed
+/// `value`. This must be performed since constraints added to the solver cannot
+/// be removed, and the previous value may have constraints associated with it.
 ///
 /// # Example
 ///
@@ -148,8 +148,8 @@ impl<T> Valid for &T {
 
 /// Suppresses this path from the executor.
 ///
-/// Note that this affects the completeness of the analysis and can prevent certain errors from
-/// being found.
+/// Note that this affects the completeness of the analysis and can prevent
+/// certain errors from being found.
 #[inline(never)]
 pub fn ignore_path() -> ! {
     unsafe { core::hint::unreachable_unchecked() }
@@ -157,90 +157,9 @@ pub fn ignore_path() -> ! {
 
 /// Try and trick the optimizer.
 ///
-/// It is hard to create a "can be anything" value in pure rust, this function tries to trick the
-/// optimizer into not optimizing `value`.
+/// It is hard to create a "can be anything" value in pure rust, this function
+/// tries to trick the optimizer into not optimizing `value`.
 #[doc(hidden)]
 pub fn black_box<T>(value: &mut T) {
     *value = unsafe { core::ptr::read_volatile(value as *mut T) }
 }
-
-#[inline(never)]
-#[no_mangle]
-/// Allows READ/WRITE access to for a function to a specific region of memory.
-pub fn allow_access(fn_ptr: *mut (), start_address: u32, end_address: u32) {
-    core::hint::black_box(fn_ptr);
-    core::hint::black_box(start_address);
-    core::hint::black_box(end_address);
-}
-
-#[inline(never)]
-#[no_mangle]
-/// Disallows READ/WRITE access to for a function to a specific region of memory.
-pub fn dis_allow_access(fn_ptr: *mut (), start_address: u32, end_address: u32) {
-    core::hint::black_box(fn_ptr);
-    core::hint::black_box(start_address);
-    core::hint::black_box(end_address);
-}
-
-#[inline(never)]
-#[no_mangle]
-/// Sets the period for a specific task.
-pub fn set_period(fn_ptr: *mut (), nom: u32, denom: u32) {
-    core::hint::black_box(fn_ptr);
-    core::hint::black_box(nom);
-    core::hint::black_box(denom);
-}
-
-#[inline(never)]
-#[no_mangle]
-/// Sets the deadline for a specific task.
-pub fn set_deadline(fn_ptr: *mut (), nom: u32, denom: u32) {
-    //set_period(
-    //    unsafe { core::mem::transmute(set_deadline as *mut ()) },
-    //    nom,
-    //    denom,
-    //);
-    core::hint::black_box(fn_ptr);
-    core::hint::black_box(nom);
-    core::hint::black_box(denom);
-}
-
-#[inline(never)]
-#[no_mangle]
-/// Sets the deadline for a specific task.
-pub fn set_priority(fn_ptr: *mut (), priority: u32) {
-    core::hint::black_box(fn_ptr);
-    core::hint::black_box(priority);
-}
-
-#[inline(never)]
-#[no_mangle]
-/// Adds the function to function to Symex auto discovery.
-pub fn analyze(fn_ptr: *mut ()) {
-    core::hint::black_box(fn_ptr);
-}
-
-/// Allows the given task to access the specified value.
-///
-/// This is the equivalent to a lot of calls to `allow_access`.
-pub fn grant_access<Val: GetLayout>(fn_ptr: *mut (), val: &Val) {
-    let mut buffer = Vec::<Layout, 1024>::new();
-    val.get_layout(&mut buffer);
-
-    for Layout { address, size } in buffer {
-        allow_access(fn_ptr, address as u32, address as u32 + size as u32);
-    }
-}
-
-#[inline(never)]
-#[no_mangle]
-/// Sets the executor to use restrictive memory rules during the target function analysis.
-pub fn set_restrictive_memory(fn_ptr: *mut ()) {
-    core::hint::black_box(fn_ptr);
-}
-
-/// Simplifies execution time analysis.
-pub use rtic_easy::{easy, if_should_analyse};
-
-pub use heapless::Vec;
-pub use layout_trait::{GetLayout, Layout};

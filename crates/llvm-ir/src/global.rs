@@ -2,16 +2,40 @@ use std::ffi::CStr;
 
 use llvm_sys::{
     core::{
-        LLVMGetAlignment, LLVMGetDLLStorageClass, LLVMGetFirstBasicBlock, LLVMGetFirstParam,
-        LLVMGetFunctionCallConv, LLVMGetGC, LLVMGetInitializer, LLVMGetIntrinsicID, LLVMGetLinkage,
-        LLVMGetNextParam, LLVMGetPersonalityFn, LLVMGetSection, LLVMGetThreadLocalMode,
-        LLVMGetUnnamedAddress, LLVMGetValueKind, LLVMGetValueName2, LLVMGetVisibility,
-        LLVMGlobalGetValueType, LLVMHasPersonalityFn, LLVMIntrinsicGetName,
-        LLVMIntrinsicIsOverloaded, LLVMIsDeclaration, LLVMIsExternallyInitialized,
-        LLVMIsGlobalConstant, LLVMIsThreadLocal, LLVMPrintValueToString, LLVMTypeOf,
+        LLVMGetAlignment,
+        LLVMGetDLLStorageClass,
+        LLVMGetFirstBasicBlock,
+        LLVMGetFirstParam,
+        LLVMGetFunctionCallConv,
+        LLVMGetGC,
+        LLVMGetInitializer,
+        LLVMGetIntrinsicID,
+        LLVMGetLinkage,
+        LLVMGetNextParam,
+        LLVMGetPersonalityFn,
+        LLVMGetSection,
+        LLVMGetThreadLocalMode,
+        LLVMGetUnnamedAddress,
+        LLVMGetValueKind,
+        LLVMGetValueName2,
+        LLVMGetVisibility,
+        LLVMGlobalGetValueType,
+        LLVMHasPersonalityFn,
+        LLVMIntrinsicGetName,
+        LLVMIntrinsicIsOverloaded,
+        LLVMIsDeclaration,
+        LLVMIsExternallyInitialized,
+        LLVMIsGlobalConstant,
+        LLVMIsThreadLocal,
+        LLVMPrintValueToString,
+        LLVMTypeOf,
     },
     prelude::*,
-    LLVMDLLStorageClass, LLVMLinkage, LLVMThreadLocalMode, LLVMUnnamedAddr, LLVMValueKind,
+    LLVMDLLStorageClass,
+    LLVMLinkage,
+    LLVMThreadLocalMode,
+    LLVMUnnamedAddr,
+    LLVMValueKind,
     LLVMVisibility,
 };
 
@@ -56,9 +80,7 @@ impl Global {
             // LLVMValueKind::LLVMFunctionValueKind => Self::Function(Function::new(value_ref)),
             LLVMValueKind::LLVMGlobalAliasValueKind => Self::Alias(GlobalAlias::new(value_ref)),
             LLVMValueKind::LLVMGlobalIFuncValueKind => Self::IFunc(GlobalIFunc::new(value_ref)),
-            LLVMValueKind::LLVMGlobalVariableValueKind => {
-                Self::Variable(GlobalVariable::new(value_ref))
-            }
+            LLVMValueKind::LLVMGlobalVariableValueKind => Self::Variable(GlobalVariable::new(value_ref)),
             _ => panic!("Not a global value"),
         }
     }
@@ -347,8 +369,6 @@ impl std::fmt::Display for Function {
 }
 
 /// Global variables define regions of memory allocated at compile time.
-///
-///
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct GlobalVariable(LLVMValueRef);
 

@@ -48,3 +48,20 @@ pub enum Condition {
     /// No condition always true
     None,
 }
+
+/// Enumerates the valid comparison operations.
+#[derive(Debug, Clone)]
+pub enum Comparison {
+    /// The two operands must be equal.
+    Eq,
+    /// The two operands must not be equal.
+    Neq,
+    /// The left hand side must be greater than the left side.
+    Gt,
+    /// The left hand side must be greater than or equal to the left side.
+    Geq,
+    /// The left hand side must be greater or equal to the left side.
+    Lt,
+    /// The left hand side must be less than or equal to the left side.
+    Leq,
+}

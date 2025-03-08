@@ -25,27 +25,18 @@ impl Value {
             LLVMValueKind::LLVMArgumentValueKind => Self::Argument(Argument::new(value_ref)),
             LLVMValueKind::LLVMFunctionValueKind => Self::Function(Function::new(value_ref)),
 
-            LLVMValueKind::LLVMGlobalAliasValueKind
-            | LLVMValueKind::LLVMGlobalIFuncValueKind
-            | LLVMValueKind::LLVMGlobalVariableValueKind => Self::Global(Global::new(value_ref)),
+            LLVMValueKind::LLVMGlobalAliasValueKind | LLVMValueKind::LLVMGlobalIFuncValueKind | LLVMValueKind::LLVMGlobalVariableValueKind => Self::Global(Global::new(value_ref)),
 
-            LLVMValueKind::LLVMInstructionValueKind => {
-                Self::Instruction(Instruction::new(value_ref))
-            }
+            LLVMValueKind::LLVMInstructionValueKind => Self::Instruction(Instruction::new(value_ref)),
 
             LLVMValueKind::LLVMMetadataAsValueValueKind => Self::Metadata,
 
             LLVMValueKind::LLVMInlineAsmValueKind => Self::InlineAsm,
 
             // Try and treat the rest as constants.
-            _ if unsafe { LLVMIsConstant(value_ref) != 0 } => {
-                Self::Constant(Constant::new(value_ref))
-            }
+            _ if unsafe { LLVMIsConstant(value_ref) != 0 } => Self::Constant(Constant::new(value_ref)),
 
-            _ => panic!(
-                "Cannot use value kind {:?} as a top-level value",
-                value_kind
-            ),
+            _ => panic!("Cannot use value kind {:?} as a top-level value", value_kind),
         }
     }
 

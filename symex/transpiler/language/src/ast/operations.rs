@@ -23,8 +23,14 @@ pub enum Operation {
 #[allow(missing_docs)]
 pub enum BinaryOperation {
     Sub,
+    /// Saturating sub (unsigned).
     SSub,
+    /// Saturating sub (signed).
+    SSubs,
     Add,
+    /// Saturating add (signed).
+    SAdds,
+    /// Saturating add (unsigned).
     SAdd,
     AddWithCarry,
     SDiv,
@@ -36,6 +42,29 @@ pub enum BinaryOperation {
     LogicalLeftShift,
     LogicalRightShift,
     ArithmeticRightShift,
+}
+
+/// Enumerates all supported comparison operations.
+#[derive(Debug, Clone)]
+#[allow(missing_docs)]
+pub enum CompareOperation {
+    /// Equal to (==).
+    Eq,
+
+    /// Not equal to (!=).
+    Neq,
+
+    /// Greater than (>).
+    Gt,
+
+    /// Greater or equal to (>=).
+    Geq,
+
+    /// Less than (<).
+    Lt,
+
+    /// Less than or equal to (<=).
+    Leq,
 }
 
 /// Enumerates all valid unary operations.

@@ -40,11 +40,7 @@ pub struct ArrayMemory {
 
 impl ArrayMemory {
     #[tracing::instrument(skip(self))]
-    pub fn resolve_addresses(
-        &self,
-        addr: &DExpr,
-        _upper_bound: usize,
-    ) -> Result<Vec<DExpr>, MemoryError> {
+    pub fn resolve_addresses(&self, addr: &DExpr, _upper_bound: usize) -> Result<Vec<DExpr>, MemoryError> {
         Ok(vec![addr.clone()])
     }
 
@@ -109,29 +105,16 @@ impl ArrayMemory {
 
             match self.endianness {
                 Endianness::Little => bytes.into_iter().reduce(|acc, v| v.concat(&acc)).unwrap(),
-                Endianness::Big => bytes
-                    .into_iter()
-                    .rev()
-                    .reduce(|acc, v| v.concat(&acc))
-                    .unwrap(),
+                Endianness::Big => bytes.into_iter().rev().reduce(|acc, v| v.concat(&acc)).unwrap(),
             }
         };
 
         Ok(value)
     }
 
-    fn internal_write(
-        &mut self,
-        addr: &DExpr,
-        value: DExpr,
-        ptr_size: u32,
-    ) -> Result<(), MemoryError> {
+    fn internal_write(&mut self, addr: &DExpr, value: DExpr, ptr_size: u32) -> Result<(), MemoryError> {
         // Check if we should zero extend the value (if it less than 8-bits).
-        let value = if value.len() < BITS_IN_BYTE {
-            value.zero_ext(BITS_IN_BYTE)
-        } else {
-            value
-        };
+        let value = if value.len() < BITS_IN_BYTE { value.zero_ext(BITS_IN_BYTE) } else { value };
 
         // Ensure the value we write is a multiple of `BITS_IN_BYTE`.
         assert_eq!(value.len() % BITS_IN_BYTE, 0);
@@ -164,6 +147,7 @@ pub struct BoolectorMemory {
     word_size: usize,
     pc: u64,
     initial_sp: DExpr,
+    un_named_counter: usize,
 }
 
 impl SmtMap for BoolectorMemory {
@@ -171,22 +155,12 @@ impl SmtMap for BoolectorMemory {
     type ProgramMemory = &'static Project;
     type SMT = Boolector;
 
-    fn new(
-        smt: Self::SMT,
-        program_memory: &'static Project,
-        word_size: usize,
-        endianness: Endianness,
-        initial_sp: Self::Expression,
-    ) -> Result<Self, crate::GAError> {
-        let ctx = Box::new(crate::smt::smt_boolector::BoolectorSolverContext {
-            ctx: smt.ctx.clone(),
-        });
+    fn new(smt: Self::SMT, program_memory: &'static Project, word_size: usize, endianness: Endianness, initial_sp: Self::Expression) -> Result<Self, crate::GAError> {
+        let ctx = Box::new(crate::smt::smt_boolector::BoolectorSolverContext { ctx: smt.ctx.clone() });
         let ctx = Box::leak::<'static>(ctx);
         let ram = {
             let memory = DArray::new(
-                &crate::smt::smt_boolector::BoolectorSolverContext {
-                    ctx: smt.ctx.clone(),
-                },
+                &crate::smt::smt_boolector::BoolectorSolverContext { ctx: smt.ctx.clone() },
                 word_size,
                 BITS_IN_BYTE as usize,
                 "memory",
@@ -208,18 +182,17 @@ impl SmtMap for BoolectorMemory {
             word_size,
             pc: 0,
             initial_sp,
+            un_named_counter: 0,
         })
     }
 
-    fn get(
-        &self,
-        idx: &Self::Expression,
-        size: usize,
-    ) -> Result<Self::Expression, crate::smt::MemoryError> {
+    fn get(&self, idx: &Self::Expression, size: usize) -> Result<Self::Expression, crate::smt::MemoryError> {
         if let Some(address) = idx.get_constant() {
             if !self.program_memory.address_in_range(address) {
+                trace!("Got deterministic address ({address:#x}) from ram");
                 return Ok(self.ram.read(idx, size as u32)?);
             }
+            trace!("Got deterministic address ({address:#x}) from project");
             return Ok(match self.program_memory.get(address, size as u32)? {
                 DataWord::Word8(value) => self.from_u64(value as u64, 8),
                 DataWord::Word16(value) => self.from_u64(value as u64, 16),
@@ -227,14 +200,11 @@ impl SmtMap for BoolectorMemory {
                 DataWord::Word64(value) => self.from_u64(value as u64, 32),
             });
         }
+        trace!("Got NON deterministic address {idx:?} from ram");
         Ok(self.ram.read(idx, size as u32)?)
     }
 
-    fn set(
-        &mut self,
-        idx: &Self::Expression,
-        value: Self::Expression,
-    ) -> Result<(), crate::smt::MemoryError> {
+    fn set(&mut self, idx: &Self::Expression, value: Self::Expression) -> Result<(), crate::smt::MemoryError> {
         if let Some(address) = idx.get_constant() {
             if self.program_memory.address_in_range(address) {
                 if let Some(_value) = value.get_constant() {
@@ -256,11 +226,7 @@ impl SmtMap for BoolectorMemory {
         Ok(())
     }
 
-    fn set_flag(
-        &mut self,
-        idx: &str,
-        value: Self::Expression,
-    ) -> Result<(), crate::smt::MemoryError> {
+    fn set_flag(&mut self, idx: &str, value: Self::Expression) -> Result<(), crate::smt::MemoryError> {
         self.flags.insert(idx.to_string(), value);
         Ok(())
     }
@@ -277,21 +243,13 @@ impl SmtMap for BoolectorMemory {
         Ok(ret)
     }
 
-    fn set_register(
-        &mut self,
-        idx: &str,
-        value: Self::Expression,
-    ) -> Result<(), crate::smt::MemoryError> {
+    fn set_register(&mut self, idx: &str, value: Self::Expression) -> Result<(), crate::smt::MemoryError> {
         self.register_file.insert(idx.to_string(), value);
         Ok(())
     }
 
     fn get_register(&mut self, idx: &str) -> Result<Self::Expression, crate::smt::MemoryError> {
-        trace!(
-            "Looking for {idx} in  {:?} -> {:?}",
-            self.register_file,
-            self.register_file.get(idx)
-        );
+        trace!("Looking for {idx} in  {:?} -> {:?}", self.register_file, self.register_file.get(idx));
         let ret = match self.register_file.get(idx) {
             Some(val) => val.clone(),
             None => {
@@ -322,6 +280,12 @@ impl SmtMap for BoolectorMemory {
         ret
     }
 
+    fn unconstrained_unnamed(&mut self, size: usize) -> Self::Expression {
+        let ret = self.ram.ctx.unconstrained(size as u32, &format!("UnNamed{}", self.un_named_counter));
+        self.un_named_counter += 1;
+        ret
+    }
+
     fn get_ptr_size(&self) -> usize {
         self.program_memory.get_ptr_size() as usize
     }
@@ -332,10 +296,7 @@ impl SmtMap for BoolectorMemory {
 
     fn get_stack(&mut self) -> (Self::Expression, Self::Expression) {
         // TODO: Make this more generic.
-        let current = self
-            .register_file
-            .get("SP")
-            .expect("Register pointer SP not found.");
+        let current = self.register_file.get("SP").expect("Register pointer SP not found.");
         (self.initial_sp.clone(), current.clone())
     }
 }

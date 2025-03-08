@@ -8,7 +8,7 @@ use syn::{
 
 use crate::ast::{
     operand::Operand,
-    operations::{Assign, BinOp, BinaryOperation, UnOp, UnaryOperation},
+    operations::{Assign, BinOp, BinaryOperation, CompareOperation, UnOp, UnaryOperation},
 };
 impl Parse for Assign {
     fn parse(input: ParseStream) -> Result<Self> {
@@ -90,6 +90,38 @@ impl Parse for BinaryOperation {
                 return Ok(SDiv);
             }
         }
+        if input.peek(Ident) {
+            let speculative = input.fork();
+            let ident: Ident = speculative.parse()?;
+            if ident.to_string().to_lowercase() == "sadd" {
+                input.advance_to(&speculative);
+                return Ok(SAdd);
+            }
+        }
+        if input.peek(Ident) {
+            let speculative = input.fork();
+            let ident: Ident = speculative.parse()?;
+            if ident.to_string().to_lowercase() == "sadds" {
+                input.advance_to(&speculative);
+                return Ok(SAdds);
+            }
+        }
+        if input.peek(Ident) {
+            let speculative = input.fork();
+            let ident: Ident = speculative.parse()?;
+            if ident.to_string().to_lowercase() == "ssub" {
+                input.advance_to(&speculative);
+                return Ok(SAdd);
+            }
+        }
+        if input.peek(Ident) {
+            let speculative = input.fork();
+            let ident: Ident = speculative.parse()?;
+            if ident.to_string().to_lowercase() == "ssubs" {
+                input.advance_to(&speculative);
+                return Ok(SAdds);
+            }
+        }
         if input.peek(Token![*]) {
             let _: Token![*] = input.parse()?;
             return Ok(Self::Mul);
@@ -126,5 +158,36 @@ impl Parse for BinaryOperation {
             }
         }
         Err(input.error("Expected operation"))
+    }
+}
+
+impl Parse for CompareOperation {
+    fn parse(input: ParseStream) -> Result<Self> {
+        if input.peek(Token![==]) {
+            let _: Token![==] = input.parse()?;
+            return Ok(Self::Eq);
+        }
+        if input.peek(Token![!=]) {
+            let _: Token![!=] = input.parse()?;
+            return Ok(Self::Neq);
+        }
+        if input.peek(Token![>=]) {
+            let _: Token![>=] = input.parse()?;
+            return Ok(Self::Geq);
+        }
+        if input.peek(Token![<=]) {
+            let _: Token![<=] = input.parse()?;
+            return Ok(Self::Leq);
+        }
+        if input.peek(Token![>]) {
+            let _: Token![>] = input.parse()?;
+            return Ok(Self::Gt);
+        }
+        if input.peek(Token![<]) {
+            let _: Token![<] = input.parse()?;
+            return Ok(Self::Lt);
+        }
+
+        Err(input.error("Expected a comparison operation"))
     }
 }

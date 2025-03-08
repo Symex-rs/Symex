@@ -6,6 +6,7 @@ use general_assembly::{prelude::DataWord, shift::Shift};
 use crate::{memory::MemoryError as MemoryFileError, Endianness, GAError};
 
 pub mod bitwuzla;
+//pub mod deterministic;
 pub mod smt_boolector;
 
 pub type DExpr = smt_boolector::BoolectorExpr;
@@ -90,13 +91,7 @@ pub trait SmtMap: Debug + Clone + Display {
     type ProgramMemory: ProgramMemory;
 
     #[must_use]
-    fn new(
-        smt: Self::SMT,
-        project: Self::ProgramMemory,
-        word_size: usize,
-        endianness: Endianness,
-        initial_sp: Self::Expression,
-    ) -> Result<Self, GAError>;
+    fn new(smt: Self::SMT, project: Self::ProgramMemory, word_size: usize, endianness: Endianness, initial_sp: Self::Expression) -> Result<Self, GAError>;
 
     #[must_use]
     fn get(&self, idx: &Self::Expression, size: usize) -> Result<Self::Expression, MemoryError>;
@@ -135,6 +130,9 @@ pub trait SmtMap: Debug + Clone + Display {
 
     #[must_use]
     fn unconstrained(&mut self, name: &str, size: usize) -> Self::Expression;
+
+    #[must_use]
+    fn unconstrained_unnamed(&mut self, size: usize) -> Self::Expression;
 
     #[must_use]
     /// Returns the pointer size of the system.
@@ -230,10 +228,7 @@ pub trait SmtSolver: Debug + Clone {
 
     /// Solve for the solver state with the assumption of the passed
     /// constraints.
-    fn is_sat_with_constraints(
-        &self,
-        constraints: &[Self::Expression],
-    ) -> Result<bool, SolverError>;
+    fn is_sat_with_constraints(&self, constraints: &[Self::Expression]) -> Result<bool, SolverError>;
 
     #[allow(clippy::unused_self)]
     /// Add the constraint to the solver.
@@ -247,37 +242,21 @@ pub trait SmtSolver: Debug + Clone {
     /// Returns concrete solutions up to `upper_bound`, the returned
     /// [`Solutions`] has variants for if the number of solution exceeds the
     /// upper bound.
-    fn get_values(
-        &self,
-        expr: &Self::Expression,
-        upper_bound: usize,
-    ) -> Result<Solutions<Self::Expression>, SolverError>;
+    fn get_values(&self, expr: &Self::Expression, upper_bound: usize) -> Result<Solutions<Self::Expression>, SolverError>;
 
     /// Returns `true` if `lhs` and `rhs` must be equal under the current
     /// constraints.
-    fn must_be_equal(
-        &self,
-        lhs: &Self::Expression,
-        rhs: &Self::Expression,
-    ) -> Result<bool, SolverError>;
+    fn must_be_equal(&self, lhs: &Self::Expression, rhs: &Self::Expression) -> Result<bool, SolverError>;
 
     /// Check if `lhs` and `rhs` can be equal under the current constraints.
-    fn can_equal(
-        &self,
-        lhs: &Self::Expression,
-        rhs: &Self::Expression,
-    ) -> Result<bool, SolverError>;
+    fn can_equal(&self, lhs: &Self::Expression, rhs: &Self::Expression) -> Result<bool, SolverError>;
 
     /// Find solutions to `expr`.
     ///
     /// Returns concrete solutions up to a maximum of `upper_bound`. If more
     /// solutions are available the error [`SolverError::TooManySolutions`]
     /// is returned.
-    fn get_solutions(
-        &self,
-        expr: &Self::Expression,
-        upper_bound: usize,
-    ) -> Result<Solutions<Self::Expression>, SolverError>;
+    fn get_solutions(&self, expr: &Self::Expression, upper_bound: usize) -> Result<Solutions<Self::Expression>, SolverError>;
 }
 
 pub trait SmtExpr: Debug + Clone {

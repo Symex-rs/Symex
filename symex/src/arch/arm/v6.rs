@@ -20,20 +20,12 @@ pub mod timing;
 pub struct ArmV6M {}
 
 impl Architecture for ArmV6M {
-    fn add_hooks<C: crate::Composition>(
-        &self,
-        cfg: &mut crate::executor::hooks::HookContainer<C>,
-        map: &mut crate::project::dwarf_helper::SubProgramMap,
-    ) {
+    fn add_hooks<C: crate::Composition>(&self, cfg: &mut crate::executor::hooks::HookContainer<C>, map: &mut crate::project::dwarf_helper::SubProgramMap) {
         let symbolic_sized = |state: &mut GAState<_>| {
             let value_ptr = state.get_register("R0".to_owned())?;
             let size_expr: C::SmtExpression = state.get_register("R1".to_owned())?;
             let size: u64 = size_expr.get_constant().unwrap() * 8;
-            trace!(
-                "trying to create symbolic: addr: {:?}, size: {}",
-                value_ptr,
-                size
-            );
+            trace!("trying to create symbolic: addr: {:?}, size: {}", value_ptr, size);
             let name = state.label_new_symbolic("any");
             let memory: &mut C::Memory = &mut state.memory;
             let symb_value = memory.unconstrained(&name, size as usize);
@@ -49,12 +41,8 @@ impl Architecture for ArmV6M {
             Ok(())
         };
 
-        cfg.add_pc_hook_regex(
-            &map,
-            r"^symbolic_size<.+>$",
-            PCHook::Intrinsic(symbolic_sized),
-        )
-        .expect("Symbol not found in symtab");
+        cfg.add_pc_hook_regex(&map, r"^symbolic_size<.+>$", PCHook::Intrinsic(symbolic_sized))
+            .expect("Symbol not found in symtab");
 
         let read_pc = |state: &mut GAState<C>| {
             let two = state.memory.from_u64(1, 32);
@@ -62,9 +50,7 @@ impl Architecture for ArmV6M {
             Ok(pc.add(&two))
         };
 
-        let write_pc = |state: &mut GAState<C>, value: C::SmtExpression| {
-            state.set_register("PC".to_owned(), value)
-        };
+        let write_pc = |state: &mut GAState<C>, value: C::SmtExpression| state.set_register("PC".to_owned(), value);
 
         cfg.add_register_read_hook("PC+".to_owned(), read_pc);
         cfg.add_register_write_hook("PC+".to_owned(), write_pc);
@@ -77,11 +63,7 @@ impl Architecture for ArmV6M {
         cfg.add_memory_read_hook(0x4000c008, read_reset_done);
     }
 
-    fn translate<C: crate::Composition>(
-        &self,
-        buff: &[u8],
-        _state: &GAState<C>,
-    ) -> Result<crate::executor::instruction::Instruction<C>, ArchError> {
+    fn translate<C: crate::Composition>(&self, buff: &[u8], _state: &GAState<C>) -> Result<crate::executor::instruction::Instruction<C>, ArchError> {
         let ret = armv6_m_instruction_parser::parse(buff).map_err(map_err)?;
         let to_exec = Self::expand(ret);
         Ok(to_exec)

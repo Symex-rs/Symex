@@ -38,14 +38,7 @@ pub struct Project {
 }
 
 impl Project {
-    pub fn manual_project(
-        program_memory: Vec<u8>,
-        start_addr: u64,
-        end_addr: u64,
-        word_size: WordSize,
-        endianness: Endianness,
-        _symtab: HashMap<String, u64>,
-    ) -> Project {
+    pub fn manual_project(program_memory: Vec<u8>, start_addr: u64, end_addr: u64, word_size: WordSize, endianness: Endianness, _symtab: HashMap<String, u64>) -> Project {
         Project {
             segments: Segments::from_single_segment(program_memory, start_addr, end_addr),
             word_size,
@@ -56,18 +49,10 @@ impl Project {
 
     pub fn from_binary(obj_file: object::File<'_>, symtab: SubProgramMap) -> Result<Self> {
         let segments = Segments::from_file(&obj_file);
-        let endianness = if obj_file.is_little_endian() {
-            Endianness::Little
-        } else {
-            Endianness::Big
-        };
+        let endianness = if obj_file.is_little_endian() { Endianness::Little } else { Endianness::Big };
 
         // Do not catch 16 or 8 bit architectures but will do for now.
-        let word_size = if obj_file.is_64() {
-            WordSize::Bit64
-        } else {
-            WordSize::Bit32
-        };
+        let word_size = if obj_file.is_64() { WordSize::Bit64 } else { WordSize::Bit32 };
 
         Ok(Project {
             segments,
@@ -179,11 +164,7 @@ impl ProgramMemory for &'static Project {
         Some(self.symtab.get_by_name(symbol)?.bounds.0)
     }
 
-    fn get(
-        &self,
-        address: u64,
-        bits: u32,
-    ) -> std::result::Result<DataWord, crate::smt::MemoryError> {
+    fn get(&self, address: u64, bits: u32) -> std::result::Result<DataWord, crate::smt::MemoryError> {
         let word_size = self.get_word_size() as u32;
         if bits == word_size as u32 {
             // full word
@@ -199,11 +180,7 @@ impl ProgramMemory for &'static Project {
         }
     }
 
-    fn set(
-        &self,
-        _address: u64,
-        _dataword: DataWord,
-    ) -> std::result::Result<(), crate::smt::MemoryError> {
+    fn set(&self, _address: u64, _dataword: DataWord) -> std::result::Result<(), crate::smt::MemoryError> {
         todo!("Project does not yet support caching writes to globals.")
     }
 
@@ -247,9 +224,6 @@ impl ProgramMemory for &'static Project {
 
 impl Debug for Project {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Project")
-            .field("word_size", &self.word_size)
-            .field("endianness", &self.endianness)
-            .finish()
+        f.debug_struct("Project").field("word_size", &self.word_size).field("endianness", &self.endianness).finish()
     }
 }

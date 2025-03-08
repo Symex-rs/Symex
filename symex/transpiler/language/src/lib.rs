@@ -22,6 +22,9 @@ pub enum Error {
 
     /// Declared a value that is never used.
     UnusedDeclartion(String),
+
+    /// The user requested a non supported instruction.
+    UnsupportedInstruction(String),
 }
 
 #[derive(Debug)]

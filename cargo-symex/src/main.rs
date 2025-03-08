@@ -1,4 +1,8 @@
-use std::{collections::HashMap, fmt::Display};
+use std::{
+    collections::{HashMap, VecDeque},
+    fmt::Display,
+    marker::PhantomData,
+};
 
 use anyhow::{anyhow, Result};
 use clap::Parser;
@@ -12,12 +16,12 @@ mod build;
 use args::{Args, FunctionArguments, Mode, Solver};
 use build::{Features, Settings, Target};
 use symex::{
-    defaults::logger::SimpleLogger,
-    executor::{hooks::HookContainer, state::GAState},
+    defaults::logger::SimplePathLogger,
+    executor::{hooks::HookContainer, instruction::CycleCount, state::GAState},
+    logging::Logger,
     manager::SymexArbiter,
     project::dwarf_helper::SubProgram,
-    smt::SmtExpr,
-    UserStateContainer,
+    smt::{SmtExpr, SmtMap},
 };
 
 fn main() -> Result<()> {
@@ -31,34 +35,19 @@ fn main() -> Result<()> {
     }
     Ok(())
 }
-#[derive(Debug, Clone, Default)]
-struct HookCollector {
-    /// Allows r/w access to a region of memory for a specific task.
-    allow: Vec<(u64, (u64, u64))>,
-    analyze: Option<u64>,
-    priority: HashMap<u64, u64>,
-    deadline: HashMap<u64, (u64, u64)>,
-    period: HashMap<u64, (u64, u64)>,
-}
-
-impl UserStateContainer for HookCollector {}
-
 fn run() -> Result<()> {
     let mut args = std::env::args().collect::<Vec<_>>();
     debug!("received arguments: {args:?}");
 
-    // If this is run as a cargo subcommand, the second argument will be the name of this binary.
-    // So remove this if this is the case.
-    if args
-        .get(1)
-        .map(|s| s.as_str() == BINARY_NAME)
-        .unwrap_or(false)
-    {
+    // If this is run as a cargo subcommand, the second argument will be the name of
+    // this binary. So remove this if this is the case.
+    if args.get(1).map(|s| s.as_str() == BINARY_NAME).unwrap_or(false) {
         debug!("used as cargo subcommand: removing {BINARY_NAME} as second argument");
         args.remove(1);
     }
 
     let args = Args::parse_from(args);
+    std::env::set_var("SYMEX", "true");
 
     use crate::build::generate_binary_build_command;
 
@@ -85,18 +74,8 @@ fn run() -> Result<()> {
     };
 
     match (args.mode, args.solver) {
-        (Mode::Function(FunctionArguments { name }), Solver::Bitwuzla) => {
-            run_elf::<symex::defaults::bitwuzla::DefaultComposition>(path, name)
-        }
-        (Mode::Function(FunctionArguments { name }), Solver::Boolector) => {
-            run_elf::<symex::defaults::boolector::DefaultComposition>(path, name)
-        }
-        (Mode::Easy, Solver::Bitwuzla) => {
-            run_elf_easy::<symex::defaults::bitwuzla::UserState<HookCollector>>(path)
-        }
-        (Mode::Easy, Solver::Boolector) => {
-            run_elf_easy::<symex::defaults::boolector::UserState<HookCollector>>(path)
-        }
+        (Mode::Function(FunctionArguments { name }), Solver::Bitwuzla) => run_elf::<symex::defaults::bitwuzla::DefaultComposition>(path, name),
+        (Mode::Function(FunctionArguments { name }), Solver::Boolector) => run_elf::<symex::defaults::boolector::DefaultComposition>(path, name),
     }?;
 
     Ok(())
@@ -105,7 +84,7 @@ fn run_elf<C: symex::Composition>(path: String, function_name: String) -> Result
 where
     C::Logger: Display,
     C::Memory: symex::smt::SmtMap<ProgramMemory = &'static symex::project::Project>,
-    C: symex::Composition<Logger = SimpleLogger, StateContainer = ()>,
+    C: symex::Composition<Logger = SimplePathLogger, StateContainer = ()>,
 {
     let mut executor: SymexArbiter<C> = symex::initiation::SymexConstructor::new(&path)
         .load_binary()
@@ -113,139 +92,16 @@ where
         .discover()
         .unwrap()
         .configure_smt::<C::SMT>()
-        .compose(|| (), |map| SimpleLogger::from_sub_programs(map))
-        .unwrap();
-    let result = executor.run(&function_name)?;
-
-    println!("{}", result);
-    Ok(())
-}
-
-fn run_elf_easy<C: symex::Composition>(path: String) -> Result<()>
-where
-    C::Logger: Display,
-    C::Memory: symex::smt::SmtMap<ProgramMemory = &'static symex::project::Project>,
-    C: symex::Composition<Logger = SimpleLogger, StateContainer = HookCollector>,
-{
-    debug!("Starting analasys on target: {path}");
-    let mut executor: SymexArbiter<C> = symex::initiation::SymexConstructor::new(&path)
-        .load_binary()
-        .unwrap()
-        .discover()
-        .unwrap()
-        .configure_smt::<C::SMT>()
-        .compose(
-            || HookCollector::default(),
-            |map| SimpleLogger::from_sub_programs(map),
-        )
+        .compose(|| (), |map| SimplePathLogger::from_sub_programs(map))
         .unwrap();
 
-    let symbols = executor.get_symbol_map().clone();
-    let functions = symbols.get_all_by_regex(r"^__symex_init_.*");
-
-    let mut hooks: HookContainer<C> = HookContainer::<C>::new();
-    // intrinsic functions
-    let grant_access = |state: &mut GAState<C>| {
-        state.cycle_count = 0;
-        let func = state.get_register("R0".to_string())?;
-        println!("Got func {:?}", func);
-        println!("memory {}", state.memory);
-        let func = func.get_constant().unwrap();
-        let start = state
-            .get_register("R1".to_string())?
-            .get_constant()
-            .unwrap();
-        let end = state
-            .get_register("R2".to_string())?
-            .get_constant()
-            .unwrap();
-
-        state.state.allow.push((func, (start, end)));
-        // jump back to where the function was called from
-        let lr = state.get_register("LR".to_owned()).unwrap();
-        state.set_register("PC".to_owned(), lr)?;
-        Ok(())
-    };
-    hooks
-        .add_pc_hook_regex(
-            &symbols,
-            r"^allow_access$",
-            symex::executor::hooks::PCHook::Intrinsic(grant_access),
-        )
-        .expect("Could not add hooks for grant memory access");
-
-    let should_analyze = |state: &mut GAState<C>| -> symex::Result<()> {
-        state.cycle_count = 0;
-        let func = state.get_register("R0".to_string())?;
-        println!("Should analyze {:?}", func);
-        let func = func.get_constant().unwrap();
-        state.state.analyze = Some(func);
-        // jump back to where the function was called from
-        let lr = state.get_register("LR".to_owned()).unwrap();
-        state.set_register("PC".to_owned(), lr)?;
-        Ok(())
-    };
-    hooks
-        .add_pc_hook_regex(
-            &symbols,
-            r"^analyze$",
-            symex::executor::hooks::PCHook::Intrinsic(should_analyze),
-        )
-        .expect("Could not add hooks for grant memory access");
-
-    let mut sub_program_map: HashMap<SubProgram, Vec<(u64, u64)>> = HashMap::new();
-    //println!("Running {functions:?}");
-    for function in functions {
-        println!("Running {function:?}");
-        let (logger, state) = executor
-            .run_with_hooks(function, Some(hooks.clone()))
-            .expect("Failed to execute initiation function");
-        assert!(
-            state.len() == 1,
-            "Initiation functions should never have multiple paths!"
-        );
-        let state = state[0].state.clone();
-        println!("Should allow {:?}", state.allow);
-        if let Some(addr) = state.analyze {
-            let addr = symbols
-                .get_by_address(&addr)
-                .cloned()
-                .unwrap_or(SubProgram {
-                    name: function
-                        .name
-                        .strip_prefix("__symex_init_")
-                        .unwrap()
-                        .to_string(),
-                    bounds: (addr, addr),
-                    file: None,
-                    call_file: None,
-                });
-            for (ptr, (start, stop)) in state.allow {
-                println!("Checking {ptr} against {addr:?}");
-                if ptr & ((u64::MAX >> 1) << 1) != addr.bounds.0 {
-                    continue;
-                }
-
-                match sub_program_map.get_mut(&addr) {
-                    Some(ref mut opt) => opt.push((start, stop)),
-                    None => {
-                        let _ = sub_program_map.insert(addr.clone(), vec![(start, stop)]);
-                    }
-                }
-            }
-        }
-        //sub_program_map.insert(, v)
-    }
-    println!("Analisys map {:?}", sub_program_map);
-
-    for (function, ranges) in sub_program_map {
-        let (logger, _state) = executor.run_with_strict_memory(&function, &ranges).unwrap();
-        println!("Logger {logger}")
+    let sub_program = executor.get_symbol_map().get_by_name(&function_name).unwrap().clone();
+    let result = executor.run(&sub_program.name)?;
+    for path in result {
+        let (_state, path) = path?;
+        println!("{path}");
     }
 
-    //let result = executor.run(&function_name).unwrap();
-
-    //println!("{}", result);
     Ok(())
 }
 

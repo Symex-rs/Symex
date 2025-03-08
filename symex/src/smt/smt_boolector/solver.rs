@@ -17,9 +17,7 @@ pub struct BoolectorIncrementalSolver {
 
 impl BoolectorIncrementalSolver {
     pub fn new(ctx: &BoolectorSolverContext) -> Self {
-        Self {
-            ctx: ctx.ctx.clone(),
-        }
+        Self { ctx: ctx.ctx.clone() }
     }
 
     #[allow(clippy::unused_self)]
@@ -86,10 +84,7 @@ impl BoolectorIncrementalSolver {
 
     /// Solve for the solver state with the assumption of the passed
     /// constraints.
-    pub fn is_sat_with_constraints(
-        &self,
-        constraints: &[BoolectorExpr],
-    ) -> Result<bool, SolverError> {
+    pub fn is_sat_with_constraints(&self, constraints: &[BoolectorExpr]) -> Result<bool, SolverError> {
         for constraint in constraints {
             constraint.0.assume();
         }
@@ -110,11 +105,7 @@ impl BoolectorIncrementalSolver {
     /// Returns concrete solutions up to `upper_bound`, the returned
     /// [`Solutions`] has variants for if the number of solution exceeds the
     /// upper bound.
-    pub fn get_values(
-        &self,
-        expr: &BoolectorExpr,
-        upper_bound: usize,
-    ) -> Result<Solutions<BoolectorExpr>, SolverError> {
+    pub fn get_values(&self, expr: &BoolectorExpr, upper_bound: usize) -> Result<Solutions<BoolectorExpr>, SolverError> {
         let expr = expr.clone().simplify();
         if expr.get_constant().is_some() {
             return Ok(Solutions::Exactly(vec![expr]));
@@ -135,11 +126,7 @@ impl BoolectorIncrementalSolver {
 
     /// Returns `true` if `lhs` and `rhs` must be equal under the current
     /// constraints.
-    pub fn must_be_equal(
-        &self,
-        lhs: &BoolectorExpr,
-        rhs: &BoolectorExpr,
-    ) -> Result<bool, SolverError> {
+    pub fn must_be_equal(&self, lhs: &BoolectorExpr, rhs: &BoolectorExpr) -> Result<bool, SolverError> {
         // Add the constraint lhs != rhs and invert the results. The only way
         // for `lhs != rhs` to be `false` is that if they are equal.
         let constraint = lhs.ne(rhs);
@@ -157,11 +144,7 @@ impl BoolectorIncrementalSolver {
     /// Returns concrete solutions up to a maximum of `upper_bound`. If more
     /// solutions are available the error [`SolverError::TooManySolutions`]
     /// is returned.
-    pub fn get_solutions2(
-        &self,
-        expr: &BoolectorExpr,
-        upper_bound: usize,
-    ) -> Result<Vec<BoolectorExpr>, SolverError> {
+    pub fn get_solutions2(&self, expr: &BoolectorExpr, upper_bound: usize) -> Result<Vec<BoolectorExpr>, SolverError> {
         let result = self.get_values(expr, upper_bound)?;
         match result {
             Solutions::Exactly(solutions) => Ok(solutions),
@@ -170,11 +153,7 @@ impl BoolectorIncrementalSolver {
     }
 
     // TODO: Compare this against the other... Not sure why there are two.
-    fn get_solutions(
-        &self,
-        expr: &BoolectorExpr,
-        upper_bound: usize,
-    ) -> Result<Solutions<BoolectorExpr>, SolverError> {
+    fn get_solutions(&self, expr: &BoolectorExpr, upper_bound: usize) -> Result<Solutions<BoolectorExpr>, SolverError> {
         let mut solutions = Vec::new();
 
         self.ctx.set_opt(BtorOption::ModelGen(ModelGen::All));

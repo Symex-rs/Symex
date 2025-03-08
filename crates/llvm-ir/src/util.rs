@@ -1,10 +1,7 @@
 use std::ffi::CString;
 
 use llvm_sys::{
-    core::{
-        LLVMGetDebugLocColumn, LLVMGetDebugLocDirectory, LLVMGetDebugLocFilename,
-        LLVMGetDebugLocLine,
-    },
+    core::{LLVMGetDebugLocColumn, LLVMGetDebugLocDirectory, LLVMGetDebugLocFilename, LLVMGetDebugLocLine},
     prelude::LLVMValueRef,
 };
 
@@ -21,25 +18,14 @@ impl std::fmt::Display for DebugLocation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // TODO: Fixme
         match &self.directory {
-            Some(directory) => write!(
-                f,
-                "{}:{}:{}",
-                directory.to_str().unwrap(),
-                self.filename.to_str().unwrap(),
-                self.line
-            ),
+            Some(directory) => write!(f, "{}:{}:{}", directory.to_str().unwrap(), self.filename.to_str().unwrap(), self.line),
             None => write!(f, "{}:{}", self.filename.to_str().unwrap(), self.line),
         }
     }
 }
 
 impl DebugLocation {
-    pub fn new(
-        line: u32,
-        column: Option<u32>,
-        filename: CString,
-        directory: Option<CString>,
-    ) -> Self {
+    pub fn new(line: u32, column: Option<u32>, filename: CString, directory: Option<CString>) -> Self {
         Self {
             line,
             column,

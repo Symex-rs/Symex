@@ -1,25 +1,51 @@
 use llvm_sys::{
     core::{
-        LLVMCountIncoming, LLVMGetAlignment, LLVMGetAllocatedType, LLVMGetAtomicRMWBinOp,
-        LLVMGetCalledFunctionType, LLVMGetCalledValue, LLVMGetCmpXchgFailureOrdering,
-        LLVMGetCmpXchgSuccessOrdering, LLVMGetFCmpPredicate, LLVMGetFirstInstruction,
-        LLVMGetFunctionCallConv, LLVMGetGEPSourceElementType, LLVMGetICmpPredicate,
-        LLVMGetIncomingBlock, LLVMGetIncomingValue, LLVMGetIndices, LLVMGetInstructionOpcode,
-        LLVMGetLastInstruction, LLVMGetMaskValue, LLVMGetNSW, LLVMGetNUW, LLVMGetNextInstruction,
-        LLVMGetNormalDest, LLVMGetNumArgOperands, LLVMGetNumIndices, LLVMGetNumMaskElements,
-        LLVMGetNumOperands, LLVMGetNumSuccessors, LLVMGetOperand, LLVMGetOrdering,
-        LLVMGetSuccessor, LLVMGetSwitchDefaultDest, LLVMGetUndefMaskElem, LLVMGetUnwindDest,
-        LLVMGetVolatile, LLVMGetWeak, LLVMIsAtomicSingleThread, LLVMIsInBounds, LLVMTypeOf,
-        LLVMValueAsBasicBlock, LLVMValueIsBasicBlock,
+        LLVMCountIncoming,
+        LLVMGetAlignment,
+        LLVMGetAllocatedType,
+        LLVMGetAtomicRMWBinOp,
+        LLVMGetCalledFunctionType,
+        LLVMGetCalledValue,
+        LLVMGetCmpXchgFailureOrdering,
+        LLVMGetCmpXchgSuccessOrdering,
+        LLVMGetFCmpPredicate,
+        LLVMGetFirstInstruction,
+        LLVMGetFunctionCallConv,
+        LLVMGetGEPSourceElementType,
+        LLVMGetICmpPredicate,
+        LLVMGetIncomingBlock,
+        LLVMGetIncomingValue,
+        LLVMGetIndices,
+        LLVMGetInstructionOpcode,
+        LLVMGetLastInstruction,
+        LLVMGetMaskValue,
+        LLVMGetNSW,
+        LLVMGetNUW,
+        LLVMGetNextInstruction,
+        LLVMGetNormalDest,
+        LLVMGetNumArgOperands,
+        LLVMGetNumIndices,
+        LLVMGetNumMaskElements,
+        LLVMGetNumOperands,
+        LLVMGetNumSuccessors,
+        LLVMGetOperand,
+        LLVMGetOrdering,
+        LLVMGetSuccessor,
+        LLVMGetSwitchDefaultDest,
+        LLVMGetUndefMaskElem,
+        LLVMGetUnwindDest,
+        LLVMGetVolatile,
+        LLVMGetWeak,
+        LLVMIsAtomicSingleThread,
+        LLVMIsInBounds,
+        LLVMTypeOf,
+        LLVMValueAsBasicBlock,
+        LLVMValueIsBasicBlock,
     },
     prelude::*,
     LLVMOpcode,
 };
-
-pub use llvm_sys::LLVMAtomicOrdering;
-pub use llvm_sys::LLVMAtomicRMWBinOp;
-pub use llvm_sys::LLVMIntPredicate;
-pub use llvm_sys::LLVMRealPredicate;
+pub use llvm_sys::{LLVMAtomicOrdering, LLVMAtomicRMWBinOp, LLVMIntPredicate, LLVMRealPredicate};
 
 use crate::{util::DebugLocation, Type, Value};
 
@@ -1097,10 +1123,7 @@ impl GetElementPtr {
 
     pub fn indices(&self) -> Vec<Value> {
         let num_indices = unsafe { LLVMGetNumIndices(self.0) };
-        (1..=num_indices)
-            .map(|i| unsafe { LLVMGetOperand(self.0, i) })
-            .map(Value::new)
-            .collect()
+        (1..=num_indices).map(|i| unsafe { LLVMGetOperand(self.0, i) }).map(Value::new).collect()
     }
 
     pub fn in_bounds(&self) -> bool {
@@ -1217,13 +1240,9 @@ impl Phi {
     pub fn incoming(&self) -> Vec<(BasicBlock, Value)> {
         let num_incoming_values = unsafe { LLVMCountIncoming(self.0) };
 
-        let incoming_values = (0..num_incoming_values)
-            .map(|i| unsafe { LLVMGetIncomingValue(self.0, i) })
-            .map(Value::new);
+        let incoming_values = (0..num_incoming_values).map(|i| unsafe { LLVMGetIncomingValue(self.0, i) }).map(Value::new);
 
-        let incoming_blocks = (0..num_incoming_values)
-            .map(|i| unsafe { LLVMGetIncomingBlock(self.0, i) })
-            .map(BasicBlock);
+        let incoming_blocks = (0..num_incoming_values).map(|i| unsafe { LLVMGetIncomingBlock(self.0, i) }).map(BasicBlock);
 
         incoming_blocks.zip(incoming_values).collect()
     }
@@ -1272,10 +1291,7 @@ impl Call {
 
     pub fn arguments(&self) -> Vec<Value> {
         let num_arguments = unsafe { LLVMGetNumArgOperands(self.0) };
-        (0..num_arguments)
-            .map(|i| unsafe { LLVMGetOperand(self.0, i) })
-            .map(Value::new)
-            .collect()
+        (0..num_arguments).map(|i| unsafe { LLVMGetOperand(self.0, i) }).map(Value::new).collect()
     }
 
     pub fn calling_convention(&self) -> u32 {
@@ -1382,14 +1398,10 @@ impl Switch {
         let num_cases = unsafe { LLVMGetNumSuccessors(self.0) };
 
         // Operands are stored in pairs: (value, destination).
-        let case_value = (1..num_cases)
-            .map(|i| unsafe { LLVMGetOperand(self.0, i * 2) })
-            .map(Value::new);
+        let case_value = (1..num_cases).map(|i| unsafe { LLVMGetOperand(self.0, i * 2) }).map(Value::new);
 
         // Get destination as successor instead, these are always basic blocks.
-        let case_bb = (1..num_cases)
-            .map(|i| unsafe { LLVMGetSuccessor(self.0, i) })
-            .map(BasicBlock);
+        let case_bb = (1..num_cases).map(|i| unsafe { LLVMGetSuccessor(self.0, i) }).map(BasicBlock);
 
         case_value.zip(case_bb).collect()
     }
@@ -1406,10 +1418,7 @@ impl IndirectBr {
 
     pub fn destinations(&self) -> Vec<BasicBlock> {
         let num_destinations = unsafe { LLVMGetNumSuccessors(self.0) };
-        (0..num_destinations)
-            .map(|i| unsafe { LLVMGetSuccessor(self.0, i) })
-            .map(BasicBlock)
-            .collect()
+        (0..num_destinations).map(|i| unsafe { LLVMGetSuccessor(self.0, i) }).map(BasicBlock).collect()
     }
 }
 
@@ -1428,10 +1437,7 @@ impl Invoke {
 
     pub fn arguments(&self) -> Vec<Value> {
         let num_arguments = unsafe { LLVMGetNumArgOperands(self.0) };
-        (0..num_arguments)
-            .map(|i| unsafe { LLVMGetOperand(self.0, i + 1) })
-            .map(Value::new)
-            .collect()
+        (0..num_arguments).map(|i| unsafe { LLVMGetOperand(self.0, i + 1) }).map(Value::new).collect()
     }
 
     pub fn normal_destination(&self) -> BasicBlock {
@@ -1498,10 +1504,7 @@ impl CallBr {
 
     pub fn arguments(&self) -> Vec<Value> {
         let num_arguments = unsafe { LLVMGetNumArgOperands(self.0) };
-        (0..num_arguments)
-            .map(|i| unsafe { LLVMGetOperand(self.0, i + 1) })
-            .map(Value::new)
-            .collect()
+        (0..num_arguments).map(|i| unsafe { LLVMGetOperand(self.0, i + 1) }).map(Value::new).collect()
     }
 
     pub fn calling_convention(&self) -> u32 {

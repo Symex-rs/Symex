@@ -93,10 +93,7 @@ mod llvm_tests {
     // Check that array indexing works.
     #[test]
     fn array_index_works() {
-        let res = run(
-            "tests/samples/array_index.bc",
-            "array_index::indexing_works",
-        );
+        let res = run("tests/samples/array_index.bc", "array_index::indexing_works");
         assert_eq!(res.len(), 1, "expected 1 path");
         assert_eq!(res[0], Some(3));
     }

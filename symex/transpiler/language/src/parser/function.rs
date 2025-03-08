@@ -1,15 +1,20 @@
 //! Defines parsing rules for the ast
 //! [`Functions`](crate::ast::function::Function).
+use proc_macro2::TokenStream;
 use syn::{
+    braced,
+    bracketed,
+    parenthesized,
     parse::{discouraged::Speculative, Parse, ParseStream, Result},
     Expr,
     Ident,
     Lit,
+    LitInt,
     LitStr,
     Token,
 };
 
-use crate::ast::{function::*, operand::Operand, operations::BinaryOperation};
+use crate::ast::{function::*, operand::Operand, operations::BinaryOperation, IRExpr};
 impl Parse for Function {
     fn parse(input: ParseStream) -> Result<Self> {
         let speculative = input.fork();
@@ -104,6 +109,17 @@ impl Parse for Intrinsic {
             return Ok(Self::Sra(el));
         }
 
+        let speculative = input.fork();
+        if let Ok(el) = speculative.parse() {
+            input.advance_to(&speculative);
+            return Ok(Self::Ite(el));
+        }
+
+        let speculative = input.fork();
+        if let Ok(el) = speculative.parse() {
+            input.advance_to(&speculative);
+            return Ok(Self::Abort(el));
+        }
         Ok(Self::SetZFlag(input.parse()?))
     }
 }
@@ -324,14 +340,17 @@ impl Parse for SignExtend {
         syn::parenthesized!(content in input);
         let op: Operand = content.parse()?;
         let _: Token![,] = content.parse()?;
-        let n = content.parse()?;
+        let n: Expr = content.parse()?;
+        let _: Token![,] = content.parse()?;
+        let size = content.parse()?;
         if !content.is_empty() {
-            return Err(content.error("Too many arguments"));
+            return Err(content.error("Too many tokens."));
         }
-        Ok(Self {
+        return Ok(Self {
             operand: op,
-            bits: n,
-        })
+            sign_bit: n,
+            target_size: size,
+        });
     }
 }
 impl Parse for ConditionalJump {
@@ -585,3 +604,89 @@ impl Parse for Sra {
         Ok(Self { operand: op, n })
     }
 }
+
+impl Parse for Ite {
+    fn parse(input: ParseStream) -> Result<Self> {
+        let speculative = input.fork();
+        let ident: Ident = speculative.parse()?;
+        if ident.to_string().to_lowercase().as_str() != "ite" {
+            return Err(input.error("ite"));
+        }
+        let _: Ident = input.parse()?;
+
+        let inner;
+        parenthesized!(inner in input);
+
+        let lhs = inner.parse()?;
+
+        let operation = inner.parse()?;
+
+        let rhs = inner.parse()?;
+
+        let _: Token![,] = inner.parse()?;
+        let braced;
+        braced!(braced in inner);
+        let then = braced
+            .parse_terminated(IRExpr::parse, Token![;])?
+            .into_iter()
+            .collect::<Vec<_>>();
+        let _: Token![,] = inner.parse()?;
+        let braced;
+        braced!(braced in inner);
+        let otherwise = braced
+            .parse_terminated(IRExpr::parse, Token![;])?
+            .into_iter()
+            .collect::<Vec<_>>();
+        Ok(Self {
+            lhs,
+            operation,
+            rhs,
+            then,
+            otherwise,
+        })
+    }
+}
+
+impl Parse for Abort {
+    fn parse(input: ParseStream) -> Result<Self> {
+        let speculative = input.fork();
+        let ident: Ident = speculative.parse()?;
+        if ident.to_string().to_lowercase().as_str() != "abort" {
+            return Err(input.error("abort"));
+        }
+        let _: Ident = input.parse()?;
+
+        let inner;
+        parenthesized!(inner in input);
+        let inner: TokenStream = inner.parse()?;
+        Ok(Self { inner })
+    }
+}
+
+//impl Parse for Saturate {
+//fn parse(input: ParseStream) -> Result<Self> {
+//    let speculative = input.fork();
+//    let ident: Ident = speculative.parse()?;
+//    if ident.to_string().to_lowercase().as_str() != "saturate" {
+//        return Err(input.error("saturate"));
+//    }
+//    let _: Ident = input.parse()?;
+//
+//    let inner;
+//    parenthesized!(inner in input);
+//    let lhs = inner.parse()?;
+//    let _: Token![,] = inner.parse()?;
+//    let operation = inner.parse()?;
+//    let _: Token![,] = inner.parse()?;
+//    let rhs = inner.parse()?;
+//    let _: Token![,] = inner.parse()?;
+//    let bits: LitInt = inner.parse()?;
+//    let bits: u64 = bits.base10_parse()?;
+//
+//    Ok(Self {
+//        lhs,
+//        operation,
+//        rhs,
+//        bits,
+//    })
+//}

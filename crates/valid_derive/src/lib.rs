@@ -26,13 +26,10 @@ pub fn validate_macro_derive(input: TokenStream) -> TokenStream {
                             fields.push(quote!(#f_id));
                         }
 
-                        variants.push(
-                            quote!(if let #id::#var_id { #(#fields, )* } = input { #(#fields.is_valid() &&)* true } else ),
-                        );
+                        variants.push(quote!(if let #id::#var_id { #(#fields, )* } = input { #(#fields.is_valid() &&)* true } else ));
                     }
                     Fields::Unnamed(_) => {
-                        variants
-                            .push(quote!(if let #id::#var_id(t) = input { t.is_valid() } else ));
+                        variants.push(quote!(if let #id::#var_id(t) = input { t.is_valid() } else ));
                     }
                     Fields::Unit => {
                         variants.push(quote!(if let #id::#var_id = input { true } else ));

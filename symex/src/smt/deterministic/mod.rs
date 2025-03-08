@@ -18,56 +18,44 @@ use crate::{
 };
 
 #[derive(Clone, Debug)]
-pub struct Bitwuzla {
-    pub ctx: Rc<bitwuzla::Bitwuzla>,
-}
+pub struct Deterministic {}
 
-impl SmtSolver for Bitwuzla {
-    type Expression = BitwuzlaExpr;
-    type Memory = BitwuzlaMemory;
+impl SmtSolver for Deterministic {
+    type Expression = u32;
+    type Memory = DeterministicMemory;
 
     fn new() -> Self {
         //ctx.set_opt(BtorOption::Incremental(true));
         //ctx.set_opt(BtorOption::PrettyPrint(true));
         //ctx.set_opt(BtorOption::OutputNumberFormat(NumberFormat::Hexadecimal));
 
-        Self {
-            ctx: Rc::new(
-                bitwuzla::Bitwuzla::builder()
-                    //.n_threads(12)
-                    .with_model_gen()
-                    .build(),
-            ),
-        }
+        Self {}
     }
 
     fn one(&self, bits: u32) -> Self::Expression {
-        self._one(bits)
+        1
     }
 
-    fn pop(&self) {
-        self._pop();
-    }
+    fn pop(&self) {}
 
     fn zero(&self, size: u32) -> Self::Expression {
-        self._zero(size)
+        0
     }
 
     fn unconstrained(&self, size: u32, name: &str) -> Self::Expression {
-        warn!("New unconstrained value {name}");
-        self._unconstrained(size, name)
+        panic!("Cannot have unconstrained deterministic values.")
     }
 
     fn from_bool(&self, value: bool) -> Self::Expression {
-        self._from_bool(value)
+        value as u32
     }
 
-    fn from_u64(&self, value: u64, size: u32) -> Self::Expression {
-        self._from_u64(value, size)
+    fn from_u64(&self, value: u64, _size: u32) -> Self::Expression {
+        value as u32
     }
 
     fn from_binary_string(&self, bits: &str) -> Self::Expression {
-        self._from_binary_string(bits)
+        bits.parse()
     }
 
     fn unsigned_max(&self, size: u32) -> Self::Expression {
@@ -75,7 +63,7 @@ impl SmtSolver for Bitwuzla {
     }
 
     fn signed_max(&self, size: u32) -> Self::Expression {
-        self._signed_max(size)
+        (1 << (size + 1)) - 1
     }
 
     fn signed_min(&self, size: u32) -> Self::Expression {
@@ -1013,14 +1001,6 @@ impl SmtMap for BitwuzlaMemory {
         ret
     }
 
-    fn unconstrained_unnamed(&mut self, size: usize) -> Self::Expression {
-        assert!(size != 0, "Tried to create a 0 width unconstrained value");
-        let ret = BV::new(self.ram.ctx.clone(), size as u64, None);
-        let ret = BitwuzlaExpr(ret);
-        ret.resize_unsigned(size as u32);
-        ret
-    }
-
     fn get_ptr_size(&self) -> usize {
         self.program_memory.get_ptr_size() as usize
     }
@@ -1531,7 +1511,7 @@ mod test {
             (),
             crate::arch::SupportedArchitecture::Armv6M(ArmV6M::new()),
         );
-        VM::new_test_vm(project, state, NoLogger).unwrap()
+        VM::new_test_vm(project, state).unwrap()
     }
 
     #[test]

@@ -8,7 +8,7 @@ use hashbrown::HashMap;
 use super::ArmV7EM;
 use crate::{
     arch::{arm::v7::decoder::*, Architecture},
-    defaults::boolector::DefaultComposition,
+    defaults::bitwuzla::DefaultCompositionNoLogger,
     executor::{
         hooks::HookContainer,
         instruction::{CycleCount, Instruction},
@@ -16,8 +16,9 @@ use crate::{
         vm::VM,
         GAExecutor,
     },
+    logging::NoLogger,
     project::{dwarf_helper::SubProgramMap, Project},
-    smt::{smt_boolector::Boolector, SmtSolver},
+    smt::{bitwuzla::Bitwuzla, SmtExpr, SmtSolver},
     Endianness,
     WordSize,
 };
@@ -27,7 +28,7 @@ macro_rules! get_operand {
         let operand = Operand::Register(stringify!($id).to_owned());
         let local = HashMap::new();
         $exec
-            .get_operand_value(&operand, &local)
+            .get_operand_value(&operand, &local, &mut crate::logging::NoLogger)
             .expect("Could not find a test specified register")
             .get_constant()
             .expect("Could not get test specified register as constant")
@@ -36,19 +37,16 @@ macro_rules! get_operand {
         let operand = Operand::Flag(stringify!($id).to_owned());
         let local = HashMap::new();
         $exec
-            .get_operand_value(&operand, &local)
+            .get_operand_value(&operand, &local, &mut crate::logging::NoLogger)
             .expect("Could not find a test specified flag")
             .get_constant()
             .expect("Could not get test specified flag as constant")
     }};
     ($exec:ident address $id:literal $width:literal) => {{
-        let operand = Operand::Address(
-            general_assembly::operand::DataWord::Word32($id),
-            $width as u32,
-        );
+        let operand = Operand::Address(general_assembly::operand::DataWord::Word32($id), $width as u32);
         let local = HashMap::new();
         $exec
-            .get_operand_value(&operand, &local)
+            .get_operand_value(&operand, &local, &mut crate::logging::NoLogger)
             .expect("Could not find a test specified flag")
             .get_constant()
             .expect("Could not get test specified flag as constant")
@@ -135,7 +133,7 @@ macro_rules! initiate {
             let operand = initiate!($exec $(register $reg)? $(address $address $width)? $(flag $flag)?);
             let intermediate = Operand::Immediate(general_assembly::operand::DataWord::Word32($eq_value as u32));
             let operation = general_assembly::operation::Operation::Move { destination: operand, source: intermediate};
-            $exec.execute_operation(&operation,&mut HashMap::new()).expect("Malformed test");
+            $exec.execute_operation(&operation,&mut HashMap::new(),&mut crate::logging::NoLogger).expect("Malformed test");
         )*
 
     };
@@ -153,20 +151,13 @@ macro_rules! initiate {
     };
 }
 
-fn setup_test_vm() -> VM<DefaultComposition> {
-    let ctx = Boolector::new();
-    let project_global = Box::new(Project::manual_project(
-        vec![],
-        0,
-        0,
-        WordSize::Bit32,
-        Endianness::Little,
-        HashMap::new(),
-    ));
+fn setup_test_vm() -> VM<DefaultCompositionNoLogger> {
+    let ctx = Bitwuzla::new();
+    let project_global = Box::new(Project::manual_project(vec![], 0, 0, WordSize::Bit32, Endianness::Little, HashMap::new()));
     let project: &'static Project = Box::leak(project_global);
     let mut hooks = HookContainer::new();
     ArmV7EM {}.add_hooks(&mut hooks, &mut SubProgramMap::empty());
-    let state = GAState::<DefaultComposition>::create_test_state(
+    let state = GAState::<DefaultCompositionNoLogger>::create_test_state(
         project,
         ctx.clone(),
         ctx.clone(),
@@ -176,7 +167,7 @@ fn setup_test_vm() -> VM<DefaultComposition> {
         (),
         crate::arch::SupportedArchitecture::Armv7EM(ArmV7EM::new()),
     );
-    VM::new_test_vm(project, state).unwrap()
+    VM::new_test_vm(project, state, NoLogger).unwrap()
 }
 
 #[test]
@@ -208,9 +199,7 @@ fn test_adc_no_set_flag() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 6,
@@ -247,9 +236,7 @@ fn test_adc_set_flag() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 6,
@@ -278,9 +265,7 @@ fn test_adc_set_flag() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0,
@@ -313,9 +298,7 @@ fn test_adc_set_flag() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0,
@@ -348,9 +331,7 @@ fn test_adc_set_flag() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0,
@@ -386,9 +367,7 @@ fn test_adc_imm_no_set_flag() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 6,
@@ -409,13 +388,7 @@ fn test_adc_immediate_set_flag() {
         flag C = true
     });
 
-    let instruction: Operation = AdcImmediate::builder()
-        .set_s(Some(true))
-        .set_rd(None)
-        .set_rn(Register::R1)
-        .set_imm(3)
-        .complete()
-        .into();
+    let instruction: Operation = AdcImmediate::builder().set_s(Some(true)).set_rd(None).set_rn(Register::R1).set_imm(3).complete().into();
 
     let instruction = Instruction {
         operations: (16, instruction).convert(false),
@@ -423,9 +396,7 @@ fn test_adc_immediate_set_flag() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 6,
@@ -452,9 +423,7 @@ fn test_adc_immediate_set_flag() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0,
@@ -493,9 +462,7 @@ fn test_add_no_set_flag() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 5,
@@ -532,9 +499,7 @@ fn test_add_set_flag() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 5,
@@ -563,9 +528,7 @@ fn test_add_set_flag() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0,
@@ -598,9 +561,7 @@ fn test_add_set_flag() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0,
@@ -633,9 +594,7 @@ fn test_add_set_flag() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0,
@@ -657,13 +616,7 @@ fn test_add_imm_no_set_flag() {
         flag C = true
     });
 
-    let instruction: Operation = AdcImmediate::builder()
-        .set_s(Some(false))
-        .set_rd(None)
-        .set_rn(Register::R1)
-        .set_imm(3)
-        .complete()
-        .into();
+    let instruction: Operation = AdcImmediate::builder().set_s(Some(false)).set_rd(None).set_rn(Register::R1).set_imm(3).complete().into();
 
     let instruction = Instruction {
         operations: (16, instruction).convert(false),
@@ -671,9 +624,7 @@ fn test_add_imm_no_set_flag() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 6,
@@ -709,9 +660,7 @@ fn test_add_immediate_set_flag() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 6,
@@ -738,9 +687,7 @@ fn test_add_immediate_set_flag() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0,
@@ -760,15 +707,11 @@ fn test_add_sp_immediate() {
     initiate!(executor {
         register R1 = 8;
         register SP = 8;
+        register PC = 0;
         flag C = true
     });
 
-    let instruction: Operation = AddSPImmediate::builder()
-        .set_s(Some(true))
-        .set_rd(None)
-        .set_imm(16)
-        .complete()
-        .into();
+    let instruction: Operation = AddSPImmediate::builder().set_s(Some(true)).set_rd(None).set_imm(16).complete().into();
 
     let instruction = Instruction {
         operations: (16, instruction).convert(false),
@@ -776,9 +719,7 @@ fn test_add_sp_immediate() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register SP == 24,
@@ -791,12 +732,7 @@ fn test_add_sp_immediate() {
         flag C = true
     });
 
-    let instruction: Operation = AddSPImmediate::builder()
-        .set_s(Some(false))
-        .set_rd(Some(Register::SP))
-        .set_imm(16)
-        .complete()
-        .into();
+    let instruction: Operation = AddSPImmediate::builder().set_s(Some(false)).set_rd(Some(Register::SP)).set_imm(16).complete().into();
 
     let instruction = Instruction {
         operations: (16, instruction).convert(false),
@@ -804,9 +740,7 @@ fn test_add_sp_immediate() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register SP == 24,
@@ -819,12 +753,7 @@ fn test_add_sp_immediate() {
         flag C = true
     });
 
-    let instruction: Operation = AddSPImmediate::builder()
-        .set_s(Some(false))
-        .set_rd(Some(Register::R1))
-        .set_imm(16)
-        .complete()
-        .into();
+    let instruction: Operation = AddSPImmediate::builder().set_s(Some(false)).set_rd(Some(Register::R1)).set_imm(16).complete().into();
 
     let instruction = Instruction {
         operations: (16, instruction).convert(false),
@@ -832,9 +761,7 @@ fn test_add_sp_immediate() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 24,
@@ -869,9 +796,7 @@ fn test_add_sp_reg() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register SP == 24,
@@ -898,9 +823,7 @@ fn test_add_sp_reg() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register SP == 24,
@@ -917,10 +840,7 @@ fn test_add_sp_reg() {
         .set_s(Some(false))
         .set_rd(Some(Register::SP))
         .set_rm(Register::R1)
-        .set_shift(Some(ImmShift {
-            shift_n: 1,
-            shift_t: Shift::Lsl,
-        }))
+        .set_shift(Some(ImmShift { shift_n: 1, shift_t: Shift::Lsl }))
         .complete()
         .into();
 
@@ -930,9 +850,7 @@ fn test_add_sp_reg() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register SP == 24,
@@ -952,12 +870,7 @@ fn test_adr() {
         flag C = true
     });
 
-    let instruction: Operation = Adr::builder()
-        .set_rd(Register::PC)
-        .set_imm(4)
-        .set_add(true)
-        .complete()
-        .into();
+    let instruction: Operation = Adr::builder().set_rd(Register::PC).set_imm(4).set_add(true).complete().into();
 
     let instruction = Instruction {
         operations: (16, instruction).convert(false),
@@ -965,9 +878,7 @@ fn test_adr() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register PC == 24
@@ -978,12 +889,7 @@ fn test_adr() {
         flag C = true
     });
 
-    let instruction: Operation = Adr::builder()
-        .set_rd(Register::PC)
-        .set_imm(4)
-        .set_add(false)
-        .complete()
-        .into();
+    let instruction: Operation = Adr::builder().set_rd(Register::PC).set_imm(4).set_add(false).complete().into();
 
     let instruction = Instruction {
         operations: (16, instruction).convert(false),
@@ -991,9 +897,7 @@ fn test_adr() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register PC == 16
@@ -1004,12 +908,7 @@ fn test_adr() {
         flag C = true
     });
 
-    let instruction: Operation = Adr::builder()
-        .set_rd(Register::R0)
-        .set_imm(4)
-        .set_add(false)
-        .complete()
-        .into();
+    let instruction: Operation = Adr::builder().set_rd(Register::R0).set_imm(4).set_add(false).complete().into();
 
     let instruction = Instruction {
         operations: (16, instruction).convert(false),
@@ -1017,9 +916,7 @@ fn test_adr() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R0 == 16
@@ -1045,10 +942,7 @@ fn test_and_no_set_flag() {
         .set_rd(Some(Register::R1))
         .set_rn(Register::R1)
         .set_rm(Register::R2)
-        .set_shift(Some(ImmShift {
-            shift_n: 1,
-            shift_t: Shift::Lsl,
-        }))
+        .set_shift(Some(ImmShift { shift_n: 1, shift_t: Shift::Lsl }))
         .complete()
         .into();
 
@@ -1058,9 +952,7 @@ fn test_and_no_set_flag() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0b10,
@@ -1087,10 +979,7 @@ fn test_and_set_flag() {
         .set_rd(None)
         .set_rn(Register::R1)
         .set_rm(Register::R2)
-        .set_shift(Some(ImmShift {
-            shift_n: 1,
-            shift_t: Shift::Lsl,
-        }))
+        .set_shift(Some(ImmShift { shift_n: 1, shift_t: Shift::Lsl }))
         .complete()
         .into();
 
@@ -1100,9 +989,7 @@ fn test_and_set_flag() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0b10,
@@ -1121,10 +1008,7 @@ fn test_and_set_flag() {
         .set_rd(Some(Register::R1))
         .set_rn(Register::R1)
         .set_rm(Register::R2)
-        .set_shift(Some(ImmShift {
-            shift_n: 1,
-            shift_t: Shift::Lsl,
-        }))
+        .set_shift(Some(ImmShift { shift_n: 1, shift_t: Shift::Lsl }))
         .complete()
         .into();
 
@@ -1134,9 +1018,7 @@ fn test_and_set_flag() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0b00,
@@ -1159,10 +1041,7 @@ fn test_and_set_flag() {
         .set_rd(Some(Register::R1))
         .set_rn(Register::R1)
         .set_rm(Register::R2)
-        .set_shift(Some(ImmShift {
-            shift_n: 1,
-            shift_t: Shift::Lsl,
-        }))
+        .set_shift(Some(ImmShift { shift_n: 1, shift_t: Shift::Lsl }))
         .complete()
         .into();
 
@@ -1172,9 +1051,7 @@ fn test_and_set_flag() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0b00,
@@ -1197,10 +1074,7 @@ fn test_and_set_flag() {
         .set_rd(Some(Register::R1))
         .set_rn(Register::R1)
         .set_rm(Register::R2)
-        .set_shift(Some(ImmShift {
-            shift_n: 1,
-            shift_t: Shift::Lsl,
-        }))
+        .set_shift(Some(ImmShift { shift_n: 1, shift_t: Shift::Lsl }))
         .complete()
         .into();
 
@@ -1210,9 +1084,7 @@ fn test_and_set_flag() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0b00,
@@ -1235,10 +1107,7 @@ fn test_and_set_flag() {
         .set_rd(None)
         .set_rn(Register::R1)
         .set_rm(Register::R2)
-        .set_shift(Some(ImmShift {
-            shift_n: 1,
-            shift_t: Shift::Lsl,
-        }))
+        .set_shift(Some(ImmShift { shift_n: 1, shift_t: Shift::Lsl }))
         .complete()
         .into();
 
@@ -1248,9 +1117,7 @@ fn test_and_set_flag() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0b00,
@@ -1286,9 +1153,7 @@ fn test_and_imm_no_set_flag() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 6,
@@ -1324,9 +1189,7 @@ fn test_and_immediate_set_flag() {
         max_cycle: CycleCount::Value(0),
     };
 
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0b10,
@@ -1354,9 +1217,7 @@ fn test_and_immediate_set_flag() {
         max_cycle: CycleCount::Value(0),
     };
 
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0b10,
@@ -1393,9 +1254,7 @@ fn test_and_immediate_set_flag() {
         max_cycle: CycleCount::Value(0),
     };
 
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0b00,
@@ -1423,9 +1282,7 @@ fn test_and_immediate_set_flag() {
         max_cycle: CycleCount::Value(0),
     };
 
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x80000000,
@@ -1460,9 +1317,7 @@ fn test_asr_immediate() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0xc0000000,
@@ -1498,9 +1353,7 @@ fn test_asr_immediate_set_flag() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0xc0000000,
@@ -1529,9 +1382,7 @@ fn test_asr_immediate_set_flag() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x00000000,
@@ -1560,9 +1411,7 @@ fn test_asr_immediate_set_flag() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0xc0000000,
@@ -1591,9 +1440,7 @@ fn test_asr_immediate_set_flag() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x00000000,
@@ -1629,9 +1476,7 @@ fn test_asr() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0xc0000000,
@@ -1668,9 +1513,7 @@ fn test_asr_set_flag() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0xc0000000,
@@ -1700,9 +1543,7 @@ fn test_asr_set_flag() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x00000000,
@@ -1732,9 +1573,7 @@ fn test_asr_set_flag() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0xc0000000,
@@ -1764,9 +1603,7 @@ fn test_asr_set_flag() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x00000000,
@@ -1789,11 +1626,7 @@ fn test_b() {
         flag C = true
     });
 
-    let instruction: Operation = B::builder()
-        .set_condition(Condition::None)
-        .set_imm(1230)
-        .complete()
-        .into();
+    let instruction: Operation = B::builder().set_condition(Condition::None).set_imm(1230).complete().into();
 
     let instruction = Instruction {
         operations: (16, instruction).convert(false),
@@ -1801,9 +1634,7 @@ fn test_b() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register PC == 1234
@@ -1823,12 +1654,9 @@ fn test_b_conditional() {
         register R2 = 1;
         flag C = true
     });
+    println!("Init done! {}", executor.state.memory);
 
-    let instruction: Operation = B::builder()
-        .set_condition(Condition::Cs)
-        .set_imm(1230)
-        .complete()
-        .into();
+    let instruction: Operation = B::builder().set_condition(Condition::Cs).set_imm(1230).complete().into();
 
     let instruction = Instruction {
         operations: (16, instruction).convert(false),
@@ -1836,9 +1664,7 @@ fn test_b_conditional() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register PC == 1234
@@ -1851,11 +1677,7 @@ fn test_b_conditional() {
         flag C = true
     });
 
-    let instruction: Operation = B::builder()
-        .set_condition(Condition::Cc)
-        .set_imm(1230)
-        .complete()
-        .into();
+    let instruction: Operation = B::builder().set_condition(Condition::Cc).set_imm(1230).complete().into();
 
     let instruction = Instruction {
         operations: (16, instruction).convert(false),
@@ -1863,9 +1685,7 @@ fn test_b_conditional() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register PC == 2
@@ -1878,11 +1698,7 @@ fn test_b_conditional() {
         flag V = true
     });
 
-    let instruction: Operation = B::builder()
-        .set_condition(Condition::Vs)
-        .set_imm(1230)
-        .complete()
-        .into();
+    let instruction: Operation = B::builder().set_condition(Condition::Vs).set_imm(1230).complete().into();
 
     let instruction = Instruction {
         operations: (16, instruction).convert(false),
@@ -1890,9 +1706,7 @@ fn test_b_conditional() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register PC == 1234
@@ -1905,11 +1719,7 @@ fn test_b_conditional() {
         flag V = true
     });
 
-    let instruction: Operation = B::builder()
-        .set_condition(Condition::Vc)
-        .set_imm(1230)
-        .complete()
-        .into();
+    let instruction: Operation = B::builder().set_condition(Condition::Vc).set_imm(1230).complete().into();
 
     let instruction = Instruction {
         operations: (16, instruction).convert(false),
@@ -1917,9 +1727,7 @@ fn test_b_conditional() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register PC == 2
@@ -1949,9 +1757,7 @@ fn test_bx() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register PC == 0x1234
@@ -1972,12 +1778,7 @@ fn test_bfc() {
         flag C = true
     });
 
-    let instruction: Operation = Bfc::builder()
-        .set_rd(Register::R1)
-        .set_lsb(0)
-        .set_msb(2)
-        .complete()
-        .into();
+    let instruction: Operation = Bfc::builder().set_rd(Register::R1).set_lsb(0).set_msb(2).complete().into();
 
     let instruction = Instruction {
         operations: (16, instruction).convert(false),
@@ -1985,9 +1786,7 @@ fn test_bfc() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x80010000
@@ -2008,13 +1807,7 @@ fn test_bfi() {
         flag C = true
     });
 
-    let instruction: Operation = Bfi::builder()
-        .set_rd(Register::R1)
-        .set_lsb(0)
-        .set_msb(4)
-        .set_rn(Register::R2)
-        .complete()
-        .into();
+    let instruction: Operation = Bfi::builder().set_rd(Register::R1).set_lsb(0).set_msb(4).set_rn(Register::R2).complete().into();
 
     let instruction = Instruction {
         operations: (16, instruction).convert(false),
@@ -2022,9 +1815,7 @@ fn test_bfi() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x8001000c
@@ -2046,13 +1837,7 @@ fn test_bfi_panic() {
         flag C = true
     });
 
-    let instruction: Operation = Bfi::builder()
-        .set_rd(Register::R1)
-        .set_lsb(4)
-        .set_msb(0)
-        .set_rn(Register::R2)
-        .complete()
-        .into();
+    let instruction: Operation = Bfi::builder().set_rd(Register::R1).set_lsb(4).set_msb(0).set_rn(Register::R2).complete().into();
 
     let instruction = Instruction {
         operations: (16, instruction).convert(false),
@@ -2060,9 +1845,7 @@ fn test_bfi_panic() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x8001000c
@@ -2098,9 +1881,7 @@ fn test_bic_imm() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x80010001,
@@ -2137,9 +1918,7 @@ fn test_bic_imm_set_flags() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x80010001,
@@ -2156,7 +1935,7 @@ fn test_bic_imm_set_flags() {
     let instruction: Operation = BicImmediate::builder()
         .set_rd(None)
         .set_rn(Register::R1)
-        .set_imm(0xFFFFFFFF)
+        .set_imm(0xffffffff)
         .set_s(Some(true))
         .set_carry(Some(true))
         .complete()
@@ -2168,9 +1947,7 @@ fn test_bic_imm_set_flags() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0,
@@ -2208,9 +1985,7 @@ fn test_bic_reg() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x80010001,
@@ -2237,10 +2012,7 @@ fn test_bic_reg_set_flags() {
         .set_rn(Register::R1)
         .set_s(Some(SetFlags::Literal(true)))
         .set_rm(Register::R2)
-        .set_shift(Some(ImmShift {
-            shift_n: 1,
-            shift_t: Shift::Lsl,
-        }))
+        .set_shift(Some(ImmShift { shift_n: 1, shift_t: Shift::Lsl }))
         .complete()
         .into();
 
@@ -2250,9 +2022,7 @@ fn test_bic_reg_set_flags() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x80010001,
@@ -2271,10 +2041,7 @@ fn test_bic_reg_set_flags() {
         .set_rn(Register::R1)
         .set_s(Some(SetFlags::Literal(true)))
         .set_rm(Register::R2)
-        .set_shift(Some(ImmShift {
-            shift_n: 1,
-            shift_t: Shift::Lsl,
-        }))
+        .set_shift(Some(ImmShift { shift_n: 1, shift_t: Shift::Lsl }))
         .complete()
         .into();
 
@@ -2284,9 +2051,7 @@ fn test_bic_reg_set_flags() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0,
@@ -2338,9 +2103,7 @@ fn test_bl() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register PC == 0x108,
@@ -2366,9 +2129,7 @@ fn test_bl() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     // TODO! Discuss this, the spec is the same for the v6 and the v7 but the v6
     // only supports 16 bit instructions so this might be a fulhack?
@@ -2397,11 +2158,7 @@ fn test_cmp_imm() {
         flag Z = false
     });
 
-    let instruction: Operation = CmpImmediate::builder()
-        .set_rn(Register::R1)
-        .set_imm(0x4)
-        .complete()
-        .into();
+    let instruction: Operation = CmpImmediate::builder().set_rn(Register::R1).set_imm(0x4).complete().into();
 
     let instruction = Instruction {
         operations: (16, instruction).convert(false),
@@ -2409,9 +2166,7 @@ fn test_cmp_imm() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         flag C == 0,
@@ -2428,11 +2183,7 @@ fn test_cmp_imm() {
         flag Z = false
     });
 
-    let instruction: Operation = CmpImmediate::builder()
-        .set_rn(Register::R1)
-        .set_imm(0x4)
-        .complete()
-        .into();
+    let instruction: Operation = CmpImmediate::builder().set_rn(Register::R1).set_imm(0x4).complete().into();
 
     let instruction = Instruction {
         operations: (16, instruction).convert(false),
@@ -2440,9 +2191,7 @@ fn test_cmp_imm() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         flag C == 1,
@@ -2482,9 +2231,7 @@ fn test_ldr_imm() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x100,
@@ -2514,9 +2261,7 @@ fn test_ldr_imm() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x100,
@@ -2546,9 +2291,7 @@ fn test_ldr_imm() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x100,
@@ -2578,9 +2321,7 @@ fn test_ldr_imm() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x100,
@@ -2609,9 +2350,7 @@ fn test_ldr_imm() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x100,
@@ -2633,12 +2372,7 @@ fn test_ldr_literal() {
         register PC = 0
     });
 
-    let instruction: Operation = LdrLiteral::builder()
-        .set_add(true)
-        .set_rt(Register::R1)
-        .set_imm(0x100)
-        .complete()
-        .into();
+    let instruction: Operation = LdrLiteral::builder().set_add(true).set_rt(Register::R1).set_imm(0x100).complete().into();
 
     let instruction = Instruction {
         operations: (16, instruction).convert(false),
@@ -2646,9 +2380,7 @@ fn test_ldr_literal() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x100,
@@ -2685,9 +2417,7 @@ fn test_ldr_register() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register SP == 0x100,
@@ -2717,9 +2447,7 @@ fn test_ldr_register() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register SP == 0x100,
@@ -2739,10 +2467,7 @@ fn test_ldr_register() {
         .set_rt(Register::SP)
         .set_w(Some(true))
         .set_rm(Register::SP)
-        .set_shift(Some(ImmShift {
-            shift_t: Shift::Lsl,
-            shift_n: 1,
-        }))
+        .set_shift(Some(ImmShift { shift_t: Shift::Lsl, shift_n: 1 }))
         .complete()
         .into();
 
@@ -2752,9 +2477,7 @@ fn test_ldr_register() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register SP == 0x100,
@@ -2792,9 +2515,7 @@ fn test_ldrh_imm() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x1000,
@@ -2823,9 +2544,7 @@ fn test_ldrh_imm() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x1000,
@@ -2854,9 +2573,7 @@ fn test_ldrh_imm() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x1000,
@@ -2885,9 +2602,7 @@ fn test_ldrh_imm() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x1000,
@@ -2915,9 +2630,7 @@ fn test_ldrh_imm() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x1000,
@@ -2955,9 +2668,7 @@ fn test_ldrb_imm() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x0000,
@@ -2987,9 +2698,7 @@ fn test_ldrb_imm() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x0001,
@@ -3018,9 +2727,7 @@ fn test_ldrb_imm() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x001,
@@ -3049,9 +2756,7 @@ fn test_ldrb_imm() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x0002,
@@ -3080,9 +2785,7 @@ fn test_ldrb_imm() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x004,
@@ -3110,9 +2813,7 @@ fn test_ldrb_imm() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x0006,
@@ -3148,9 +2849,7 @@ fn test_lsl_immediate() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x3,
@@ -3181,9 +2880,7 @@ fn test_lsl_immediate() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0,
@@ -3221,9 +2918,7 @@ fn test_lsr_immediate() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 3,
@@ -3254,9 +2949,7 @@ fn test_lsr_immediate() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0,
@@ -3294,9 +2987,7 @@ fn test_mov_imm_no_set_flags() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x0,
@@ -3334,9 +3025,7 @@ fn test_mov_imm_set_flags() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x0,
@@ -3366,9 +3055,7 @@ fn test_mov_imm_set_flags() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x80010001,
@@ -3393,12 +3080,7 @@ fn test_mov_reg_no_set_flags() {
         flag N = 0
     });
 
-    let instruction: Operation = MovRegister::builder()
-        .set_rd(Register::R1)
-        .set_rm(Register::R2)
-        .set_s(None)
-        .complete()
-        .into();
+    let instruction: Operation = MovRegister::builder().set_rd(Register::R1).set_rm(Register::R2).set_s(None).complete().into();
 
     let instruction = Instruction {
         operations: (16, instruction).convert(false),
@@ -3406,9 +3088,7 @@ fn test_mov_reg_no_set_flags() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x0,
@@ -3433,12 +3113,7 @@ fn test_mov_reg_set_flags() {
         flag N = 0
     });
 
-    let instruction: Operation = MovRegister::builder()
-        .set_rd(Register::R1)
-        .set_rm(Register::R2)
-        .set_s(Some(true))
-        .complete()
-        .into();
+    let instruction: Operation = MovRegister::builder().set_rd(Register::R1).set_rm(Register::R2).set_s(Some(true)).complete().into();
 
     let instruction = Instruction {
         operations: (16, instruction).convert(false),
@@ -3446,9 +3121,7 @@ fn test_mov_reg_set_flags() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x0,
@@ -3465,12 +3138,7 @@ fn test_mov_reg_set_flags() {
         flag N = 0
     });
 
-    let instruction: Operation = MovRegister::builder()
-        .set_rd(Register::R1)
-        .set_rm(Register::R2)
-        .set_s(Some(true))
-        .complete()
-        .into();
+    let instruction: Operation = MovRegister::builder().set_rd(Register::R1).set_rm(Register::R2).set_s(Some(true)).complete().into();
 
     let instruction = Instruction {
         operations: (16, instruction).convert(false),
@@ -3478,9 +3146,7 @@ fn test_mov_reg_set_flags() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x80010001,
@@ -3518,9 +3184,7 @@ fn test_mul() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x6,
@@ -3551,9 +3215,7 @@ fn test_mul() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x0,
@@ -3598,9 +3260,7 @@ fn test_pop() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R4 == 0x1001,
@@ -3644,9 +3304,7 @@ fn test_push() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         address (0x100,32) == 0x1001,
@@ -3686,9 +3344,7 @@ fn test_rsb() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 1000,
@@ -3717,9 +3373,7 @@ fn test_rsb() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         flag N == 1
@@ -3755,9 +3409,7 @@ fn test_strb_imm() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         address (0x103,8) == 0x034,
@@ -3787,9 +3439,7 @@ fn test_strb_imm() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         address (0x103,8) == 0x034,
@@ -3819,9 +3469,7 @@ fn test_strb_imm() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         address (0x103,8) == 0x034,
@@ -3851,9 +3499,7 @@ fn test_strb_imm() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         address (0x103,8) == 0x034,
@@ -3894,9 +3540,7 @@ fn test_strh_imm() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         address (0x104,32) == 0x1234,
@@ -3929,9 +3573,7 @@ fn test_strh_imm() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         address (0x104,32) == 0x1234,
@@ -3964,9 +3606,7 @@ fn test_strh_imm() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         address (0x100,32) == 0x1234,
@@ -3999,9 +3639,7 @@ fn test_strh_imm() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         address (0x104,32) == 0x1234,
@@ -4042,9 +3680,7 @@ fn test_str_imm() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         address (0x104,32) == 0x80001234,
@@ -4076,9 +3712,7 @@ fn test_str_imm() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         address (0x104,32) == 0x80001234,
@@ -4110,9 +3744,7 @@ fn test_str_imm() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         address (0x100,32) == 0x80001234,
@@ -4144,9 +3776,7 @@ fn test_str_imm() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         address (0x104,32) == 0x80001234,
@@ -4184,9 +3814,7 @@ fn test_sub_imm_no_flags() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x4,
@@ -4218,9 +3846,7 @@ fn test_sub_imm_no_flags() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0,
@@ -4253,9 +3879,7 @@ fn test_sub_imm_no_flags() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0,
@@ -4296,9 +3920,7 @@ fn test_sub_imm_set_flags() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x4,
@@ -4331,9 +3953,7 @@ fn test_sub_imm_set_flags() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0,
@@ -4376,9 +3996,7 @@ fn test_sub_reg_no_flags() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x4,
@@ -4413,9 +4031,7 @@ fn test_sub_reg_no_flags() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0,
@@ -4439,10 +4055,7 @@ fn test_sub_reg_no_flags() {
         .set_s(Some(SetFlags::Literal(false)))
         .set_rd(Some(Register::R1))
         .set_rm(Register::R2)
-        .set_shift(Some(ImmShift {
-            shift_n: 1,
-            shift_t: Shift::Lsl,
-        }))
+        .set_shift(Some(ImmShift { shift_n: 1, shift_t: Shift::Lsl }))
         .set_rn(Register::SP)
         .complete()
         .into();
@@ -4453,9 +4066,7 @@ fn test_sub_reg_no_flags() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0,
@@ -4498,9 +4109,7 @@ fn test_sub_reg_set_flags() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x4,
@@ -4535,9 +4144,7 @@ fn test_sub_reg_set_flags() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0,
@@ -4577,9 +4184,7 @@ fn test_sub_sp_imm_no_flags() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x4,
@@ -4611,9 +4216,7 @@ fn test_sub_sp_imm_no_flags() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0,
@@ -4645,9 +4248,7 @@ fn test_sub_sp_imm_no_flags() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0,
@@ -4674,12 +4275,7 @@ fn test_sub_sp_imm_set_flags() {
         flag C = 0
     });
 
-    let instruction: Operation = SubSpMinusImmediate::builder()
-        .set_s(Some(true))
-        .set_rd(Some(Register::R1))
-        .set_imm(0x100)
-        .complete()
-        .into();
+    let instruction: Operation = SubSpMinusImmediate::builder().set_s(Some(true)).set_rd(Some(Register::R1)).set_imm(0x100).complete().into();
 
     let instruction = Instruction {
         operations: (16, instruction).convert(false),
@@ -4687,9 +4283,7 @@ fn test_sub_sp_imm_set_flags() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x4,
@@ -4708,12 +4302,7 @@ fn test_sub_sp_imm_set_flags() {
         flag C = 0
     });
 
-    let instruction: Operation = SubSpMinusImmediate::builder()
-        .set_s(Some(true))
-        .set_rd(Some(Register::R1))
-        .set_imm(0x104)
-        .complete()
-        .into();
+    let instruction: Operation = SubSpMinusImmediate::builder().set_s(Some(true)).set_rd(Some(Register::R1)).set_imm(0x104).complete().into();
 
     let instruction = Instruction {
         operations: (16, instruction).convert(false),
@@ -4721,9 +4310,7 @@ fn test_sub_sp_imm_set_flags() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0,
@@ -4750,12 +4337,7 @@ fn test_sub_uxth() {
         flag C = 0
     });
 
-    let instruction: Operation = Uxth::builder()
-        .set_rd(Register::R1)
-        .set_rm(Register::R2)
-        .set_rotation(Some(1))
-        .complete()
-        .into();
+    let instruction: Operation = Uxth::builder().set_rd(Register::R1).set_rm(Register::R2).set_rotation(Some(1)).complete().into();
 
     let instruction = Instruction {
         operations: (16, instruction).convert(false),
@@ -4763,9 +4345,7 @@ fn test_sub_uxth() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x91,
@@ -4784,12 +4364,7 @@ fn test_sub_uxth() {
         flag C = 0
     });
 
-    let instruction: Operation = Uxth::builder()
-        .set_rd(Register::R1)
-        .set_rm(Register::R2)
-        .set_rotation(None)
-        .complete()
-        .into();
+    let instruction: Operation = Uxth::builder().set_rd(Register::R1).set_rm(Register::R2).set_rotation(None).complete().into();
 
     let instruction = Instruction {
         operations: (16, instruction).convert(false),
@@ -4797,9 +4372,7 @@ fn test_sub_uxth() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R1 == 0x123,
@@ -4829,12 +4402,7 @@ fn test_tb() {
         flag C = 0
     });
 
-    let instruction: Operation = Tb::builder()
-        .set_is_tbh(Some(false))
-        .set_rn(Register::R1)
-        .set_rm(Register::R2)
-        .complete()
-        .into();
+    let instruction: Operation = Tb::builder().set_is_tbh(Some(false)).set_rn(Register::R1).set_rm(Register::R2).complete().into();
 
     let instruction = Instruction {
         operations: (16, instruction).convert(false),
@@ -4842,9 +4410,7 @@ fn test_tb() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register PC == 0x48
@@ -4859,12 +4425,7 @@ fn test_tb() {
         address(0x126,16) = 0x21
     });
 
-    let instruction: Operation = Tb::builder()
-        .set_is_tbh(Some(true))
-        .set_rn(Register::R1)
-        .set_rm(Register::R2)
-        .complete()
-        .into();
+    let instruction: Operation = Tb::builder().set_is_tbh(Some(true)).set_rn(Register::R1).set_rm(Register::R2).complete().into();
 
     let instruction = Instruction {
         operations: (16, instruction).convert(false),
@@ -4872,9 +4433,7 @@ fn test_tb() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register PC == 0x48
@@ -4900,13 +4459,7 @@ fn test_bfi_2() {
         flag C = 0
     });
 
-    let instruction: Operation = Bfi::builder()
-        .set_rn(Register::R1)
-        .set_rd(Register::R2)
-        .set_lsb(3)
-        .set_msb(5)
-        .complete()
-        .into();
+    let instruction: Operation = Bfi::builder().set_rn(Register::R1).set_rd(Register::R2).set_lsb(3).set_msb(5).complete().into();
 
     let instruction = Instruction {
         operations: (16, instruction).convert(false),
@@ -4914,9 +4467,7 @@ fn test_bfi_2() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R2 == 0b011001
@@ -4933,13 +4484,7 @@ fn test_bfi_2() {
         flag C = 0
     });
 
-    let instruction: Operation = Bfi::builder()
-        .set_rn(Register::R1)
-        .set_rd(Register::R2)
-        .set_lsb(5)
-        .set_msb(5)
-        .complete()
-        .into();
+    let instruction: Operation = Bfi::builder().set_rn(Register::R1).set_rd(Register::R2).set_lsb(5).set_msb(5).complete().into();
 
     let instruction = Instruction {
         operations: (16, instruction).convert(false),
@@ -4947,9 +4492,7 @@ fn test_bfi_2() {
         instruction_size: 16,
         max_cycle: CycleCount::Value(0),
     };
-    executor
-        .execute_instruction(&instruction)
-        .expect("Malformed instruction");
+    executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
         register R2 == 0b100001

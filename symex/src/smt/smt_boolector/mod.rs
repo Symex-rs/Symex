@@ -89,17 +89,11 @@ impl SmtSolver for Boolector {
         self._is_sat()
     }
 
-    fn is_sat_with_constraint(
-        &self,
-        constraint: &Self::Expression,
-    ) -> Result<bool, super::SolverError> {
+    fn is_sat_with_constraint(&self, constraint: &Self::Expression) -> Result<bool, super::SolverError> {
         self._is_sat_with_constraint(constraint)
     }
 
-    fn is_sat_with_constraints(
-        &self,
-        constraints: &[Self::Expression],
-    ) -> Result<bool, super::SolverError> {
+    fn is_sat_with_constraints(&self, constraints: &[Self::Expression]) -> Result<bool, super::SolverError> {
         self._is_sat_with_constraints(constraints)
     }
 
@@ -107,35 +101,19 @@ impl SmtSolver for Boolector {
         self._assert(constraint);
     }
 
-    fn get_values(
-        &self,
-        expr: &Self::Expression,
-        upper_bound: usize,
-    ) -> Result<super::Solutions<Self::Expression>, super::SolverError> {
+    fn get_values(&self, expr: &Self::Expression, upper_bound: usize) -> Result<super::Solutions<Self::Expression>, super::SolverError> {
         self._get_values(expr, upper_bound)
     }
 
-    fn must_be_equal(
-        &self,
-        lhs: &Self::Expression,
-        rhs: &Self::Expression,
-    ) -> Result<bool, super::SolverError> {
+    fn must_be_equal(&self, lhs: &Self::Expression, rhs: &Self::Expression) -> Result<bool, super::SolverError> {
         self._must_be_equal(lhs, rhs)
     }
 
-    fn can_equal(
-        &self,
-        lhs: &Self::Expression,
-        rhs: &Self::Expression,
-    ) -> Result<bool, super::SolverError> {
+    fn can_equal(&self, lhs: &Self::Expression, rhs: &Self::Expression) -> Result<bool, super::SolverError> {
         self._can_equal(lhs, rhs)
     }
 
-    fn get_solutions(
-        &self,
-        expr: &Self::Expression,
-        upper_bound: usize,
-    ) -> Result<super::Solutions<Self::Expression>, super::SolverError> {
+    fn get_solutions(&self, expr: &Self::Expression, upper_bound: usize) -> Result<super::Solutions<Self::Expression>, super::SolverError> {
         self._get_solutions(expr, upper_bound)
     }
 }
@@ -204,10 +182,7 @@ impl Boolector {
 
     /// Solve for the solver state with the assumption of the passed
     /// constraints.
-    pub fn _is_sat_with_constraints(
-        &self,
-        constraints: &[BoolectorExpr],
-    ) -> Result<bool, SolverError> {
+    pub fn _is_sat_with_constraints(&self, constraints: &[BoolectorExpr]) -> Result<bool, SolverError> {
         for constraint in constraints {
             constraint.0.assume();
         }
@@ -228,11 +203,7 @@ impl Boolector {
     /// Returns concrete solutions up to `upper_bound`, the returned
     /// [`Solutions`] has variants for if the number of solution exceeds the
     /// upper bound.
-    pub fn _get_values(
-        &self,
-        expr: &BoolectorExpr,
-        upper_bound: usize,
-    ) -> Result<Solutions<BoolectorExpr>, SolverError> {
+    pub fn _get_values(&self, expr: &BoolectorExpr, upper_bound: usize) -> Result<Solutions<BoolectorExpr>, SolverError> {
         let expr = expr.clone().simplify();
         if expr.get_constant().is_some() {
             return Ok(Solutions::Exactly(vec![expr]));
@@ -253,11 +224,7 @@ impl Boolector {
 
     /// Returns `true` if `lhs` and `rhs` must be equal under the currene?
     /// constraints.
-    pub fn _must_be_equal(
-        &self,
-        lhs: &BoolectorExpr,
-        rhs: &BoolectorExpr,
-    ) -> Result<bool, SolverError> {
+    pub fn _must_be_equal(&self, lhs: &BoolectorExpr, rhs: &BoolectorExpr) -> Result<bool, SolverError> {
         // Add the constraint lhs != rhs and invert the results. The only way
         // for `lhs != rhs` to be `false` is that if they are equal.
         let constraint = lhs.ne(rhs);
@@ -266,11 +233,7 @@ impl Boolector {
     }
 
     /// Check if `lhs` and `rhs` can be equal under the current constraints.
-    pub fn _can_equal(
-        &self,
-        lhs: &BoolectorExpr,
-        rhs: &BoolectorExpr,
-    ) -> Result<bool, SolverError> {
+    pub fn _can_equal(&self, lhs: &BoolectorExpr, rhs: &BoolectorExpr) -> Result<bool, SolverError> {
         self.is_sat_with_constraint(&lhs.eq(rhs))
     }
 
@@ -279,11 +242,7 @@ impl Boolector {
     /// Returns concrete solutions up to a maximum of `upper_bound`. If more
     /// solutions are available the error [`SolverError::TooManySolutions`]
     /// is returned.
-    pub fn _get_solutions2(
-        &self,
-        expr: &BoolectorExpr,
-        upper_bound: usize,
-    ) -> Result<Vec<BoolectorExpr>, SolverError> {
+    pub fn _get_solutions2(&self, expr: &BoolectorExpr, upper_bound: usize) -> Result<Vec<BoolectorExpr>, SolverError> {
         let result = self.get_values(expr, upper_bound)?;
         match result {
             Solutions::Exactly(solutions) => Ok(solutions),
@@ -292,11 +251,7 @@ impl Boolector {
     }
 
     // TODO: Compare this against the other... Not sure why there are two.
-    fn _get_solutions(
-        &self,
-        expr: &BoolectorExpr,
-        upper_bound: usize,
-    ) -> Result<Solutions<BoolectorExpr>, SolverError> {
+    fn _get_solutions(&self, expr: &BoolectorExpr, upper_bound: usize) -> Result<Solutions<BoolectorExpr>, SolverError> {
         let mut solutions = Vec::new();
 
         self.ctx.set_opt(BtorOption::ModelGen(ModelGen::All));
@@ -528,18 +483,8 @@ impl BoolectorArray {
     #[allow(clippy::cast_possible_truncation)]
     /// Create a new array where index has size `index_size` and each element
     /// has size `element_size`.
-    pub fn new(
-        ctx: &BoolectorSolverContext,
-        index_size: usize,
-        element_size: usize,
-        name: &str,
-    ) -> Self {
-        let memory = boolector::Array::new(
-            ctx.ctx.clone(),
-            index_size as u32,
-            element_size as u32,
-            Some(name),
-        );
+    pub fn new(ctx: &BoolectorSolverContext, index_size: usize, element_size: usize, name: &str) -> Self {
+        let memory = boolector::Array::new(ctx.ctx.clone(), index_size as u32, element_size as u32, Some(name));
 
         Self(memory)
     }
@@ -783,9 +728,7 @@ impl SmtExpr for BoolectorExpr {
     }
 
     fn get_constant(&self) -> Option<u64> {
-        self.0
-            .as_binary_str()
-            .map(|value| u64::from_str_radix(&value, 2).unwrap())
+        self.0.as_binary_str().map(|value| u64::from_str_radix(&value, 2).unwrap())
     }
 
     fn get_constant_bool(&self) -> Option<bool> {
@@ -860,9 +803,7 @@ impl SmtExpr for BoolectorExpr {
         // Check the sign bit if max or min should be given on overflow.
         let is_negative = self.slice(self.len() - 1, self.len() - 1).simplify();
 
-        overflow
-            .ite(&is_negative.ite(&min, &max), &result)
-            .simplify()
+        overflow.ite(&is_negative.ite(&min, &max), &result).simplify()
     }
 
     /// Saturated unsigned subtraction.
@@ -897,9 +838,7 @@ impl SmtExpr for BoolectorExpr {
         // Check the sign bit if max or min should be given on overflow.
         let is_negative = self.slice(self.len() - 1, self.len() - 1).simplify();
 
-        overflow
-            .ite(&is_negative.ite(&min, &max), &result)
-            .simplify()
+        overflow.ite(&is_negative.ite(&min, &max), &result).simplify()
     }
 
     fn pop(&self) {

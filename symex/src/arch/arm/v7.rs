@@ -16,13 +16,11 @@ use crate::{
     smt::{SmtExpr, SmtMap},
 };
 
-#[rustfmt::skip]
-pub mod decoder;
+//#[rustfmt::skip]
 pub mod compare;
+pub mod decoder;
 #[cfg(test)]
 pub mod test;
-#[cfg(test)]
-pub mod test_bitwuzla;
 pub mod timing;
 
 /// Type level denotation for the ARMV7-EM ISA.
@@ -30,11 +28,7 @@ pub mod timing;
 pub struct ArmV7EM {}
 
 impl Architecture for ArmV7EM {
-    fn add_hooks<C: crate::Composition>(
-        &self,
-        cfg: &mut HookContainer<C>,
-        map: &mut SubProgramMap,
-    ) {
+    fn add_hooks<C: crate::Composition>(&self, cfg: &mut HookContainer<C>, map: &mut SubProgramMap) {
         let symbolic_sized = |state: &mut GAState<C>| {
             let value_ptr = state.memory.get_register("R0")?;
             let size = state.memory.get_register("R1")?.get_constant().unwrap() * 8;
@@ -54,11 +48,7 @@ impl Architecture for ArmV7EM {
             Ok(())
         };
 
-        let _ = cfg.add_pc_hook_regex(
-            map,
-            r"^symbolic_size<.+>$",
-            PCHook::Intrinsic(symbolic_sized),
-        );
+        let _ = cfg.add_pc_hook_regex(map, r"^symbolic_size<.+>$", PCHook::Intrinsic(symbolic_sized));
 
         // §B1.4 Specifies that R[15] => Addr(Current instruction) + 4
         //
@@ -70,11 +60,17 @@ impl Architecture for ArmV7EM {
         //
         // Or we can simply take the previous PC + 4.
         let read_pc = |state: &mut GAState<C>| {
-            let new_pc = state
-                .memory
-                .from_u64(state.last_pc + 4, state.memory.get_word_size())
-                .simplify();
+            let new_pc = state.memory.from_u64(state.last_pc + 4, state.memory.get_word_size()).simplify();
             Ok(new_pc)
+        };
+
+        let read_primask = |state: &mut GAState<C>| {
+            let primask: C::SmtExpression = state.memory.from_u64(0, state.memory.get_word_size()).simplify();
+            Ok(primask)
+        };
+
+        let write_primask = |_state: &mut GAState<C>, _| {
+            panic!("Cannot write to PRIMASK");
         };
 
         let read_sp = |state: &mut GAState<C>| {
@@ -86,16 +82,15 @@ impl Architecture for ArmV7EM {
 
         let write_pc = |state: &mut GAState<C>, value| state.set_register("PC".to_owned(), value);
         let write_sp = |state: &mut GAState<C>, value: C::SmtExpression| {
-            state.set_register(
-                "SP".to_string(),
-                value.and(&state.memory.from_u64((!(0b11u32)) as u64, 32)),
-            )?;
+            state.set_register("SP".to_string(), value.and(&state.memory.from_u64((!(0b11u32)) as u64, 32)))?;
             let sp = state.get_register("SP".to_owned()).unwrap();
             let sp = sp.simplify();
             state.set_register("SP".to_owned(), sp)
         };
 
         cfg.add_register_read_hook("PC+".to_string(), read_pc);
+        cfg.add_register_read_hook("PRIMASK".to_string(), read_primask);
+        cfg.add_register_write_hook("PRIMASK".to_string(), write_primask);
         cfg.add_register_write_hook("PC+".to_owned(), write_pc);
         cfg.add_register_read_hook("SP&".to_owned(), read_sp);
         cfg.add_register_write_hook("SP&".to_owned(), write_sp);
@@ -108,11 +103,7 @@ impl Architecture for ArmV7EM {
         cfg.add_memory_read_hook(0x4000c008, read_reset_done);
     }
 
-    fn translate<C: crate::Composition>(
-        &self,
-        buff: &[u8],
-        state: &GAState<C>,
-    ) -> Result<Instruction<C>, ArchError> {
+    fn translate<C: crate::Composition>(&self, buff: &[u8], state: &GAState<C>) -> Result<Instruction<C>, ArchError> {
         let mut buff: disarmv7::buffer::PeekableBuffer<u8, _> = buff.iter().cloned().into();
 
         let instr = V7Operation::parse(&mut buff).map_err(|e| ArchError::ParsingError(e.into()))?;
@@ -163,26 +154,16 @@ impl From<disarmv7::ParseError> for ParseError {
         match value {
             disarmv7::ParseError::Undefined => ParseError::InvalidInstruction,
             disarmv7::ParseError::ArchError(aerr) => match aerr {
-                disarmv7::prelude::arch::ArchError::InvalidCondition => {
-                    ParseError::InvalidCondition
-                }
-                disarmv7::prelude::arch::ArchError::InvalidRegister(_) => {
-                    ParseError::InvalidRegister
-                }
-                disarmv7::prelude::arch::ArchError::InvalidField(_) => {
-                    ParseError::MalfromedInstruction
-                }
+                disarmv7::prelude::arch::ArchError::InvalidCondition => ParseError::InvalidCondition,
+                disarmv7::prelude::arch::ArchError::InvalidRegister(_) => ParseError::InvalidRegister,
+                disarmv7::prelude::arch::ArchError::InvalidField(_) => ParseError::MalfromedInstruction,
             },
             disarmv7::ParseError::Unpredictable => ParseError::Unpredictable,
-            disarmv7::ParseError::Invalid16Bit(_) | disarmv7::ParseError::Invalid32Bit(_) => {
-                ParseError::InvalidInstruction
-            }
+            disarmv7::ParseError::Invalid16Bit(_) | disarmv7::ParseError::Invalid32Bit(_) => ParseError::InvalidInstruction,
             disarmv7::ParseError::InvalidField(_) => ParseError::MalfromedInstruction,
             disarmv7::ParseError::Incomplete32Bit => ParseError::InsufficientInput,
             disarmv7::ParseError::InternalError(info) => ParseError::Generic(info),
-            disarmv7::ParseError::IncompleteParser => {
-                ParseError::Generic("Encountered instruction that is not yet supported.")
-            }
+            disarmv7::ParseError::IncompleteParser => ParseError::Generic("Encountered instruction that is not yet supported."),
             disarmv7::ParseError::InvalidCondition => ParseError::InvalidCondition,
             disarmv7::ParseError::IncompleteProgram => ParseError::InsufficientInput,
             disarmv7::ParseError::InvalidRegister(_) => ParseError::InvalidRegister,

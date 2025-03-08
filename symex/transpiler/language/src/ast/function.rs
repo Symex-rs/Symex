@@ -1,7 +1,12 @@
 //! Defines all AST types that concern functions.
+use proc_macro2::TokenStream;
 use syn::{Expr, Ident, Lit};
 
-use super::{operand::Operand, operations::BinaryOperation};
+use super::{
+    operand::{IdentOperand, Operand},
+    operations::{BinOp, BinaryOperation, CompareOperation},
+    IRExpr,
+};
 
 #[derive(Debug, Clone)]
 /// Enumerates all supported function types
@@ -85,6 +90,14 @@ pub enum Intrinsic {
     /// Converts the inner [`IRExpr`](crate::ast::IRExpr) to its signed
     /// equivalent.
     Signed(Signed),
+
+    /// Conditionally runs a set of operations.
+    Ite(Ite),
+
+    /// Aborts the current path returning a message to the user.
+    Abort(Abort),
+    // /// Saturates the contained operation.
+    //Saturate(Saturate),
 }
 
 // ===============================================
@@ -136,7 +149,9 @@ pub struct SignExtend {
     /// Operand to sign extend.
     pub operand: Operand,
     /// The bit that contains the sign.
-    pub bits: Expr,
+    pub sign_bit: Expr,
+    /// The size of the target value in bits.
+    pub target_size: Expr,
 }
 
 #[derive(Debug, Clone)]
@@ -249,4 +264,26 @@ pub struct Sra {
     pub operand: Operand,
     /// How far to shift.
     pub n: Expr,
+}
+
+#[derive(Debug, Clone)]
+/// Conditionally runs a set of operations.
+pub struct Ite {
+    /// The left hand side of the comparison operation.
+    pub lhs: IdentOperand,
+    /// The comparison operation to apply.
+    pub operation: CompareOperation,
+    /// The right hand side of the comparison operation.
+    pub rhs: IdentOperand,
+    /// Executes if the comparison returns true.
+    pub then: Vec<IRExpr>,
+    /// Executes if the comparison returns false.
+    pub otherwise: Vec<IRExpr>,
+}
+
+#[derive(Debug, Clone)]
+/// Conditionally aborts the current path.
+pub struct Abort {
+    /// The message to pass to format!.
+    pub inner: TokenStream,
 }

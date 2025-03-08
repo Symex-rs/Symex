@@ -15,26 +15,20 @@ pub struct Path<C: Composition> {
     pub constraints: Vec<<C::SMT as SmtSolver>::Expression>,
     /// The last pc visisted before creating the path.
     pub pc: u64,
+
+    pub logger: C::Logger,
 }
 
 impl<C: Composition> Path<C> {
     /// Creates a new path starting at a certain state, optionally asserting a
     /// condition on the created path.
-    pub fn new(
-        state: GAState<C>,
-        constraint: Option<<C::SMT as SmtSolver>::Expression>,
-        pc: u64,
-    ) -> Self {
+    pub fn new(state: GAState<C>, constraint: Option<<C::SMT as SmtSolver>::Expression>, pc: u64, logger: C::Logger) -> Self {
         let constraints = match constraint {
             Some(c) => vec![c],
             None => vec![],
         };
 
-        Self {
-            state,
-            constraints,
-            pc,
-        }
+        Self { state, constraints, pc, logger }
     }
 }
 
@@ -71,9 +65,7 @@ impl<C: Composition> DFSPathSelection<C> {
     }
 
     pub fn get_pc(&self) -> Option<u64> {
-        self.paths
-            .last()
-            .map(|el| el.state.memory.get_pc().unwrap().get_constant().unwrap())
+        self.paths.last().map(|el| el.state.memory.get_pc().unwrap().get_constant().unwrap())
     }
 
     pub fn waiting_paths(&self) -> usize {

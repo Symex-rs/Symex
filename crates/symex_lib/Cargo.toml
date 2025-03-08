@@ -6,9 +6,6 @@ edition = "2021"
 [dependencies]
 valid_derive = { path = "../valid_derive", version = "*"}
 any_derive = { path = "../any_derive", version = "*" }
-rtic_easy = { path = "../rtic-easy/", version = "*" }
-heapless = "0.7.16"
-layout-trait = {git = "https://github.com/ivajon/layout-trait", features = ["derive"]}
 
 [features]
 # Defines a feature named `llvm` that enables symbolic execution at LLVM-IR level

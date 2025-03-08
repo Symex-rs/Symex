@@ -5,8 +5,6 @@ members = [
     "crates/llvm-ir",
     "crates/symex_lib",
     "crates/valid_derive",
-    "crates/rtic-easy",
-    "crates/rtic-easy/example",
     # "armv6-m-examples", # <- has its own profiles, so not proper member
     "symex",
 ]

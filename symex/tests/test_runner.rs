@@ -8,10 +8,7 @@ mod test_runner_llvm {
     };
 
     fn get_u128_value(expr: DExpr, state: &LLVMState) -> u128 {
-        let value = state
-            .constraints
-            .get_value(&expr)
-            .expect("Failed to get concrete value");
+        let value = state.constraints.get_value(&expr).expect("Failed to get concrete value");
 
         let binary_str = value.to_binary_string();
         u128::from_str_radix(&binary_str, 2).unwrap()

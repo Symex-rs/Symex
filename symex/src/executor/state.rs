@@ -36,7 +36,7 @@ pub struct ContinueInsideInstruction<C: Composition> {
 #[derive(Clone, Debug)]
 pub struct GAState<C: Composition> {
     pub memory: <C::SMT as SmtSolver>::Memory,
-    pub state: C::StateContainer,
+    pub user_state: C::StateContainer,
     pub constraints: C::SMT,
     pub hooks: HookContainer<C>,
     pub count_cycles: bool,
@@ -59,37 +59,24 @@ impl<C: Composition> GAState<C> {
         constraints: C::SMT,
         project: <C::Memory as SmtMap>::ProgramMemory,
         hooks: HookContainer<C>,
-        function: &str,
         end_address: u64,
+        start_address: u64,
         state: C::StateContainer,
         architecture: SupportedArchitecture,
     ) -> std::result::Result<Self, GAError> {
-        let pc_reg = match project.get_symbol_address(function) {
-            Some(a) => a,
-            None => {
-                return Err(GAError::EntryFunctionNotFound(function.to_owned()));
-            }
-        };
+        let pc_reg = start_address;
         debug!("Found function at addr: {:#X}.", pc_reg);
         let ptr_size = project.get_ptr_size();
 
         let sp_reg = match project.get_symbol_address("_stack_start") {
             Some(a) => Ok(a),
-            None => Err(ProjectError::UnableToParseElf(
-                "start of stack not found".to_owned(),
-            )),
+            None => Err(ProjectError::UnableToParseElf("start of stack not found".to_owned())),
         }?;
         debug!("Found stack start at addr: {:#X}.", sp_reg);
 
         let endianness = project.get_endianness();
         let initial_sp = ctx.from_u64(sp_reg, ptr_size as u32);
-        let mut memory = C::Memory::new(
-            ctx.clone(),
-            project,
-            ptr_size as usize,
-            endianness,
-            initial_sp,
-        )?;
+        let mut memory = C::Memory::new(ctx.clone(), project, ptr_size as usize, endianness, initial_sp)?;
         let pc_expr = ctx.from_u64(pc_reg, ptr_size as u32);
         memory.set_register("PC", pc_expr)?;
 
@@ -104,7 +91,7 @@ impl<C: Composition> GAState<C> {
             constraints,
             memory,
             hooks,
-            state,
+            user_state: state,
             count_cycles: true,
             cycle_count: 0,
             last_instruction: None,
@@ -174,11 +161,7 @@ impl<C: Composition> GAState<C> {
             },
             None => 0,
         };
-        trace!(
-            "Incrementing cycles: {}, for {:?}",
-            cycles,
-            self.last_instruction
-        );
+        trace!("Incrementing cycles: {}, for {:?}", cycles, self.last_instruction);
         self.cycle_count += cycles as u64;
     }
 
@@ -193,11 +176,16 @@ impl<C: Composition> GAState<C> {
         }
     }
 
+    pub fn replace_instruction_conditions(&mut self, conditions: &Vec<Condition>) {
+        self.instruction_conditions.clear();
+        for condition in conditions {
+            self.instruction_conditions.push_back(condition.to_owned());
+        }
+    }
+
     pub fn get_next_instruction_condition_expression(&mut self) -> Option<C::SmtExpression> {
         // TODO add error handling
-        self.instruction_conditions
-            .pop_front()
-            .map(|condition| self.get_expr(&condition).unwrap())
+        self.instruction_conditions.pop_front().map(|condition| self.get_expr(&condition).unwrap())
     }
 
     /// Create a state used for testing.
@@ -231,7 +219,7 @@ impl<C: Composition> GAState<C> {
             constraints,
             memory,
             hooks,
-            state,
+            user_state: state,
             count_cycles: true,
             cycle_count: 0,
             last_instruction: None,
@@ -256,11 +244,7 @@ impl<C: Composition> GAState<C> {
                 .write_pc(expr.get_constant().ok_or(GAError::NonDeterministicPC)? as u32)
                 .map_err(|e| GAError::SmtMemoryError(e));
         }
-        match self
-            .hooks
-            .writer(&mut self.memory)
-            .write_register(&register, &expr)
-        {
+        match self.hooks.writer(&mut self.memory).write_register(&register, &expr) {
             ResultOrHook::Hook(hook) => hook(self, expr)?,
             ResultOrHook::Hooks(hooks) => {
                 for hook in hooks {
@@ -277,11 +261,7 @@ impl<C: Composition> GAState<C> {
     pub fn get_register(&mut self, register: String) -> Result<C::SmtExpression> {
         // crude solution should probably change
         if register == "PC" {
-            return self
-                .hooks
-                .reader(&mut self.memory)
-                .read_pc()
-                .map_err(|e| GAError::SmtMemoryError(e));
+            return self.hooks.reader(&mut self.memory).read_pc().map_err(|e| GAError::SmtMemoryError(e));
         }
         match self.hooks.reader(&mut self.memory).read_register(&register) {
             ResultOrHook::Hook(hook) => hook(self),
@@ -353,20 +333,14 @@ impl<C: Composition> GAState<C> {
 
     /// Get the next instruction based on the address in the PC register.
     pub fn get_next_instruction(&self, logger: &mut C::Logger) -> Result<HookOrInstruction<'_, C>> {
-        let pc = self
-            .memory
-            .get_pc()
-            .map(|val| val.get_constant().ok_or(GAError::NonDeterministicPC))??
-            & !(0b1); // Not applicable for all architectures TODO: Fix this.;
+        let pc = self.memory.get_pc().map(|val| val.get_constant().ok_or(GAError::NonDeterministicPC))?? & !(0b1); // Not applicable for all architectures TODO: Fix this.;
         logger.update_delimiter(pc);
         match self.hooks.get_pc_hooks(pc as u32) {
             ResultOrHook::Hook(hook) => Ok(HookOrInstruction::PcHook(hook)),
             ResultOrHook::Hooks(_) => todo!("Handle multiple hooks on a single address"),
             ResultOrHook::Result(pc) => Ok(HookOrInstruction::Instruction({
                 //println!("PC {pc:#x}");
-                self.instruction_from_array_ptr(
-                    self.memory.get_from_instruction_memory(pc as u64)?,
-                )?
+                self.instruction_from_array_ptr(self.memory.get_from_instruction_memory(pc as u64)?)?
             })),
             _ => todo!("Handle out of bounds reads for program memory reads"),
         }
@@ -386,18 +360,12 @@ impl<C: Composition> GAState<C> {
     }
 
     /// Write a word to memory. Will respect the endianness of the project.
-    pub fn write_word_to_memory(
-        &mut self,
-        address: &C::SmtExpression,
-        value: C::SmtExpression,
-    ) -> Result<()> {
+    pub fn write_word_to_memory(&mut self, address: &C::SmtExpression, value: C::SmtExpression) -> Result<()> {
         Ok(self.memory.set(address, value)?)
     }
 
     pub fn instruction_from_array_ptr(&self, data: &[u8]) -> project::Result<Instruction<C>> {
-        self.architecture
-            .translate(data, self)
-            .map_err(|el| el.into())
+        self.architecture.translate(data, self).map_err(|el| el.into())
     }
 
     pub fn reader<'a>(&'a mut self) -> Reader<'a, C> {

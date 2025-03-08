@@ -67,7 +67,16 @@ impl Compile for BinOp {
                         Operation::SSub {
                             destination: #dst,
                             operand1: #lhs,
-                            operand2: #rhs
+                            operand2: #rhs,
+                            signed: false,
+                        }
+            ),
+            BinaryOperation::SSubs => quote!(
+                        Operation::SSub {
+                            destination: #dst,
+                            operand1: #lhs,
+                            operand2: #rhs,
+                            signed: true,
                         }
             ),
             BinaryOperation::Add => quote!(
@@ -81,7 +90,16 @@ impl Compile for BinOp {
                         Operation::SAdd {
                             destination: #dst,
                             operand1: #lhs,
-                            operand2: #rhs
+                            operand2: #rhs,
+                            signed:false,
+                        }
+            ),
+            BinaryOperation::SAdds => quote!(
+                        Operation::SAdd {
+                            destination: #dst,
+                            operand1: #lhs,
+                            operand2: #rhs,
+                            signed:true,
                         }
             ),
             BinaryOperation::AddWithCarry => quote!(
@@ -160,5 +178,22 @@ impl Compile for BinOp {
         #(#to_insert,)*
         #ret
         ))
+    }
+}
+impl Compile for CompareOperation {
+    type Output = TokenStream;
+
+    fn compile(
+        &self,
+        _state: &mut crate::TranspilerState<Self::Output>,
+    ) -> Result<Self::Output, Error> {
+        Ok(match self {
+            Self::Lt => quote! {Comparison::Lt},
+            Self::Gt => quote! {Comparison::Gt},
+            Self::Geq => quote! {Comparison::Geq},
+            Self::Leq => quote! {Comparison::Leq},
+            Self::Eq => quote! {Comparison::Eq},
+            Self::Neq => quote! {Comparison::Neq},
+        })
     }
 }

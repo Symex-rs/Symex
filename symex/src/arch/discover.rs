@@ -20,7 +20,7 @@ impl SupportedArchitecture {
             object::Architecture::Arm => return discover_arm(obj_file),
             _ => {}
         }
-        Err(ArchError::UnsuportedArchitechture)
+        Err(ArchError::UnsupportedArchitechture)
     }
 }
 

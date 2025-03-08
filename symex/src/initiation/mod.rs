@@ -51,12 +51,7 @@ pub struct NoArchOverride;
 /// Constructs the symex virtual machine to run with the desired settings.
 ///
 /// See [`defaults`](crate::defaults) for default configurations.
-pub struct SymexConstructor<
-    'str,
-    Override: ArchOverride,
-    Smt: SmtSolverConfigured,
-    Binary: BinaryLoadingDone,
-> {
+pub struct SymexConstructor<'str, Override: ArchOverride, Smt: SmtSolverConfigured, Binary: BinaryLoadingDone> {
     file: &'str str,
     override_arch: Override,
     smt: Smt,
@@ -75,13 +70,8 @@ impl<'str> SymexConstructor<'str, NoArchOverride, SmtNotConfigured, BinaryNotLoa
     }
 }
 
-impl<'str, S: SmtSolverConfigured, B: BinaryLoadingDone>
-    SymexConstructor<'str, NoArchOverride, S, B>
-{
-    pub fn override_architecture<A: Into<SupportedArchitecture>>(
-        self,
-        a: A,
-    ) -> SymexConstructor<'str, SupportedArchitecture, S, B> {
+impl<'str, S: SmtSolverConfigured, B: BinaryLoadingDone> SymexConstructor<'str, NoArchOverride, S, B> {
+    pub fn override_architecture<A: Into<SupportedArchitecture>>(self, a: A) -> SymexConstructor<'str, SupportedArchitecture, S, B> {
         SymexConstructor::<'str, SupportedArchitecture, S, B> {
             file: self.file,
             override_arch: a.into(),
@@ -102,12 +92,9 @@ impl<'str, A: ArchOverride, B: BinaryLoadingDone> SymexConstructor<'str, A, SmtN
     }
 }
 
-impl<'str, 'file, A: ArchOverride, S: SmtSolverConfigured>
-    SymexConstructor<'str, A, S, BinaryNotLoaded>
-{
+impl<'str, 'file, A: ArchOverride, S: SmtSolverConfigured> SymexConstructor<'str, A, S, BinaryNotLoaded> {
     pub fn load_binary(self) -> crate::Result<SymexConstructor<'str, A, S, BinaryLoaded<'file>>> {
-        let file = std::fs::read(self.file)
-            .map_err(|e| crate::GAError::CouldNotOpenFile(e.to_string()))?;
+        let file = std::fs::read(self.file).map_err(|e| crate::GAError::CouldNotOpenFile(e.to_string()))?;
         let data = &(*file.leak());
         let obj_file = match object::File::parse(data) {
             Ok(x) => x,
@@ -117,9 +104,7 @@ impl<'str, 'file, A: ArchOverride, S: SmtSolverConfigured>
                 let mut ret = PathBuf::new();
                 ret.push(self.file);
 
-                return Err(crate::GAError::ProjectError(
-                    ProjectError::UnableToParseElf(ret.display().to_string()),
-                ))?;
+                return Err(crate::GAError::ProjectError(ProjectError::UnableToParseElf(ret.display().to_string())))?;
             }
         };
         Ok(SymexConstructor {
@@ -131,12 +116,8 @@ impl<'str, 'file, A: ArchOverride, S: SmtSolverConfigured>
     }
 }
 
-impl<'str, 'file, S: SmtSolverConfigured>
-    SymexConstructor<'str, NoArchOverride, S, BinaryLoaded<'file>>
-{
-    pub fn discover(
-        self,
-    ) -> crate::Result<SymexConstructor<'str, SupportedArchitecture, S, BinaryLoaded<'file>>> {
+impl<'str, 'file, S: SmtSolverConfigured> SymexConstructor<'str, NoArchOverride, S, BinaryLoaded<'file>> {
+    pub fn discover(self) -> crate::Result<SymexConstructor<'str, SupportedArchitecture, S, BinaryLoaded<'file>>> {
         let arch = SupportedArchitecture::discover(&self.binary_file.object)?;
 
         Ok(SymexConstructor {
@@ -148,14 +129,8 @@ impl<'str, 'file, S: SmtSolverConfigured>
     }
 }
 
-impl<'str, 'file, S: SmtSolver>
-    SymexConstructor<'str, SupportedArchitecture, SmtConfigured<S>, BinaryLoaded<'file>>
-{
-    pub fn compose<
-        C: Composition,
-        StateCreator: FnOnce() -> C::StateContainer,
-        LoggingCreator: FnOnce(&SubProgramMap) -> C::Logger,
-    >(
+impl<'str, 'file, S: SmtSolver> SymexConstructor<'str, SupportedArchitecture, SmtConfigured<S>, BinaryLoaded<'file>> {
+    pub fn compose<C: Composition, StateCreator: FnOnce() -> C::StateContainer, LoggingCreator: FnOnce(&SubProgramMap) -> C::Logger>(
         self,
         user_state_composer: StateCreator,
         logger: LoggingCreator,
@@ -168,11 +143,7 @@ impl<'str, 'file, S: SmtSolver>
         let binary = self.binary_file.object;
         let smt = self.smt.smt;
 
-        let endianness = if binary.is_little_endian() {
-            Endianness::Little
-        } else {
-            Endianness::Big
-        };
+        let endianness = if binary.is_little_endian() { Endianness::Little } else { Endianness::Big };
 
         let mut symtab = HashMap::new();
         for symbol in binary.symbols() {
@@ -207,15 +178,7 @@ impl<'str, 'file, S: SmtSolver>
         let project = Box::new(Project::from_binary(binary, map.clone())?);
         let project = Box::leak(project);
 
-        Ok(SymexArbiter::<C>::new(
-            logger(&map),
-            project,
-            smt,
-            user_state_composer(),
-            hooks,
-            map,
-            self.override_arch,
-        ))
+        Ok(SymexArbiter::<C>::new(logger(&map), project, smt, user_state_composer(), hooks, map, self.override_arch))
     }
 }
 

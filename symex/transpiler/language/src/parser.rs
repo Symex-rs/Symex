@@ -129,9 +129,6 @@ impl Parse for Statement {
                     ret.push(Box::new(val));
                 }
                 Err(e) => {
-                    if ret.is_empty() {
-                        break;
-                    }
                     return Err(e);
                 }
             }
@@ -153,6 +150,8 @@ impl Parse for IRExpr {
             input.advance_to(&speculative);
             return Ok(Self::Assign(assign));
         }
+
+        // Things like a |= 1
         'a: {
             let speculative = input.fork();
             let dest: Operand = match speculative.parse() {
@@ -165,14 +164,14 @@ impl Parse for IRExpr {
             };
             let _eq: Token![=] = match speculative.parse() {
                 Ok(val) => val,
-                _ => break 'a,
+                _ => return Err(input.error("Expected =")),
             };
             let operand: Operand = match speculative.parse() {
                 Ok(val) => val,
-                _ => break 'a,
+                _ => return Err(input.error("Expected operand")),
             };
             if !speculative.peek(Token![;]) {
-                break 'a;
+                return Err(input.error("Expected ;"));
             }
             input.advance_to(&speculative);
             return Ok(Self::BinOp(BinOp {

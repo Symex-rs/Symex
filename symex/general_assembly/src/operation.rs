@@ -1,7 +1,11 @@
 //! Defines all operations that are valid in [`Symex`](../../../) General
 //! Assembly language.
 
-use crate::{condition::Condition, operand::Operand, shift::Shift};
+use crate::{
+    condition::{Comparison, Condition},
+    operand::Operand,
+    shift::Shift,
+};
 
 /// Represents a single operation
 #[derive(Debug, Clone)]
@@ -30,6 +34,19 @@ pub enum Operation {
         operand2: Operand,
     },
 
+    /// Saturating Addition.
+    ///
+    /// ```ignore
+    /// destination = operand1 + operand2
+    /// ```
+    #[allow(missing_docs)]
+    SAdd {
+        destination: Operand,
+        operand1: Operand,
+        operand2: Operand,
+        signed: bool,
+    },
+
     /// Add with carry.
     ///
     /// ```ignore
@@ -52,6 +69,19 @@ pub enum Operation {
         destination: Operand,
         operand1: Operand,
         operand2: Operand,
+    },
+
+    /// Saturating subtraction.
+    ///
+    /// ```ignore
+    /// destination = operand1 - operand2
+    /// ```
+    #[allow(missing_docs)]
+    SSub {
+        destination: Operand,
+        operand1: Operand,
+        operand2: Operand,
+        signed: bool,
     },
 
     /// Multiplication.
@@ -266,7 +296,9 @@ pub enum Operation {
         operand: Operand,
         /// What bit is considered the sign bit in operand
         /// before the extension.
-        bits: u32,
+        sign_bit: u32,
+        /// The number of bits after extension.
+        target_size: u32,
     },
 
     /// Resizes the operand to the desired number of bits.
@@ -359,4 +391,25 @@ pub enum Operation {
     /// if the i:th condition in the list is true.
     #[allow(missing_docs)]
     ConditionalExecution { conditions: Vec<Condition> },
+
+    /// Conditionally executes operations depending on the value of the
+    /// operands.
+    Ite {
+        /// The left hand side of the comparison.
+        lhs: Operand,
+        /// The right hand side of the comparison.
+        rhs: Operand,
+        /// The comparison operation.
+        operation: Comparison,
+        /// If the comparison yields true these will be executed.
+        then: Vec<Operation>,
+        /// If the comparison yields false these will be executed.
+        otherwise: Vec<Operation>,
+    },
+
+    /// Aborts the execution returning the error message to the user.
+    Abort {
+        /// Error message to be printed to the user.
+        error: String,
+    },
 }

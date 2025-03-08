@@ -2,10 +2,21 @@ use std::ffi::CStr;
 
 use llvm_sys::{
     core::{
-        LLVMCountParamTypes, LLVMCountStructElementTypes, LLVMGetArrayLength2, LLVMGetElementType,
-        LLVMGetIntTypeWidth, LLVMGetParamTypes, LLVMGetPointerAddressSpace, LLVMGetReturnType,
-        LLVMGetStructElementTypes, LLVMGetStructName, LLVMGetTypeKind, LLVMGetVectorSize,
-        LLVMIsFunctionVarArg, LLVMIsLiteralStruct, LLVMIsOpaqueStruct,
+        LLVMCountParamTypes,
+        LLVMCountStructElementTypes,
+        LLVMGetArrayLength2,
+        LLVMGetElementType,
+        LLVMGetIntTypeWidth,
+        LLVMGetParamTypes,
+        LLVMGetPointerAddressSpace,
+        LLVMGetReturnType,
+        LLVMGetStructElementTypes,
+        LLVMGetStructName,
+        LLVMGetTypeKind,
+        LLVMGetVectorSize,
+        LLVMIsFunctionVarArg,
+        LLVMIsLiteralStruct,
+        LLVMIsOpaqueStruct,
     },
     prelude::*,
     LLVMTypeKind,
@@ -57,9 +68,7 @@ impl Type {
             LLVMTypeKind::LLVMScalableVectorTypeKind => Type::Vector(VectorType::new(ty, true)),
             LLVMTypeKind::LLVMBFloatTypeKind => Type::Float(FloatingPointType::BFloat),
             LLVMTypeKind::LLVMX86_AMXTypeKind => Type::X86Amx,
-            LLVMTypeKind::LLVMTargetExtTypeKind => {
-                Type::TargetExtension(TargetExtensionType::new(ty))
-            }
+            LLVMTypeKind::LLVMTargetExtTypeKind => Type::TargetExtension(TargetExtensionType::new(ty)),
         }
     }
 
@@ -72,7 +81,8 @@ impl Type {
         matches!(self, Type::Integer(_))
     }
 
-    /// Returns `true` if the type is an integer with the specified number of bits.
+    /// Returns `true` if the type is an integer with the specified number of
+    /// bits.
     pub fn is_integer_with_size(&self, bits: u32) -> bool {
         matches!(self, Type::Integer(t) if t.bits() == bits)
     }
@@ -95,17 +105,15 @@ impl Type {
     /// Returns `true` if the type is ["first class"](https://llvm.org/docs/LangRef.html#t-firstclass)
     /// , i.e., it is a valid type for a `Value`.
     ///
-    /// A first class value is currently all types except for `void` and `function`.
+    /// A first class value is currently all types except for `void` and
+    /// `function`.
     pub fn is_first_class(&self) -> bool {
         !matches!(self, Type::Void | Type::Function(_))
     }
 
     /// Returns `true` if the type can be part of an array.
     pub fn is_valid_element_type(&self) -> bool {
-        !matches!(
-            self,
-            Type::Void | Type::Label | Type::Metadata | Type::Function(_) | Type::X86Amx
-        ) || !matches!(self, Type::Vector(t) if t.is_scalable())
+        !matches!(self, Type::Void | Type::Label | Type::Metadata | Type::Function(_) | Type::X86Amx) || !matches!(self, Type::Vector(t) if t.is_scalable())
     }
 
     /// Returns `true` if the type is a function.
@@ -138,23 +146,22 @@ impl std::fmt::Display for Type {
 
 /// Integer type.
 ///
-/// Simple type that specifies an arbitrary bid-width for the integer type. Bit widths from `1` to
-/// `2^23` can be specified.
+/// Simple type that specifies an arbitrary bid-width for the integer type. Bit
+/// widths from `1` to `2^23` can be specified.
 ///
 /// [LLVM Reference](https://llvm.org/docs/LangRef.html#integer-type)
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct IntegerType(LLVMTypeRef);
 
 impl IntegerType {
-    pub(crate) fn new(type_ref: LLVMTypeRef) -> Self {
-        Self(type_ref)
-    }
-
+    /// Maximum number of bits for an integer type.
+    pub const MAX_BITS: u32 = 8388608;
     /// Minimum number of bits for an integer type.
     pub const MIN_BITS: u32 = 1;
 
-    /// Maximum number of bits for an integer type.
-    pub const MAX_BITS: u32 = 8388608;
+    pub(crate) fn new(type_ref: LLVMTypeRef) -> Self {
+        Self(type_ref)
+    }
 
     pub fn bits(&self) -> u32 {
         unsafe { LLVMGetIntTypeWidth(self.0) }
@@ -197,11 +204,7 @@ pub enum FloatingPointType {
 impl FloatingPointType {
     pub fn is_ieee_like(&self) -> bool {
         match self {
-            FloatingPointType::Half
-            | FloatingPointType::BFloat
-            | FloatingPointType::Float
-            | FloatingPointType::Double
-            | FloatingPointType::Fp128 => true,
+            FloatingPointType::Half | FloatingPointType::BFloat | FloatingPointType::Float | FloatingPointType::Double | FloatingPointType::Fp128 => true,
             FloatingPointType::X86Fp80 | FloatingPointType::PpcFp128 => false,
         }
     }
@@ -283,8 +286,8 @@ impl std::fmt::Display for ArrayType {
 
 /// Vector type is a simple type that represents a vector of elements ([Vector Type](https://llvm.org/docs/LangRef.html#vector-type))
 ///
-/// Vector types are used when multiple primitive values are operated on in parallel using SIMD
-/// instructions.
+/// Vector types are used when multiple primitive values are operated on in
+/// parallel using SIMD instructions.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct VectorType {
     type_ref: LLVMTypeRef,
@@ -293,10 +296,7 @@ pub struct VectorType {
 
 impl VectorType {
     pub(crate) fn new(type_ref: LLVMTypeRef, is_scalable: bool) -> Self {
-        Self {
-            type_ref,
-            is_scalable,
-        }
+        Self { type_ref, is_scalable }
     }
 
     pub fn element_type(&self) -> Type {
@@ -372,22 +372,10 @@ impl std::fmt::Display for StructureType {
                 f,
                 "%{} = type {{ {} }}",
                 name.to_str().unwrap(),
-                fields
-                    .iter()
-                    .map(|t| t.to_string())
-                    .collect::<Vec<_>>()
-                    .join(", ")
+                fields.iter().map(|t| t.to_string()).collect::<Vec<_>>().join(", ")
             )
         } else {
-            write!(
-                f,
-                "{{ {} }}",
-                fields
-                    .iter()
-                    .map(|t| t.to_string())
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            )
+            write!(f, "{{ {} }}", fields.iter().map(|t| t.to_string()).collect::<Vec<_>>().join(", "))
         }
     }
 }
@@ -425,20 +413,12 @@ impl std::fmt::Display for FunctionType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let return_type = self.return_type();
         let param_types = self.param_types();
-        write!(
-            f,
-            "{} ({})",
-            return_type,
-            param_types
-                .iter()
-                .map(|t| t.to_string())
-                .collect::<Vec<_>>()
-                .join(", ")
-        )
+        write!(f, "{} ({})", return_type, param_types.iter().map(|t| t.to_string()).collect::<Vec<_>>().join(", "))
     }
 }
 
-/// Target extension type represent a type that must be preserved through optimization.
+/// Target extension type represent a type that must be preserved through
+/// optimization.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TargetExtensionType(LLVMTypeRef);
 

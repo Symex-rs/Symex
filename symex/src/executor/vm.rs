@@ -1,11 +1,14 @@
 //! Describes the VM for general assembly
 
+use std::u64;
+
 use super::{hooks::HookContainer, state::GAState, GAExecutor, PathResult};
 use crate::{
     arch::SupportedArchitecture,
     path_selection::{DFSPathSelection, Path},
     project::dwarf_helper::SubProgram,
     smt::{SmtMap, SmtSolver},
+    trace,
     Composition,
     Result,
 };
@@ -25,6 +28,7 @@ impl<C: Composition> VM<C> {
         state_container: C::StateContainer,
         hooks: HookContainer<C>,
         architecture: SupportedArchitecture,
+        logger: C::Logger,
     ) -> Result<Self> {
         let mut vm = Self {
             project: project.clone(),
@@ -36,43 +40,37 @@ impl<C: Composition> VM<C> {
             ctx.clone(),
             project,
             hooks,
-            &function.name,
             end_pc,
+            function.bounds.0 & ((u64::MAX >> 1) << 1),
             state_container,
             architecture,
         )?;
         let _ = state.memory.set_pc(function.bounds.0 as u32)?;
 
-        vm.paths.save_path(Path::new(state, None, 0));
+        vm.paths.save_path(Path::new(state, None, 0, logger.clone()));
 
         Ok(vm)
     }
 
     #[cfg(test)]
-    pub(crate) fn new_test_vm(
-        project: <C::Memory as SmtMap>::ProgramMemory,
-        state: GAState<C>,
-    ) -> Result<Self> {
+    pub(crate) fn new_test_vm(project: <C::Memory as SmtMap>::ProgramMemory, state: GAState<C>, logger: C::Logger) -> Result<Self> {
         let mut vm = Self {
             project: project.clone(),
             paths: DFSPathSelection::new(),
         };
 
-        vm.paths.save_path(Path::new(state, None, 0));
+        vm.paths.save_path(Path::new(state, None, 0, logger));
 
         Ok(vm)
     }
 
-    pub fn new_with_state(
-        project: <C::Memory as SmtMap>::ProgramMemory,
-        state: GAState<C>,
-    ) -> Self {
+    pub fn new_with_state(project: <C::Memory as SmtMap>::ProgramMemory, state: GAState<C>, logger: C::Logger) -> Self {
         let mut vm = Self {
             project,
             paths: DFSPathSelection::new(),
         };
 
-        vm.paths.save_path(Path::new(state, None, 0));
+        vm.paths.save_path(Path::new(state, None, 0, logger));
 
         vm
     }
@@ -81,21 +79,20 @@ impl<C: Composition> VM<C> {
         self.paths.get_pc()
     }
 
-    pub fn run(
-        &mut self,
-        logger: &mut C::Logger,
-    ) -> Result<Option<(PathResult<C>, GAState<C>, Vec<C::SmtExpression>, u64)>> {
-        if let Some(path) = self.paths.get_path() {
-            // try stuff
+    pub fn run(&mut self) -> Result<Option<(PathResult<C>, GAState<C>, Vec<C::SmtExpression>, u64, C::Logger)>> {
+        trace!("VM::run");
+        if let Some(mut path) = self.paths.get_path() {
+            trace!("VM running path {path:?}");
             let mut executor = GAExecutor::from_state(path.state, self, self.project.clone());
 
             for constraint in path.constraints.clone() {
                 executor.state.constraints.assert(&constraint);
             }
 
-            let result = executor.resume_execution(logger)?;
-            return Ok(Some((result, executor.state, path.constraints, path.pc)));
+            let result = executor.resume_execution(&mut path.logger)?;
+            return Ok(Some((result, executor.state, path.constraints, path.pc, path.logger)));
         }
+        trace!("No more paths!");
         Ok(None)
     }
 }

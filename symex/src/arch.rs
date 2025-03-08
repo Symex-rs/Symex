@@ -26,7 +26,7 @@ use crate::{
 pub enum ArchError {
     /// Thrown when an unsupported architecture is requested.
     #[error("Tried to execute code for an unsupported architecture")]
-    UnsuportedArchitechture,
+    UnsupportedArchitechture,
 
     /// Thrown when an unsupported file type is used.
     #[error("Tried to execute code from a non elf file.")]
@@ -103,18 +103,10 @@ pub enum SupportedArchitecture {
 /// crate.
 pub trait Architecture: Debug + Display + Into<SupportedArchitecture> {
     /// Converts a slice of bytes to an [`Instruction`]
-    fn translate<C: Composition>(
-        &self,
-        buff: &[u8],
-        state: &GAState<C>,
-    ) -> Result<Instruction<C>, ArchError>;
+    fn translate<C: Composition>(&self, buff: &[u8], state: &GAState<C>) -> Result<Instruction<C>, ArchError>;
 
     /// Adds the architecture specific hooks to the [`RunConfig`]
-    fn add_hooks<C: Composition>(
-        &self,
-        hooks: &mut HookContainer<C>,
-        sub_program_lookup: &mut SubProgramMap,
-    );
+    fn add_hooks<C: Composition>(&self, hooks: &mut HookContainer<C>, sub_program_lookup: &mut SubProgramMap);
 
     /// Creates a new instance of the architecture
     fn new() -> Self
@@ -124,11 +116,7 @@ pub trait Architecture: Debug + Display + Into<SupportedArchitecture> {
 
 impl SupportedArchitecture {
     /// Converts a slice of bytes to an [`Instruction`]
-    pub fn translate<C: Composition>(
-        &self,
-        buff: &[u8],
-        state: &GAState<C>,
-    ) -> Result<Instruction<C>, ArchError> {
+    pub fn translate<C: Composition>(&self, buff: &[u8], state: &GAState<C>) -> Result<Instruction<C>, ArchError> {
         match self {
             Self::Armv6M(a) => a.translate(buff, state),
             Self::Armv7EM(a) => a.translate(buff, state),
@@ -136,11 +124,7 @@ impl SupportedArchitecture {
     }
 
     /// Adds the architecture specific hooks to the [`RunConfig`]
-    pub fn add_hooks<C: Composition>(
-        &self,
-        hooks: &mut HookContainer<C>,
-        sub_program_lookup: &mut SubProgramMap,
-    ) {
+    pub fn add_hooks<C: Composition>(&self, hooks: &mut HookContainer<C>, sub_program_lookup: &mut SubProgramMap) {
         match self {
             Self::Armv6M(a) => a.add_hooks(hooks, sub_program_lookup),
             Self::Armv7EM(a) => a.add_hooks(hooks, sub_program_lookup),

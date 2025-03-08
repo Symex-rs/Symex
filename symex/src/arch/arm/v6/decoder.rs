@@ -17,6 +17,7 @@ use crate::executor::instruction::Instruction as GAInstruction;
 
 impl ArmV6M {
     pub(super) fn expand<C: crate::Composition>(instr: Instruction) -> GAInstruction<C> {
+        crate::debug!("Running {instr:?}");
         let operations = match &instr.operation {
             Operation::UDF { .. } => todo!(),
             Operation::ADCReg { m, n, d } => {
@@ -263,10 +264,7 @@ impl ArmV6M {
             Operation::BX { m } => {
                 let reg = arm_register_to_ga_operand(m);
                 let destination = Operand::Register("PC".to_owned());
-                vec![GAOperation::Move {
-                    destination,
-                    source: reg,
-                }]
+                vec![GAOperation::Move { destination, source: reg }]
             }
             Operation::CMNReg { m, n } => {
                 let m = arm_register_to_ga_operand(m);
@@ -559,7 +557,8 @@ impl ArmV6M {
                 GAOperation::SignExtend {
                     destination: arm_register_to_ga_operand(t),
                     operand: arm_register_to_ga_operand(t),
-                    bits: 8,
+                    sign_bit: 8,
+                    target_size: 32,
                 },
             ],
             Operation::LDRSH { m, n, t } => vec![
@@ -579,7 +578,8 @@ impl ArmV6M {
                 GAOperation::SignExtend {
                     destination: arm_register_to_ga_operand(t),
                     operand: arm_register_to_ga_operand(t),
-                    bits: 8,
+                    sign_bit: 8,
+                    target_size: 32,
                 },
             ],
             Operation::LSLImm { imm, m, d } => vec![
@@ -736,9 +736,16 @@ impl ArmV6M {
             }
             Operation::PUSH { reg_list } => {
                 let mut operations: Vec<GAOperation> = vec![];
+                assert!(!reg_list.contains(&Register::SP), "Cannot push stack pointer!");
                 // set up base address
                 operations.push(GAOperation::Sub {
                     destination: Operand::Local("Address".to_owned()),
+                    operand1: Operand::Register("SP".to_owned()),
+                    operand2: Operand::Immediate(DataWord::Word32((4 * reg_list.len()) as u32)),
+                });
+                // update SP
+                operations.push(GAOperation::Sub {
+                    destination: Operand::Register("SP".to_owned()),
                     operand1: Operand::Register("SP".to_owned()),
                     operand2: Operand::Immediate(DataWord::Word32((4 * reg_list.len()) as u32)),
                 });
@@ -755,12 +762,6 @@ impl ArmV6M {
                         operand2: Operand::Immediate(DataWord::Word32(4)),
                     })
                 }
-                // update SP
-                operations.push(GAOperation::Sub {
-                    destination: Operand::Register("SP".to_owned()),
-                    operand1: Operand::Register("SP".to_owned()),
-                    operand2: Operand::Immediate(DataWord::Word32((4 * reg_list.len()) as u32)),
-                });
 
                 operations
             }
@@ -984,7 +985,8 @@ impl ArmV6M {
                     GAOperation::SignExtend {
                         destination: d.clone(),
                         operand: d.clone(),
-                        bits: 16,
+                        sign_bit: 16,
+                        target_size: 32,
                     },
                 ]
             }
@@ -1105,10 +1107,7 @@ impl ArmV6M {
                     });
                 }
 
-                operations.push(GAOperation::Move {
-                    destination: n,
-                    source: addr,
-                });
+                operations.push(GAOperation::Move { destination: n, source: addr });
 
                 operations
             }
@@ -1129,10 +1128,7 @@ impl ArmV6M {
                         destination: Operand::Register("LastAddr".to_owned()),
                         source: Operand::Local("addr".to_owned()),
                     },
-                    GAOperation::Move {
-                        destination: to_addr,
-                        source: t,
-                    },
+                    GAOperation::Move { destination: to_addr, source: t },
                 ]
             }
             Operation::STRReg { m, n, t } => {
@@ -1152,10 +1148,7 @@ impl ArmV6M {
                         destination: Operand::Register("LastAddr".to_owned()),
                         source: Operand::Local("addr".to_owned()),
                     },
-                    GAOperation::Move {
-                        destination: to_addr,
-                        source: t,
-                    },
+                    GAOperation::Move { destination: to_addr, source: t },
                 ]
             }
             Operation::STRBImm { imm, n, t } => {
@@ -1175,10 +1168,7 @@ impl ArmV6M {
                         destination: Operand::Register("LastAddr".to_owned()),
                         source: Operand::Local("addr".to_owned()),
                     },
-                    GAOperation::Move {
-                        destination: to_addr,
-                        source: t,
-                    },
+                    GAOperation::Move { destination: to_addr, source: t },
                 ]
             }
             Operation::STRBReg { m, n, t } => {
@@ -1198,10 +1188,7 @@ impl ArmV6M {
                         destination: Operand::Register("LastAddr".to_owned()),
                         source: Operand::Local("addr".to_owned()),
                     },
-                    GAOperation::Move {
-                        destination: to_addr,
-                        source: t,
-                    },
+                    GAOperation::Move { destination: to_addr, source: t },
                 ]
             }
             Operation::STRHImm { imm, n, t } => {
@@ -1221,10 +1208,7 @@ impl ArmV6M {
                         destination: Operand::Register("LastAddr".to_owned()),
                         source: Operand::Local("addr".to_owned()),
                     },
-                    GAOperation::Move {
-                        destination: to_addr,
-                        source: t,
-                    },
+                    GAOperation::Move { destination: to_addr, source: t },
                 ]
             }
             Operation::STRHReg { m, n, t } => {
@@ -1244,10 +1228,7 @@ impl ArmV6M {
                         destination: Operand::Register("LastAddr".to_owned()),
                         source: Operand::Local("addr".to_owned()),
                     },
-                    GAOperation::Move {
-                        destination: to_addr,
-                        source: t,
-                    },
+                    GAOperation::Move { destination: to_addr, source: t },
                 ]
             }
             Operation::SUBImm { imm, n, d } => {
@@ -1331,7 +1312,8 @@ impl ArmV6M {
                 vec![GAOperation::SignExtend {
                     destination: d,
                     operand: m,
-                    bits: 8,
+                    sign_bit: 8,
+                    target_size: 32,
                 }]
             }
             Operation::SXTH { m, d } => {
@@ -1341,7 +1323,8 @@ impl ArmV6M {
                 vec![GAOperation::SignExtend {
                     destination: d,
                     operand: m,
-                    bits: 16,
+                    sign_bit: 16,
+                    target_size: 32,
                 }]
             }
             Operation::TSTReg { m, n } => {

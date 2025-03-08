@@ -10,7 +10,7 @@ pub fn any<T: Any>() -> T {
 }
 
 macro_rules! blanket_impl {
-    ( $type: ty) => {
+    ($type:ty) => {
         impl Any for $type {
             #[inline(always)]
             fn any() -> Self {

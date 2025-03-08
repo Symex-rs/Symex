@@ -1,5 +1,4 @@
 use clap::Parser;
-use std::{default, path::PathBuf};
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -41,15 +40,16 @@ pub struct Args {
     #[clap(long)]
     pub all_features: bool,
 
-    /// Name of function to run. Should be a full module path, excluding the root module.
+    /// Name of function to run. Should be a full module path, excluding the
+    /// root module.
     #[clap(short, long)]
     pub function: Option<String>,
 
     #[clap(short, long, default_value = "bitwuzla")]
-    /// Denotes the solver to use during analisys.
+    /// Denotes the solver to use during analysis.
     pub solver: Solver,
 
-    /// Denotes the mode to run the analisys in.
+    /// Denotes the mode to run the analysis in.
     #[clap(subcommand)]
     pub mode: Mode,
 }
@@ -68,8 +68,6 @@ pub enum Solver {
 pub enum Mode {
     /// Analyses a single (or multiple functions).
     Function(FunctionArguments),
-    /// Automatically discovers the setup for analisys in the binary.
-    Easy,
 }
 
 #[derive(Parser, Debug)]

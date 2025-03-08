@@ -1,29 +1,26 @@
 //! Helper functions to read dwarf debug data.
 
-use gimli::{
-    AttributeValue,
-    DW_AT_decl_file,
-    DW_AT_decl_line,
-    DW_AT_high_pc,
-    DW_AT_low_pc,
-    DW_AT_name,
-    DebugAbbrev,
-    DebugInfo,
-    DebugStr,
-    Reader,
-};
-use hashbrown::HashMap;
+use std::hash::Hash;
+
+use gimli::{AttributeValue, DW_AT_decl_file, DW_AT_decl_line, DW_AT_high_pc, DW_AT_low_pc, DW_AT_name, DebugAbbrev, DebugInfo, DebugStr, Reader};
+use hashbrown::{HashMap, HashSet};
 use regex::Regex;
 
 use crate::{debug, trace};
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SubProgram {
     pub name: String,
     pub bounds: (u64, u64),
     pub file: Option<(String, usize)>,
     /// Call site for an inlined sub routine.
     pub call_file: Option<(String, usize)>,
+}
+
+impl Hash for SubProgram {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.name.hash(state);
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -68,10 +65,7 @@ impl SubProgramMap {
         for (key, value) in symtab {
             let _ = self.symtab.insert(key.clone(), SubProgram {
                 name: key,
-                bounds: (
-                    value & ((u64::MAX >> 1) << 1),
-                    value & ((u64::MAX >> 1) << 1),
-                ),
+                bounds: (value & ((u64::MAX >> 1) << 1), value & ((u64::MAX >> 1) << 1)),
                 file: None,
                 call_file: None,
             });
@@ -86,9 +80,7 @@ impl SubProgramMap {
 
     fn insert(&mut self, name: String, address: u64, value: SubProgram) {
         let _ = self.index_1.insert(name, self.counter);
-        let _ = self
-            .index_2
-            .insert(address & ((u64::MAX >> 1) << 1), self.counter);
+        let _ = self.index_2.insert(address & ((u64::MAX >> 1) << 1), self.counter);
         let _ = self.map.insert(self.counter, value);
         self.counter += 1;
     }
@@ -108,14 +100,14 @@ impl SubProgramMap {
 
     pub fn get_by_regex(&self, pattern: &'static str) -> Option<&SubProgram> {
         let regex = Regex::new(pattern).ok()?;
-        for (idx, prog) in self.symtab.iter() {
-            if regex.is_match(idx) {
-                return Some(prog);
-            }
-        }
         for (idx, prog) in self.index_1.iter() {
             if regex.is_match(idx) {
                 return Some(self.map.get(prog)?);
+            }
+        }
+        for (idx, prog) in self.symtab.iter() {
+            if regex.is_match(idx) {
+                return Some(prog);
             }
         }
         None
@@ -126,27 +118,28 @@ impl SubProgramMap {
             Ok(val) => val,
             Err(_) => return vec![],
         };
-        let mut ret = Vec::new();
-        for (idx, prog) in self.symtab.iter() {
-            if regex.is_match(idx) {
-                ret.push(prog);
-            }
-        }
+        let mut ret = HashSet::new();
         for (idx, prog) in self.index_1.iter() {
             if regex.is_match(idx) {
                 if let Some(val) = self.map.get(prog) {
-                    ret.push(val);
+                    trace!("[{pattern}] :Matched  {val:?}");
+                    ret.insert(val);
                 }
             }
         }
-        ret
+        if !ret.is_empty() {
+            return ret.into_iter().collect::<Vec<_>>();
+        }
+        for (idx, prog) in self.symtab.iter() {
+            if regex.is_match(idx) {
+                trace!("[{pattern}]2 : Matched  {prog:?}");
+                ret.insert(prog);
+            }
+        }
+        ret.into_iter().collect::<Vec<_>>()
     }
 
-    pub fn new<R: Reader>(
-        debug_info: &DebugInfo<R>,
-        debug_abbrev: &DebugAbbrev<R>,
-        debug_str: &DebugStr<R>,
-    ) -> SubProgramMap {
+    pub fn new<R: Reader>(debug_info: &DebugInfo<R>, debug_abbrev: &DebugAbbrev<R>, debug_str: &DebugStr<R>) -> SubProgramMap {
         trace!("Constructing PC hooks");
         let mut ret: SubProgramMap = SubProgramMap::_new();
         let mut units = debug_info.units();
@@ -217,3 +210,5 @@ impl SubProgramMap {
         ret
     }
 }
+
+//fn line_map<R:gimli::Reader>(pc:

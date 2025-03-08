@@ -15,7 +15,7 @@ pub struct SymexArbiter<C: Composition> {
     state_container: C::StateContainer,
     hooks: HookContainer<C>,
     symbol_lookup: SubProgramMap,
-    archtecture: SupportedArchitecture,
+    architecture: SupportedArchitecture,
 }
 
 impl<C: Composition> SymexArbiter<C> {
@@ -26,7 +26,7 @@ impl<C: Composition> SymexArbiter<C> {
         state_container: C::StateContainer,
         hooks: HookContainer<C>,
         symbol_lookup: SubProgramMap,
-        archtecture: SupportedArchitecture,
+        architecture: SupportedArchitecture,
     ) -> Self {
         Self {
             logger,
@@ -35,16 +35,13 @@ impl<C: Composition> SymexArbiter<C> {
             state_container,
             hooks,
             symbol_lookup,
-            archtecture,
+            architecture,
         }
     }
 }
 
 impl<C: Composition> SymexArbiter<C> {
-    pub fn add_hooks<F: FnMut(&mut HookContainer<C>, &SubProgramMap)>(
-        &mut self,
-        mut f: F,
-    ) -> &mut Self {
+    pub fn add_hooks<F: FnMut(&mut HookContainer<C>, &SubProgramMap)>(&mut self, mut f: F) -> &mut Self {
         f(&mut self.hooks, &self.symbol_lookup);
         self
     }
@@ -53,71 +50,26 @@ impl<C: Composition> SymexArbiter<C> {
         &self.symbol_lookup
     }
 
-    pub fn run_with_hooks(
-        &mut self,
-        function: &SubProgram,
-        hooks: Option<HookContainer<C>>,
-    ) -> crate::Result<(&C::Logger, Vec<GAState<C>>)> {
+    pub fn run_with_hooks(&mut self, function: &SubProgram, hooks: Option<HookContainer<C>>) -> crate::Result<Runner<C>> {
         let mut intermediate_hooks = self.hooks.clone();
         if let Some(hooks) = hooks {
             intermediate_hooks.add_all(hooks);
         }
 
-        let mut vm = VM::new(
+        let vm = VM::new(
             self.project.clone(),
             &self.ctx,
             function,
-            0xFFFFFFFE,
+            0xfffffffe,
             self.state_container.clone(),
             intermediate_hooks,
-            self.archtecture.clone(),
+            self.architecture.clone(),
+            self.logger.clone(),
         )?;
-
-        let mut path_idx = 0;
-        self.logger.change_path(path_idx);
-        let mut states = Vec::new();
-        while let Some((result, state, conditions, pc)) = vm.run(&mut self.logger)? {
-            self.logger.update_delimiter(pc);
-            self.logger.add_constraints(
-                conditions
-                    .iter()
-                    .map(|el| match el.get_constant() {
-                        Some(val) => {
-                            format!(
-                                "{} -> {val:#x}",
-                                el.get_identifier().unwrap_or("un_named".to_string())
-                            )
-                        }
-                        None => format!(
-                            "{} -> {el:?}",
-                            el.get_identifier().unwrap_or("un_named".to_string())
-                        ),
-                    })
-                    .collect::<Vec<_>>(),
-            );
-
-            if let PathResult::Suppress = result {
-                self.logger.warn("Suppressing path");
-                path_idx += 1;
-                self.logger.change_path(path_idx);
-                continue;
-            }
-
-            self.logger.record_path_result(result);
-            self.logger.record_execution_time(state.cycle_count);
-            self.logger.record_final_state(state.clone());
-            states.push(state);
-            path_idx += 1;
-            self.logger.change_path(path_idx);
-        }
-        Ok((&self.logger, states))
+        Ok(Runner { vm, path_idx: 0 })
     }
 
-    pub fn run_with_strict_memory(
-        &mut self,
-        function: &SubProgram,
-        ranges: &[(u64, u64)],
-    ) -> crate::Result<(&C::Logger, Vec<GAState<C>>)> {
+    pub fn run_with_strict_memory(&mut self, function: &SubProgram, ranges: &[(u64, u64)], hooks: Option<HookContainer<C>>) -> crate::Result<Runner<C>> {
         let mut intermediate_hooks = self.hooks.clone();
         let allowed = ranges
             .iter()
@@ -130,116 +82,41 @@ impl<C: Composition> SymexArbiter<C> {
             .collect::<Vec<_>>();
 
         intermediate_hooks.allow_access(allowed);
+        if let Some(hooks) = hooks {
+            intermediate_hooks.add_all(hooks);
+        }
 
-        let mut vm = VM::new(
+        let vm = VM::new(
             self.project.clone(),
             &self.ctx,
             function,
-            0xFFFFFFFE,
+            0xfffffffe,
             self.state_container.clone(),
             intermediate_hooks,
-            self.archtecture.clone(),
+            self.architecture.clone(),
+            self.logger.clone(),
         )?;
-
-        let mut path_idx = 0;
-        self.logger.change_path(path_idx);
-        let mut states = Vec::new();
-
-        while let Some((result, state, conditions, pc)) = vm.run(&mut self.logger)? {
-            self.logger.update_delimiter(pc);
-            self.logger.add_constraints(
-                conditions
-                    .iter()
-                    .map(|el| match el.get_constant() {
-                        Some(val) => {
-                            format!(
-                                "{} = {val:#x}",
-                                el.get_identifier().unwrap_or("un_named".to_string())
-                            )
-                        }
-                        None => format!(
-                            "{} -> {el:?}",
-                            el.get_identifier().unwrap_or("un_named".to_string())
-                        ),
-                    })
-                    .collect::<Vec<_>>(),
-            );
-
-            if let PathResult::Suppress = result {
-                self.logger.warn("Suppressing path");
-                path_idx += 1;
-                self.logger.change_path(path_idx);
-                continue;
-            }
-
-            self.logger.record_path_result(result);
-            self.logger.record_execution_time(state.cycle_count);
-            self.logger.record_final_state(state.clone());
-            states.push(state);
-            path_idx += 1;
-            self.logger.change_path(path_idx);
-        }
-        Ok((&self.logger, states))
+        Ok(Runner { vm, path_idx: 0 })
     }
 
-    pub fn run(&mut self, function: &str) -> crate::Result<&C::Logger> {
+    pub fn run(&mut self, function: &str) -> crate::Result<Runner<C>> {
         let function = match self.symbol_lookup.get_by_name(function) {
             Some(value) => value,
             None => {
-                //println!("Availiable entrypoints:\r\n");
-                //for el in self.symbol_lookup.map.values() {
-                //println!("\t {}", el.name);
-                //}
                 return Err(GAError::EntryFunctionNotFound(function.to_string()));
             }
         };
-        let mut vm = VM::new(
+        let vm = VM::new(
             self.project.clone(),
             &self.ctx,
             function,
-            0xFFFFFFFE,
+            0xfffffffe,
             self.state_container.clone(),
             self.hooks.clone(),
-            self.archtecture.clone(),
+            self.architecture.clone(),
+            self.logger.clone(),
         )?;
-
-        let mut path_idx = 0;
-        self.logger.change_path(path_idx);
-        while let Some((result, state, conditions, pc)) = vm.run(&mut self.logger)? {
-            self.logger.update_delimiter(pc);
-            self.logger.add_constraints(
-                conditions
-                    .iter()
-                    .map(|el| match el.get_constant() {
-                        Some(val) => {
-                            format!(
-                                "{} = {val:#x}",
-                                el.get_identifier().unwrap_or("un_named".to_string())
-                            )
-                        }
-                        None => format!(
-                            "{} -> {el:?}",
-                            el.get_identifier().unwrap_or("un_named".to_string())
-                        ),
-                    })
-                    .collect::<Vec<_>>(),
-            );
-
-            if let PathResult::Suppress = result {
-                self.logger.warn("Suppressing path");
-                path_idx += 1;
-                self.logger.change_path(path_idx);
-                continue;
-            }
-
-            self.logger.record_path_result(result);
-            self.logger.record_execution_time(state.cycle_count);
-            self.logger.record_final_state(state);
-            path_idx += 1;
-            self.logger.change_path(path_idx);
-        }
-
-        Ok(&self.logger)
+        Ok(Runner { vm, path_idx: 0 })
     }
 
     pub fn consume(self) -> C::Logger {
@@ -247,21 +124,45 @@ impl<C: Composition> SymexArbiter<C> {
     }
 }
 
-//pub struct Runner<'strings, 'ret, C: Composition, I: Iterator<Item =
-// &'strings str>> {    arbiter: SymexArbiter<C>,
-//    functions: I,
-//    ret: PhantomData<&'ret ()>,
-//}
-//
-//impl<'strings, 'ret, C: Composition, I: Iterator<Item = &'strings str>>
-// Iterator    for Runner<'strings, 'ret, C, I>
-//where
-//    <C as Composition>::Logger: 'ret + 'strings,
-//{
-//    type Item = crate::Result<&'ret C::Logger>;
-//
-//    fn next(&'strings mut self) -> Option<Self::Item> {
-//        let func = self.functions.next()?;
-//        Some(self.arbiter.run(func))
-//    }
-//}
+pub struct Runner<C: Composition> {
+    vm: VM<C>,
+    path_idx: usize,
+}
+
+impl<C: Composition> Iterator for Runner<C> {
+    type Item = crate::Result<(GAState<C>, C::Logger)>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some((result, state, conditions, pc, mut logger)) = match self.vm.run() {
+            Ok(res) => res,
+            Err(e) => return Some(Err(e)),
+        } {
+            logger.set_path_idx(self.path_idx);
+            logger.update_delimiter(pc);
+            logger.add_constraints(
+                conditions
+                    .iter()
+                    .map(|el| match el.get_constant() {
+                        Some(val) => {
+                            format!("{} = {val:#x}", el.get_identifier().unwrap_or("un_named".to_string()))
+                        }
+                        None => format!("{} -> {el:?}", el.get_identifier().unwrap_or("un_named".to_string())),
+                    })
+                    .collect::<Vec<_>>(),
+            );
+
+            if let PathResult::Suppress = result {
+                logger.warn("Suppressing path");
+                self.path_idx += 1;
+                return self.next();
+            }
+
+            logger.record_path_result(result);
+            logger.record_execution_time(state.cycle_count);
+            logger.record_final_state(state.clone());
+            self.path_idx += 1;
+            return Some(Ok((state, logger.clone())));
+        }
+        None
+    }
+}

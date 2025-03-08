@@ -7,17 +7,10 @@ use crate::{
     smt::{SmtExpr, SmtMap},
 };
 
-pub(crate) fn cycle_count_m0plus_core<C: crate::Composition>(
-    operation: &Operation,
-) -> CycleCount<C> {
+pub(crate) fn cycle_count_m0plus_core<C: crate::Composition>(operation: &Operation) -> CycleCount<C> {
     // SIO based on the rp2040 make this configurable later
     let address_max_cycle_function = |state: &mut GAState<C>| {
-        let address = match state
-            .memory
-            .get_register("LastAddr")
-            .unwrap()
-            .get_constant()
-        {
+        let address = match state.memory.get_register("LastAddr").unwrap().get_constant() {
             Some(v) => v,
             None => return 2,
         };
@@ -74,22 +67,14 @@ pub(crate) fn cycle_count_m0plus_core<C: crate::Composition>(
         }
 
         // \/\/\/\/ Can be one depending on core implementation and address \/\/\/\/
-        Operation::LDRImm { imm: _, n: _, t: _ } => {
-            CycleCount::Function(address_max_cycle_function)
-        }
+        Operation::LDRImm { imm: _, n: _, t: _ } => CycleCount::Function(address_max_cycle_function),
         Operation::LDRLiteral { t: _, imm: _ } => CycleCount::Function(address_max_cycle_function),
         Operation::LDRReg { m: _, n: _, t: _ } => CycleCount::Function(address_max_cycle_function),
-        Operation::LDRBImm { imm: _, n: _, t: _ } => {
-            CycleCount::Function(address_max_cycle_function)
-        }
+        Operation::LDRBImm { imm: _, n: _, t: _ } => CycleCount::Function(address_max_cycle_function),
         Operation::LDRBReg { m: _, n: _, t: _ } => CycleCount::Function(address_max_cycle_function),
-        Operation::LDRHImm { imm: _, n: _, t: _ } => {
-            CycleCount::Function(address_max_cycle_function)
-        }
+        Operation::LDRHImm { imm: _, n: _, t: _ } => CycleCount::Function(address_max_cycle_function),
         Operation::LDRHReg { m: _, n: _, t: _ } => CycleCount::Function(address_max_cycle_function),
-        Operation::LDRSBReg { m: _, n: _, t: _ } => {
-            CycleCount::Function(address_max_cycle_function)
-        }
+        Operation::LDRSBReg { m: _, n: _, t: _ } => CycleCount::Function(address_max_cycle_function),
         Operation::LDRSH { m: _, n: _, t: _ } => CycleCount::Function(address_max_cycle_function),
         // /\/\/\/\ Can be one depending on core implementation and address /\/\/\/\
         Operation::LSLImm { imm: _, m: _, d: _ } => CycleCount::Value(1),
@@ -97,11 +82,7 @@ pub(crate) fn cycle_count_m0plus_core<C: crate::Composition>(
         Operation::LSRImm { imm: _, m: _, d: _ } => CycleCount::Value(1),
         Operation::LSRReg { m: _, dn: _ } => CycleCount::Value(1),
         Operation::MOVImm { d: _, imm: _ } => CycleCount::Value(1),
-        Operation::MOVReg {
-            m: _,
-            d,
-            set_flags: _,
-        } => {
+        Operation::MOVReg { m: _, d, set_flags: _ } => {
             let max_cycle = if *d == Register::PC { 2 } else { 1 };
             CycleCount::Value(max_cycle)
         }
@@ -116,11 +97,7 @@ pub(crate) fn cycle_count_m0plus_core<C: crate::Composition>(
         Operation::NOP => CycleCount::Value(1),
         Operation::ORRReg { m: _, dn: _ } => CycleCount::Value(1),
         Operation::POP { reg_list } => {
-            let max_cycle = if reg_list.contains(&Register::PC) {
-                3
-            } else {
-                1
-            } + reg_list.len();
+            let max_cycle = if reg_list.contains(&Register::PC) { 3 } else { 1 } + reg_list.len();
             CycleCount::Value(max_cycle)
         }
         Operation::PUSH { reg_list } => CycleCount::Value(1 + reg_list.len()),
@@ -134,17 +111,11 @@ pub(crate) fn cycle_count_m0plus_core<C: crate::Composition>(
         Operation::STM { n: _, reg_list } => CycleCount::Value(1 + reg_list.len()),
 
         // \/\/\/\/ Can be one depending on core implementation and address \/\/\/\/
-        Operation::STRImm { imm: _, n: _, t: _ } => {
-            CycleCount::Function(address_max_cycle_function)
-        }
+        Operation::STRImm { imm: _, n: _, t: _ } => CycleCount::Function(address_max_cycle_function),
         Operation::STRReg { m: _, n: _, t: _ } => CycleCount::Function(address_max_cycle_function),
-        Operation::STRBImm { imm: _, n: _, t: _ } => {
-            CycleCount::Function(address_max_cycle_function)
-        }
+        Operation::STRBImm { imm: _, n: _, t: _ } => CycleCount::Function(address_max_cycle_function),
         Operation::STRBReg { m: _, n: _, t: _ } => CycleCount::Function(address_max_cycle_function),
-        Operation::STRHImm { imm: _, n: _, t: _ } => {
-            CycleCount::Function(address_max_cycle_function)
-        }
+        Operation::STRHImm { imm: _, n: _, t: _ } => CycleCount::Function(address_max_cycle_function),
         Operation::STRHReg { m: _, n: _, t: _ } => CycleCount::Function(address_max_cycle_function),
         // /\/\/\/\ Can be one depending on core implementation and address /\/\/\/\
         Operation::SUBImm { imm: _, n: _, d: _ } => CycleCount::Value(1),
@@ -223,11 +194,7 @@ pub(crate) fn cycle_count_m0_core<C: crate::Composition>(operation: &Operation) 
         Operation::LSRImm { imm: _, m: _, d: _ } => CycleCount::Value(1),
         Operation::LSRReg { m: _, dn: _ } => CycleCount::Value(1),
         Operation::MOVImm { d: _, imm: _ } => CycleCount::Value(1),
-        Operation::MOVReg {
-            m: _,
-            d,
-            set_flags: _,
-        } => {
+        Operation::MOVReg { m: _, d, set_flags: _ } => {
             let max_cycle = if *d == Register::PC { 3 } else { 1 };
             CycleCount::Value(max_cycle)
         }
@@ -242,11 +209,7 @@ pub(crate) fn cycle_count_m0_core<C: crate::Composition>(operation: &Operation) 
         Operation::NOP => CycleCount::Value(1),
         Operation::ORRReg { m: _, dn: _ } => CycleCount::Value(1),
         Operation::POP { reg_list } => {
-            let max_cycle = if reg_list.contains(&Register::PC) {
-                4
-            } else {
-                1
-            } + reg_list.len();
+            let max_cycle = if reg_list.contains(&Register::PC) { 4 } else { 1 } + reg_list.len();
             CycleCount::Value(max_cycle)
         }
         Operation::PUSH { reg_list } => CycleCount::Value(1 + reg_list.len()),

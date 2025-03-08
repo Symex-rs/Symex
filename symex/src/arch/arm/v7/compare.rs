@@ -5,14 +5,7 @@ use armv6_m_instruction_parser::{
     instructons::{Instruction as V6Instruction, Operation as V6Operation},
     registers::{Register as V6Register, SpecialRegister as V6SpecialRegister},
 };
-use disarmv7::prelude::{
-    arch::set_flags::LocalUnwrap,
-    Condition as V7Condition,
-    ImmShift,
-    Operation as V7Operation,
-    Register as V7Register,
-    Shift as V7Shift,
-};
+use disarmv7::prelude::{arch::set_flags::LocalUnwrap, Condition as V7Condition, ImmShift, Operation as V7Operation, Register as V7Register, Shift as V7Shift};
 
 pub(crate) trait LocalEq<T: Sized> {
     fn equal(&self, other: &T) -> bool;
@@ -155,24 +148,16 @@ fn eq_trampoline(lhs: &V6Instruction, rhs: &(usize, V7Operation)) -> bool {
             let rd = add.rd.unwrap_or(V7Register::SP);
             (m.equal(&add.rm)) && d.equal(&rd)
         }
-        (V6Operation::ADR { d, imm }, V7Operation::Adr(adr)) => {
-            (*imm == adr.imm) && d.equal(&adr.rd)
-        }
+        (V6Operation::ADR { d, imm }, V7Operation::Adr(adr)) => (*imm == adr.imm) && d.equal(&adr.rd),
         (V6Operation::ANDReg { m, dn }, V7Operation::AndRegister(and)) => {
             if and.rd.is_some() {
                 return false;
             }
             m.equal(&and.rm) && dn.equal(&and.rn)
         }
-        (V6Operation::ASRImm { imm, m, d }, V7Operation::AsrImmediate(asr)) => {
-            (*imm == asr.imm) && m.equal(&asr.rm) && d.equal(&asr.rd)
-        }
-        (V6Operation::ASRReg { m, dn }, V7Operation::AsrRegister(asr)) => {
-            m.equal(&asr.rm) && dn.equal(&asr.rn) && dn.equal(&asr.rd)
-        }
-        (V6Operation::B { cond, imm }, V7Operation::B(b)) => {
-            cond.equal(&b.condition) && (*imm == b.imm)
-        }
+        (V6Operation::ASRImm { imm, m, d }, V7Operation::AsrImmediate(asr)) => (*imm == asr.imm) && m.equal(&asr.rm) && d.equal(&asr.rd),
+        (V6Operation::ASRReg { m, dn }, V7Operation::AsrRegister(asr)) => m.equal(&asr.rm) && dn.equal(&asr.rn) && dn.equal(&asr.rd),
+        (V6Operation::B { cond, imm }, V7Operation::B(b)) => cond.equal(&b.condition) && (*imm == b.imm),
         (V6Operation::BICReg { m, dn }, V7Operation::BicRegister(bic)) => {
             let rd = bic.rd.unwrap_or(bic.rn.clone());
             m.equal(&bic.rm) && dn.equal(&rd) && dn.equal(&bic.rn)
@@ -181,15 +166,9 @@ fn eq_trampoline(lhs: &V6Instruction, rhs: &(usize, V7Operation)) -> bool {
         (V6Operation::BL { imm }, V7Operation::Bl(bl)) => bl.imm == *imm,
         (V6Operation::BLXReg { m }, V7Operation::Blx(blx)) => m.equal(&blx.rm),
         (V6Operation::BX { m }, V7Operation::Bx(bx)) => m.equal(&bx.rm),
-        (V6Operation::CMNReg { m, n }, V7Operation::CmnRegister(cmn)) => {
-            m.equal(&cmn.rm) && n.equal(&cmn.rn) && cmn.shift.is_none()
-        }
-        (V6Operation::CMPImm { n, imm }, V7Operation::CmpImmediate(cmp)) => {
-            n.equal(&cmp.rn) && (*imm == cmp.imm)
-        }
-        (V6Operation::CMPReg { m, n }, V7Operation::CmpRegister(cmp)) => {
-            m.equal(&cmp.rm) && n.equal(&cmp.rn) && cmp.shift.is_none()
-        }
+        (V6Operation::CMNReg { m, n }, V7Operation::CmnRegister(cmn)) => m.equal(&cmn.rm) && n.equal(&cmn.rn) && cmn.shift.is_none(),
+        (V6Operation::CMPImm { n, imm }, V7Operation::CmpImmediate(cmp)) => n.equal(&cmp.rn) && (*imm == cmp.imm),
+        (V6Operation::CMPReg { m, n }, V7Operation::CmpRegister(cmp)) => m.equal(&cmp.rm) && n.equal(&cmp.rn) && cmp.shift.is_none(),
         (V6Operation::CPS { im }, V7Operation::Cps(cps)) => {
             todo!();
         }
@@ -205,146 +184,57 @@ fn eq_trampoline(lhs: &V6Instruction, rhs: &(usize, V7Operation)) -> bool {
             if !n.equal(&ldm.rn) {
                 return false;
             }
-            reg_list
-                .iter()
-                .zip(ldm.registers.registers.iter())
-                .all(|(lhs, rhs)| lhs.equal(rhs))
+            reg_list.iter().zip(ldm.registers.registers.iter()).all(|(lhs, rhs)| lhs.equal(rhs))
         }
-        (V6Operation::LDRImm { imm, n, t }, V7Operation::LdrImmediate(ldr)) => {
-            (*imm == ldr.imm) && n.equal(&ldr.rn) && t.equal(&ldr.rt)
-        }
-        (V6Operation::LDRLiteral { t, imm }, V7Operation::LdrLiteral(ldr)) => {
-            t.equal(&ldr.rt) && (*imm == ldr.imm)
-        }
-        (V6Operation::LDRReg { m, n, t }, V7Operation::LdrRegister(ldr)) => {
-            m.equal(&ldr.rm) && n.equal(&ldr.rn) && t.equal(&ldr.rt)
-        }
-        (V6Operation::LDRBImm { imm, n, t }, V7Operation::LdrbImmediate(ldrb)) => {
-            (*imm == ldrb.imm.unwrap_or(0)) && n.equal(&ldrb.rn) && t.equal(&ldrb.rt)
-        }
-        (V6Operation::LDRBReg { m, n, t }, V7Operation::LdrbRegister(ldrb)) => {
-            m.equal(&ldrb.rm) && n.equal(&ldrb.rn) && t.equal(&ldrb.rt)
-        }
-        (V6Operation::LDRHImm { imm, n, t }, V7Operation::LdrhImmediate(ldrh)) => {
-            (*imm == ldrh.imm) && n.equal(&ldrh.rn) && t.equal(&ldrh.rt)
-        }
-        (V6Operation::LDRHReg { m, n, t }, V7Operation::LdrhRegister(ldrh)) => {
-            m.equal(&ldrh.rm) && n.equal(&ldrh.rn) && t.equal(&ldrh.rt)
-        }
-        (V6Operation::LDRSBReg { m, n, t }, V7Operation::LdrsbRegister(ldrsb)) => {
-            m.equal(&ldrsb.rm) && n.equal(&ldrsb.rn) && t.equal(&ldrsb.rt)
-        }
-        (V6Operation::LDRSH { m, n, t }, V7Operation::LdrshRegister(ldrsh)) => {
-            m.equal(&ldrsh.rm) && n.equal(&ldrsh.rn) && t.equal(&ldrsh.rt)
-        }
-        (V6Operation::LSLImm { imm, m, d }, V7Operation::LslImmediate(lsl)) => {
-            (*imm == lsl.imm.into()) && m.equal(&lsl.rm) && d.equal(&lsl.rd)
-        }
-        (V6Operation::LSLReg { m, dn }, V7Operation::LslRegister(lsl)) => {
-            m.equal(&lsl.rm) && dn.equal(&lsl.rd) && dn.equal(&lsl.rn)
-        }
-        (V6Operation::LSRImm { imm, m, d }, V7Operation::LsrImmediate(lsr)) => {
-            (*imm == lsr.imm.into()) && m.equal(&lsr.rm) && d.equal(&lsr.rd)
-        }
-        (V6Operation::LSRReg { m, dn }, V7Operation::LsrRegister(lsr)) => {
-            m.equal(&lsr.rm) && dn.equal(&lsr.rd) && dn.equal(&lsr.rn)
-        }
-        (V6Operation::MOVImm { d, imm }, V7Operation::MovImmediate(mv)) => {
-            d.equal(&mv.rd) && (*imm == mv.imm)
-        }
-        (V6Operation::MOVReg { m, d, set_flags }, V7Operation::MovRegister(mv)) => {
-            m.equal(&mv.rm) && d.equal(&mv.rd) && (*set_flags == mv.s.unwrap_or(false))
-        }
+        (V6Operation::LDRImm { imm, n, t }, V7Operation::LdrImmediate(ldr)) => (*imm == ldr.imm) && n.equal(&ldr.rn) && t.equal(&ldr.rt),
+        (V6Operation::LDRLiteral { t, imm }, V7Operation::LdrLiteral(ldr)) => t.equal(&ldr.rt) && (*imm == ldr.imm),
+        (V6Operation::LDRReg { m, n, t }, V7Operation::LdrRegister(ldr)) => m.equal(&ldr.rm) && n.equal(&ldr.rn) && t.equal(&ldr.rt),
+        (V6Operation::LDRBImm { imm, n, t }, V7Operation::LdrbImmediate(ldrb)) => (*imm == ldrb.imm.unwrap_or(0)) && n.equal(&ldrb.rn) && t.equal(&ldrb.rt),
+        (V6Operation::LDRBReg { m, n, t }, V7Operation::LdrbRegister(ldrb)) => m.equal(&ldrb.rm) && n.equal(&ldrb.rn) && t.equal(&ldrb.rt),
+        (V6Operation::LDRHImm { imm, n, t }, V7Operation::LdrhImmediate(ldrh)) => (*imm == ldrh.imm) && n.equal(&ldrh.rn) && t.equal(&ldrh.rt),
+        (V6Operation::LDRHReg { m, n, t }, V7Operation::LdrhRegister(ldrh)) => m.equal(&ldrh.rm) && n.equal(&ldrh.rn) && t.equal(&ldrh.rt),
+        (V6Operation::LDRSBReg { m, n, t }, V7Operation::LdrsbRegister(ldrsb)) => m.equal(&ldrsb.rm) && n.equal(&ldrsb.rn) && t.equal(&ldrsb.rt),
+        (V6Operation::LDRSH { m, n, t }, V7Operation::LdrshRegister(ldrsh)) => m.equal(&ldrsh.rm) && n.equal(&ldrsh.rn) && t.equal(&ldrsh.rt),
+        (V6Operation::LSLImm { imm, m, d }, V7Operation::LslImmediate(lsl)) => (*imm == lsl.imm.into()) && m.equal(&lsl.rm) && d.equal(&lsl.rd),
+        (V6Operation::LSLReg { m, dn }, V7Operation::LslRegister(lsl)) => m.equal(&lsl.rm) && dn.equal(&lsl.rd) && dn.equal(&lsl.rn),
+        (V6Operation::LSRImm { imm, m, d }, V7Operation::LsrImmediate(lsr)) => (*imm == lsr.imm.into()) && m.equal(&lsr.rm) && d.equal(&lsr.rd),
+        (V6Operation::LSRReg { m, dn }, V7Operation::LsrRegister(lsr)) => m.equal(&lsr.rm) && dn.equal(&lsr.rd) && dn.equal(&lsr.rn),
+        (V6Operation::MOVImm { d, imm }, V7Operation::MovImmediate(mv)) => d.equal(&mv.rd) && (*imm == mv.imm),
+        (V6Operation::MOVReg { m, d, set_flags }, V7Operation::MovRegister(mv)) => m.equal(&mv.rm) && d.equal(&mv.rd) && (*set_flags == mv.s.unwrap_or(false)),
         (V6Operation::MRS { d, sysm }, V7Operation::Mrs(mrs)) => {
             todo!("sys calls")
         }
         (V6Operation::MSRReg { n, sysm }, _) => todo!("sys calls"),
-        (V6Operation::MUL { n, dm }, V7Operation::Mul(mul)) => {
-            n.equal(&mul.rn) && dm.equal(&mul.rd.unwrap_or(mul.rm.clone())) && dm.equal(&mul.rm)
-        }
-        (V6Operation::MVNReg { m, d }, V7Operation::MvnRegister(mvn)) => {
-            m.equal(&mvn.rm) && d.equal(&mvn.rd)
-        }
+        (V6Operation::MUL { n, dm }, V7Operation::Mul(mul)) => n.equal(&mul.rn) && dm.equal(&mul.rd.unwrap_or(mul.rm.clone())) && dm.equal(&mul.rm),
+        (V6Operation::MVNReg { m, d }, V7Operation::MvnRegister(mvn)) => m.equal(&mvn.rm) && d.equal(&mvn.rd),
         (V6Operation::NOP, V7Operation::Nop(_)) => true,
-        (V6Operation::ORRReg { m, dn }, V7Operation::OrrRegister(orr)) => {
-            m.equal(&orr.rm) && dn.equal(&orr.rn) && dn.equal(&orr.rd.unwrap_or(orr.rn.clone()))
-        }
-        (V6Operation::POP { reg_list }, V7Operation::Pop(pop)) => reg_list
-            .iter()
-            .zip(pop.registers.registers.iter())
-            .all(|(lhs, rhs)| lhs.equal(rhs)),
-        (V6Operation::PUSH { reg_list }, V7Operation::Push(push)) => reg_list
-            .iter()
-            .zip(push.registers.registers.iter())
-            .all(|(lhs, rhs)| lhs.equal(rhs)),
+        (V6Operation::ORRReg { m, dn }, V7Operation::OrrRegister(orr)) => m.equal(&orr.rm) && dn.equal(&orr.rn) && dn.equal(&orr.rd.unwrap_or(orr.rn.clone())),
+        (V6Operation::POP { reg_list }, V7Operation::Pop(pop)) => reg_list.iter().zip(pop.registers.registers.iter()).all(|(lhs, rhs)| lhs.equal(rhs)),
+        (V6Operation::PUSH { reg_list }, V7Operation::Push(push)) => reg_list.iter().zip(push.registers.registers.iter()).all(|(lhs, rhs)| lhs.equal(rhs)),
         (V6Operation::REV { m, d }, V7Operation::Rev(rev)) => m.equal(&rev.rm) && d.equal(&rev.rd),
-        (V6Operation::REV16 { m, d }, V7Operation::Rev16(rev)) => {
-            m.equal(&rev.rm) && d.equal(&rev.rd)
-        }
-        (V6Operation::REVSH { m, d }, V7Operation::Revsh(rev)) => {
-            m.equal(&rev.rm) && d.equal(&rev.rd)
-        }
-        (V6Operation::RORReg { m, dn }, V7Operation::RorRegister(ror)) => {
-            m.equal(&ror.rm) && dn.equal(&ror.rn) && dn.equal(&ror.rd)
-        }
-        (V6Operation::RSBImm { n, d }, V7Operation::RsbImmediate(rsb)) => {
-            n.equal(&rsb.rn) && d.equal(&rsb.rd.unwrap_or(rsb.rn.clone()))
-        }
-        (V6Operation::SBCReg { m, dn }, V7Operation::SbcRegister(sbc)) => {
-            m.equal(&sbc.rm) && dn.equal(&sbc.rn) && dn.equal(&sbc.rd.unwrap_or(sbc.rn.clone()))
-        }
+        (V6Operation::REV16 { m, d }, V7Operation::Rev16(rev)) => m.equal(&rev.rm) && d.equal(&rev.rd),
+        (V6Operation::REVSH { m, d }, V7Operation::Revsh(rev)) => m.equal(&rev.rm) && d.equal(&rev.rd),
+        (V6Operation::RORReg { m, dn }, V7Operation::RorRegister(ror)) => m.equal(&ror.rm) && dn.equal(&ror.rn) && dn.equal(&ror.rd),
+        (V6Operation::RSBImm { n, d }, V7Operation::RsbImmediate(rsb)) => n.equal(&rsb.rn) && d.equal(&rsb.rd.unwrap_or(rsb.rn.clone())),
+        (V6Operation::SBCReg { m, dn }, V7Operation::SbcRegister(sbc)) => m.equal(&sbc.rm) && dn.equal(&sbc.rn) && dn.equal(&sbc.rd.unwrap_or(sbc.rn.clone())),
         (V6Operation::SEV, _) => todo!(),
-        (V6Operation::STM { n, reg_list }, V7Operation::Stm(stm)) => {
-            n.equal(&stm.rn)
-                && reg_list
-                    .iter()
-                    .zip(stm.registers.registers.iter())
-                    .all(|(lhs, rhs)| lhs.equal(rhs))
-        }
-        (V6Operation::STRImm { imm, n, t }, V7Operation::StrImmediate(str)) => {
-            (*imm == str.imm) && n.equal(&str.rn) && t.equal(&str.rt)
-        }
-        (V6Operation::STRReg { m, n, t }, V7Operation::StrRegister(str)) => {
-            m.equal(&str.rm) && n.equal(&str.rm) && t.equal(&str.rt)
-        }
-        (V6Operation::STRBImm { imm, n, t }, V7Operation::StrbImmediate(strb)) => {
-            (*imm == strb.imm) && n.equal(&strb.rn) && t.equal(&strb.rt)
-        }
-        (V6Operation::STRBReg { m, n, t }, V7Operation::StrbRegister(el)) => {
-            m.equal(&el.rm) && n.equal(&el.rm) && t.equal(&el.rt)
-        }
-        (V6Operation::STRHImm { imm, n, t }, V7Operation::StrhImmediate(el)) => {
-            (*imm == el.imm.unwrap_or(0)) && n.equal(&el.rn) && t.equal(&el.rt)
-        }
-        (V6Operation::STRHReg { m, n, t }, V7Operation::StrhRegister(el)) => {
-            m.equal(&el.rm) && n.equal(&el.rm) && t.equal(&el.rt)
-        }
-        (V6Operation::SUBImm { imm, n, d }, V7Operation::SubImmediate(sub)) => {
-            (*imm == sub.imm) && n.equal(&sub.rn) && d.equal(&sub.rd.unwrap_or(sub.rn.clone()))
-        }
-        (V6Operation::SUBReg { m, n, d }, V7Operation::SubRegister(sub)) => {
-            m.equal(&sub.rm) && n.equal(&sub.rn) && d.equal(&sub.rd.unwrap_or(sub.rn.clone()))
-        }
-        (V6Operation::SUBImmSP { imm }, V7Operation::SubSpMinusImmediate(sub)) => {
-            *imm == sub.imm && sub.rd.unwrap_or(V7Register::SP) == V7Register::SP
-        }
+        (V6Operation::STM { n, reg_list }, V7Operation::Stm(stm)) => n.equal(&stm.rn) && reg_list.iter().zip(stm.registers.registers.iter()).all(|(lhs, rhs)| lhs.equal(rhs)),
+        (V6Operation::STRImm { imm, n, t }, V7Operation::StrImmediate(str)) => (*imm == str.imm) && n.equal(&str.rn) && t.equal(&str.rt),
+        (V6Operation::STRReg { m, n, t }, V7Operation::StrRegister(str)) => m.equal(&str.rm) && n.equal(&str.rm) && t.equal(&str.rt),
+        (V6Operation::STRBImm { imm, n, t }, V7Operation::StrbImmediate(strb)) => (*imm == strb.imm) && n.equal(&strb.rn) && t.equal(&strb.rt),
+        (V6Operation::STRBReg { m, n, t }, V7Operation::StrbRegister(el)) => m.equal(&el.rm) && n.equal(&el.rm) && t.equal(&el.rt),
+        (V6Operation::STRHImm { imm, n, t }, V7Operation::StrhImmediate(el)) => (*imm == el.imm.unwrap_or(0)) && n.equal(&el.rn) && t.equal(&el.rt),
+        (V6Operation::STRHReg { m, n, t }, V7Operation::StrhRegister(el)) => m.equal(&el.rm) && n.equal(&el.rm) && t.equal(&el.rt),
+        (V6Operation::SUBImm { imm, n, d }, V7Operation::SubImmediate(sub)) => (*imm == sub.imm) && n.equal(&sub.rn) && d.equal(&sub.rd.unwrap_or(sub.rn.clone())),
+        (V6Operation::SUBReg { m, n, d }, V7Operation::SubRegister(sub)) => m.equal(&sub.rm) && n.equal(&sub.rn) && d.equal(&sub.rd.unwrap_or(sub.rn.clone())),
+        (V6Operation::SUBImmSP { imm }, V7Operation::SubSpMinusImmediate(sub)) => *imm == sub.imm && sub.rd.unwrap_or(V7Register::SP) == V7Register::SP,
         (V6Operation::SVC { imm }, _) => todo!("sys calls"),
-        (V6Operation::SXTB { m, d }, V7Operation::Sxtb(sxtb)) => {
-            m.equal(&sxtb.rm) && d.equal(&sxtb.rd)
-        }
-        (V6Operation::SXTH { m, d }, V7Operation::Sxth(sxth)) => {
-            m.equal(&sxth.rm) && d.equal(&sxth.rd)
-        }
-        (V6Operation::TSTReg { m, n }, V7Operation::TstRegister(tst)) => {
-            m.equal(&tst.rm) && n.equal(&tst.rn)
-        }
+        (V6Operation::SXTB { m, d }, V7Operation::Sxtb(sxtb)) => m.equal(&sxtb.rm) && d.equal(&sxtb.rd),
+        (V6Operation::SXTH { m, d }, V7Operation::Sxth(sxth)) => m.equal(&sxth.rm) && d.equal(&sxth.rd),
+        (V6Operation::TSTReg { m, n }, V7Operation::TstRegister(tst)) => m.equal(&tst.rm) && n.equal(&tst.rn),
         (V6Operation::UDF { imm }, _) => unimplemented!("no need for undefined"),
-        (V6Operation::UXTB { m, d }, V7Operation::Uxtb(uxtb)) => {
-            m.equal(&uxtb.rm) && d.equal(&uxtb.rd)
-        }
-        (V6Operation::UXTH { m, d }, V7Operation::Uxth(uxth)) => {
-            m.equal(&uxth.rm) && d.equal(&uxth.rd)
-        }
+        (V6Operation::UXTB { m, d }, V7Operation::Uxtb(uxtb)) => m.equal(&uxtb.rm) && d.equal(&uxtb.rd),
+        (V6Operation::UXTH { m, d }, V7Operation::Uxth(uxth)) => m.equal(&uxth.rm) && d.equal(&uxth.rd),
         (V6Operation::WFE, _) => todo!(),
         (V6Operation::WFI, _) => todo!(),
         (V6Operation::YIELD, _) => todo!(),

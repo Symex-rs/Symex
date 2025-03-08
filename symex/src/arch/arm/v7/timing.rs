@@ -7,38 +7,25 @@ impl super::ArmV7EM {
     pub fn memory_access(instr: &V7Operation) -> bool {
         use V7Operation::*;
         match instr {
-            AdcImmediate(_) | AdcRegister(_) | AddImmediate(_) | AddRegister(_)
-            | AddSPImmediate(_) | AddSPRegister(_) | Adr(_) | AndImmediate(_) | AndRegister(_)
-            | AsrImmediate(_) | AsrRegister(_) | B(_) | Bfc(_) | Bfi(_) | BicImmediate(_)
-            | BicRegister(_) | Bkpt(_) | Bl(_) | Blx(_) | Bx(_) | Cbz(_) | Clrex(_) | Clz(_)
-            | CmnImmediate(_) | CmnRegister(_) | CmpImmediate(_) | CmpRegister(_) | Cps(_)
-            | Dbg(_) | Dmb(_) | Dsb(_) | EorImmediate(_) | EorRegister(_) | Isb(_) | It(_) => false,
-            Ldm(_) | Ldmdb(_) | LdrImmediate(_) | LdrLiteral(_) | LdrRegister(_)
-            | LdrbImmediate(_) | LdrbLiteral(_) | LdrbRegister(_) | Ldrbt(_) | LdrdImmediate(_)
-            | LdrdLiteral(_) | Ldrex(_) | Ldrexb(_) | Ldrexh(_) | LdrhImmediate(_)
-            | LdrhLiteral(_) | LdrhRegister(_) | Ldrht(_) | LdrsbImmediate(_) | LdrsbLiteral(_)
-            | LdrsbRegister(_) | Ldrsbt(_) | LdrshImmediate(_) | LdrshLiteral(_)
-            | LdrshRegister(_) | Ldrsht(_) | Ldrt(_) => true,
+            AdcImmediate(_) | AdcRegister(_) | AddImmediate(_) | AddRegister(_) | AddSPImmediate(_) | AddSPRegister(_) | Adr(_) | AndImmediate(_) | AndRegister(_)
+            | AsrImmediate(_) | AsrRegister(_) | B(_) | Bfc(_) | Bfi(_) | BicImmediate(_) | BicRegister(_) | Bkpt(_) | Bl(_) | Blx(_) | Bx(_) | Cbz(_) | Clrex(_) | Clz(_)
+            | CmnImmediate(_) | CmnRegister(_) | CmpImmediate(_) | CmpRegister(_) | Cps(_) | Dbg(_) | Dmb(_) | Dsb(_) | EorImmediate(_) | EorRegister(_) | Isb(_) | It(_) => false,
+            Ldm(_) | Ldmdb(_) | LdrImmediate(_) | LdrLiteral(_) | LdrRegister(_) | LdrbImmediate(_) | LdrbLiteral(_) | LdrbRegister(_) | Ldrbt(_) | LdrdImmediate(_)
+            | LdrdLiteral(_) | Ldrex(_) | Ldrexb(_) | Ldrexh(_) | LdrhImmediate(_) | LdrhLiteral(_) | LdrhRegister(_) | Ldrht(_) | LdrsbImmediate(_) | LdrsbLiteral(_)
+            | LdrsbRegister(_) | Ldrsbt(_) | LdrshImmediate(_) | LdrshLiteral(_) | LdrshRegister(_) | Ldrsht(_) | Ldrt(_) => true,
             /* LdcImmediate(_) | LdcLiteral(_) | */
             LslImmediate(_) | LslRegister(_) | LsrImmediate(_) | LsrRegister(_) => false,
-            Mcrr(_) | Mla(_) | Mls(_) | MovImmediate(_) | MovRegister(_) | Movt(_) | Mrrc(_)
-            | Mrs(_) | Msr(_) | Mul(_) | MvnImmediate(_) | MvnRegister(_) | Nop(_)
+            Mcrr(_) | Mla(_) | Mls(_) | MovImmediate(_) | MovRegister(_) | Movt(_) | Mrrc(_) | Mrs(_) | Msr(_) | Mul(_) | MvnImmediate(_) | MvnRegister(_) | Nop(_)
             | OrnImmediate(_) | OrnRegister(_) | OrrImmediate(_) | OrrRegister(_) | Pkh(_) => false,
-            PldImmediate(_) | PldLiteral(_) | PldRegister(_) | PliImmediate(_) | PliRegister(_) => {
-                true
-            }
+            PldImmediate(_) | PldLiteral(_) | PldRegister(_) | PliImmediate(_) | PliRegister(_) => true,
             Pop(_) => true,
             Push(_) => true,
-            Qadd(_) | Qadd16(_) | Qadd8(_) | Qasx(_) | Qdadd(_) | Qdsub(_) | Qsax(_) | Qsub(_)
-            | Qsub16(_) | Qsub8(_) | Rbit(_) | Rev(_) | Rev16(_) | Revsh(_) | RorImmediate(_)
-            | RorRegister(_) | Rrx(_) | RsbImmediate(_) | RsbRegister(_) | Sadd16(_) | Sadd8(_)
-            | Sasx(_) | SbcImmediate(_) | SbcRegister(_) | Sbfx(_) | Sdiv(_) | Sel(_) | Sev(_)
-            | Shadd16(_) | Shadd8(_) | Shasx(_) | Shsax(_) | Shsub16(_) | Shsub8(_) | Smla(_)
-            | Smlad(_) | Smlal(_) | SmlalSelective(_) | Smlald(_) | Smlaw(_) | Smlsd(_)
-            | Smlsld(_) | Smmla(_) | Smmls(_) | Smmul(_) | Smuad(_) | Smul(_) | Smull(_)
-            | Smulw(_) | Smusd(_) | Ssat(_) | Ssat16(_) | Ssax(_) | Ssub16(_) | Ssub8(_) => false,
-            Stm(_) | Stmdb(_) | StrImmediate(_) | StrRegister(_) | StrbImmediate(_)
-            | StrbRegister(_) | Strbt(_) | StrdImmediate(_) | Strex(_) | Strexb(_) | Strexh(_)
+            Qadd(_) | Qadd16(_) | Qadd8(_) | Qasx(_) | Qdadd(_) | Qdsub(_) | Qsax(_) | Qsub(_) | Qsub16(_) | Qsub8(_) | Rbit(_) | Rev(_) | Rev16(_) | Revsh(_)
+            | RorImmediate(_) | RorRegister(_) | Rrx(_) | RsbImmediate(_) | RsbRegister(_) | Sadd16(_) | Sadd8(_) | Sasx(_) | SbcImmediate(_) | SbcRegister(_) | Sbfx(_)
+            | Sdiv(_) | Sel(_) | Sev(_) | Shadd16(_) | Shadd8(_) | Shasx(_) | Shsax(_) | Shsub16(_) | Shsub8(_) | Smla(_) | Smlad(_) | Smlal(_) | SmlalSelective(_) | Smlald(_)
+            | Smlaw(_) | Smlsd(_) | Smlsld(_) | Smmla(_) | Smmls(_) | Smmul(_) | Smuad(_) | Smul(_) | Smull(_) | Smulw(_) | Smusd(_) | Ssat(_) | Ssat16(_) | Ssax(_)
+            | Ssub16(_) | Ssub8(_) => false,
+            Stm(_) | Stmdb(_) | StrImmediate(_) | StrRegister(_) | StrbImmediate(_) | StrbRegister(_) | Strbt(_) | StrdImmediate(_) | Strex(_) | Strexb(_) | Strexh(_)
             | StrhImmediate(_) | StrhRegister(_) | Strht(_) | Strt(_) => true,
             Stc(_)
             | SubImmediate(_)
@@ -297,16 +284,12 @@ impl super::ArmV7EM {
                 (Register::PC, _) => CycleCount::Value(2 + 3),
                 _ => CycleCount::Function(pipeline),
             },
-            V7Operation::LdrbImmediate(_)
-            | V7Operation::LdrbLiteral(_)
-            | V7Operation::LdrbRegister(_) => CycleCount::Value(2),
+            V7Operation::LdrbImmediate(_) | V7Operation::LdrbLiteral(_) | V7Operation::LdrbRegister(_) => CycleCount::Value(2),
             V7Operation::Ldrbt(_) => CycleCount::Value(2),
             V7Operation::LdrdImmediate(_ldrd) => CycleCount::Value(1 + 2),
             V7Operation::LdrdLiteral(_) => CycleCount::Value(1 + 2),
             // TODO! This requires a model of semaphores
-            V7Operation::Ldrex(_) | V7Operation::Ldrexb(_) | V7Operation::Ldrexh(_) => {
-                CycleCount::Value(2)
-            }
+            V7Operation::Ldrex(_) | V7Operation::Ldrexb(_) | V7Operation::Ldrexh(_) => CycleCount::Value(2),
             // TODO! Add in model of contiguous loads to allow next load to be single cycle
             V7Operation::LdrhImmediate(_)
             | V7Operation::LdrhLiteral(_)
@@ -414,22 +397,15 @@ impl super::ArmV7EM {
             V7Operation::Ssub8(_) => CycleCount::Value(1),
             V7Operation::Stm(stm) => CycleCount::Value(1 + stm.registers.registers.len()),
             V7Operation::Stmdb(stm) => CycleCount::Value(1 + stm.registers.registers.len()),
-            V7Operation::StrImmediate(_) | V7Operation::StrRegister(_) => {
-                CycleCount::Function(pipeline)
-            }
-            V7Operation::StrbImmediate(_) | V7Operation::StrbRegister(_) => {
-                CycleCount::Function(pipeline)
-            }
+            V7Operation::StrImmediate(_) | V7Operation::StrRegister(_) => CycleCount::Function(pipeline),
+            V7Operation::StrbImmediate(_) | V7Operation::StrbRegister(_) => CycleCount::Function(pipeline),
             V7Operation::Strbt(_) => CycleCount::Value(2),
             // N is two here
             V7Operation::StrdImmediate(_strd) => CycleCount::Value(1 + 2),
             V7Operation::Strex(_) => CycleCount::Value(2),
             V7Operation::Strexb(_) => CycleCount::Value(2),
             V7Operation::Strexh(_) => CycleCount::Value(2),
-            V7Operation::StrhImmediate(_)
-            | V7Operation::StrhRegister(_)
-            | V7Operation::Strht(_)
-            | V7Operation::Strt(_) => CycleCount::Function(pipeline),
+            V7Operation::StrhImmediate(_) | V7Operation::StrhRegister(_) | V7Operation::Strht(_) | V7Operation::Strt(_) => CycleCount::Function(pipeline),
             V7Operation::SubImmediate(_) | V7Operation::SubRegister(_) => CycleCount::Value(1),
             V7Operation::SubSpMinusImmediate(_) => CycleCount::Value(1),
             V7Operation::SubSpMinusRegister(_) => CycleCount::Value(1),

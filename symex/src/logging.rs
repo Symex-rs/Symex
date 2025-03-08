@@ -7,7 +7,7 @@ use crate::{
 };
 
 /// Denotes meta data regarding a region of code.
-#[derive(Hash)]
+#[derive(Hash, Clone)]
 pub struct RegionMetaData {
     /// Region label if any.
     pub name: Option<String>,
@@ -26,7 +26,7 @@ pub struct RegionMetaData {
 }
 
 /// The execution does not use a logger.
-#[derive(Hash)]
+#[derive(Hash, Clone, Debug)]
 pub struct NoLogger;
 
 pub trait Region {
@@ -38,7 +38,7 @@ pub trait Region {
 ///
 ///
 /// Will not work in a multi threaded context as of now.
-pub trait Logger {
+pub trait Logger: Clone + core::fmt::Debug {
     type RegionIdentifier: Sized + ToString + From<RegionMetaData> + Hash + Region;
     type RegionDelimiter: Hash + ToString + From<u64>;
 
@@ -61,7 +61,11 @@ pub trait Logger {
     ///
     /// If this is path has been partially explored before it will simply append
     /// to the previous logs.
-    fn change_path(&mut self, new_path_idx: usize);
+    fn set_path_idx(&mut self, new_path_idx: usize);
+
+    fn fork(&self) -> Self {
+        self.clone()
+    }
 
     /// Adds constraint info to the currently executing path.
     fn add_constraints(&mut self, constraints: Vec<String>);
@@ -94,7 +98,7 @@ impl Logger for NoLogger {
 
     fn record_execution_time<T: ToString>(&mut self, _time: T) {}
 
-    fn change_path(&mut self, _new_path_idx: usize) {}
+    fn set_path_idx(&mut self, _: usize) {}
 
     fn add_constraints(&mut self, _constraints: Vec<String>) {}
 
@@ -126,7 +130,7 @@ impl ToString for RegionMetaData {
         let area_delimiter = self.area_delimiter.clone();
         format!(
             "region (name: \\bold{{{}}} from $`{area_delimiter} = {}`$ to $`{area_delimiter} = {}`$",
-            self.name.as_ref().map_or("No name",|v| v),
+            self.name.as_ref().map_or("No name", |v| v),
             self.start,
             self.end
         )
@@ -136,7 +140,7 @@ impl ToString for RegionMetaData {
 impl Region for RegionMetaData {
     fn global() -> Self {
         Self {
-            name: Some("Gloabal scope".to_string()),
+            name: Some("Global scope".to_string()),
             start: 0,
             end: u64::MAX,
             area_delimiter: "PC".to_string(),

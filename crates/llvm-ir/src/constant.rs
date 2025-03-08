@@ -3,7 +3,8 @@ use std::ffi::CStr;
 use llvm_sys::{
     core::{self, LLVMGetConstOpcode, LLVMGetValueKind, LLVMIsConstant},
     prelude::LLVMValueRef,
-    LLVMOpcode, LLVMValueKind,
+    LLVMOpcode,
+    LLVMValueKind,
 };
 
 use crate::{instruction, Type, Value};
@@ -37,9 +38,7 @@ impl Constant {
             LLVMValueKind::LLVMConstantTokenNoneValueKind => TargetNone::new(value_ref).into(),
 
             LLVMValueKind::LLVMConstantPointerNullValueKind => PointerNull::new(value_ref).into(),
-            LLVMValueKind::LLVMConstantAggregateZeroValueKind => {
-                AggregateZero::new(value_ref).into()
-            }
+            LLVMValueKind::LLVMConstantAggregateZeroValueKind => AggregateZero::new(value_ref).into(),
 
             LLVMValueKind::LLVMConstantIntValueKind => Integer::new(value_ref).into(),
             LLVMValueKind::LLVMConstantFPValueKind => Float::new(value_ref).into(),
@@ -47,9 +46,7 @@ impl Constant {
             LLVMValueKind::LLVMConstantDataArrayValueKind => Constant::Array(Array::new(value_ref)),
             LLVMValueKind::LLVMConstantArrayValueKind => Constant::Array(Array::new(value_ref)),
 
-            LLVMValueKind::LLVMConstantDataVectorValueKind => {
-                Constant::Vector(Vector::new(value_ref))
-            }
+            LLVMValueKind::LLVMConstantDataVectorValueKind => Constant::Vector(Vector::new(value_ref)),
             LLVMValueKind::LLVMConstantVectorValueKind => Constant::Vector(Vector::new(value_ref)),
 
             LLVMValueKind::LLVMConstantStructValueKind => Structure::new(value_ref).into(),
@@ -155,23 +152,13 @@ impl Expression {
             LLVMOpcode::LLVMPtrToInt => Expression::PtrToInt(instruction::PtrToInt::new(value_ref)),
             LLVMOpcode::LLVMIntToPtr => Expression::IntToPtr(instruction::IntToPtr::new(value_ref)),
             LLVMOpcode::LLVMBitCast => Expression::BitCast(instruction::BitCast::new(value_ref)),
-            LLVMOpcode::LLVMAddrSpaceCast => {
-                Expression::AddrSpaceCast(instruction::AddrSpaceCast::new(value_ref))
-            }
-            LLVMOpcode::LLVMGetElementPtr => {
-                Expression::GetElementPtr(instruction::GetElementPtr::new(value_ref))
-            }
+            LLVMOpcode::LLVMAddrSpaceCast => Expression::AddrSpaceCast(instruction::AddrSpaceCast::new(value_ref)),
+            LLVMOpcode::LLVMGetElementPtr => Expression::GetElementPtr(instruction::GetElementPtr::new(value_ref)),
             LLVMOpcode::LLVMICmp => Expression::ICmp(instruction::ICmp::new(value_ref)),
             LLVMOpcode::LLVMFCmp => Expression::FCmp(instruction::FCmp::new(value_ref)),
-            LLVMOpcode::LLVMExtractElement => {
-                Expression::ExtractElement(instruction::ExtractElement::new(value_ref))
-            }
-            LLVMOpcode::LLVMInsertElement => {
-                Expression::InsertElement(instruction::InsertElement::new(value_ref))
-            }
-            LLVMOpcode::LLVMShuffleVector => {
-                Expression::ShuffleVector(instruction::ShuffleVector::new(value_ref))
-            }
+            LLVMOpcode::LLVMExtractElement => Expression::ExtractElement(instruction::ExtractElement::new(value_ref)),
+            LLVMOpcode::LLVMInsertElement => Expression::InsertElement(instruction::InsertElement::new(value_ref)),
+            LLVMOpcode::LLVMShuffleVector => Expression::ShuffleVector(instruction::ShuffleVector::new(value_ref)),
             LLVMOpcode::LLVMAdd => Expression::Add(instruction::Add::new(value_ref)),
             LLVMOpcode::LLVMFAdd => Expression::FAdd(instruction::FAdd::new(value_ref)),
             LLVMOpcode::LLVMSub => Expression::Sub(instruction::Sub::new(value_ref)),
@@ -402,11 +389,7 @@ pub struct ArrayIter {
 
 impl ArrayIter {
     pub(crate) fn new(array: LLVMValueRef, len: u32) -> Self {
-        Self {
-            array,
-            index: 0,
-            len,
-        }
+        Self { array, index: 0, len }
     }
 }
 
@@ -462,11 +445,7 @@ pub struct VectorIter {
 
 impl VectorIter {
     pub(crate) fn new(array: LLVMValueRef, len: u32) -> Self {
-        Self {
-            array,
-            index: 0,
-            len,
-        }
+        Self { array, index: 0, len }
     }
 }
 
@@ -522,11 +501,7 @@ pub struct StructureIter {
 
 impl StructureIter {
     pub(crate) fn new(array: LLVMValueRef, len: u32) -> Self {
-        Self {
-            array,
-            index: 0,
-            len,
-        }
+        Self { array, index: 0, len }
     }
 }
 

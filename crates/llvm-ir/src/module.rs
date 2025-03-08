@@ -8,10 +8,21 @@ use std::{
 use llvm_sys::{
     bit_reader::LLVMParseBitcodeInContext2,
     core::{
-        LLVMContextCreate, LLVMCreateMemoryBufferWithContentsOfFile, LLVMDisposeMemoryBuffer,
-        LLVMGetDataLayoutStr, LLVMGetFirstFunction, LLVMGetFirstGlobal, LLVMGetFirstGlobalAlias,
-        LLVMGetFirstGlobalIFunc, LLVMGetModuleIdentifier, LLVMGetNextFunction, LLVMGetNextGlobal,
-        LLVMGetNextGlobalAlias, LLVMGetNextGlobalIFunc, LLVMGetSourceFileName, LLVMGetTarget,
+        LLVMContextCreate,
+        LLVMCreateMemoryBufferWithContentsOfFile,
+        LLVMDisposeMemoryBuffer,
+        LLVMGetDataLayoutStr,
+        LLVMGetFirstFunction,
+        LLVMGetFirstGlobal,
+        LLVMGetFirstGlobalAlias,
+        LLVMGetFirstGlobalIFunc,
+        LLVMGetModuleIdentifier,
+        LLVMGetNextFunction,
+        LLVMGetNextGlobal,
+        LLVMGetNextGlobalAlias,
+        LLVMGetNextGlobalIFunc,
+        LLVMGetSourceFileName,
+        LLVMGetTarget,
     },
     prelude::*,
 };
@@ -41,11 +52,7 @@ impl Module {
             let mut buffer = std::ptr::null_mut();
             let mut error = std::mem::zeroed();
 
-            let return_code = LLVMCreateMemoryBufferWithContentsOfFile(
-                path.as_ptr() as *const _,
-                &mut buffer,
-                &mut error,
-            );
+            let return_code = LLVMCreateMemoryBufferWithContentsOfFile(path.as_ptr() as *const _, &mut buffer, &mut error);
             if return_code != 0 {
                 return Err(ModuleError::FailedToLoad(CString::from_raw(error)));
             }
@@ -73,19 +80,11 @@ impl Module {
         let mut memory_buffer = core::ptr::null_mut();
         let mut err_string = MaybeUninit::uninit();
 
-        let success = unsafe {
-            LLVMCreateMemoryBufferWithContentsOfFile(
-                path.as_ptr() as *const _,
-                &mut memory_buffer,
-                err_string.as_mut_ptr(),
-            )
-        };
+        let success = unsafe { LLVMCreateMemoryBufferWithContentsOfFile(path.as_ptr() as *const _, &mut memory_buffer, err_string.as_mut_ptr()) };
         if success != 0 {
             eprintln!("LLVMCreateMemoryBufferWithContentsOfFile failed");
             unsafe {
-                return Err(ModuleError::FailedToLoad(CString::from_raw(
-                    err_string.assume_init(),
-                )));
+                return Err(ModuleError::FailedToLoad(CString::from_raw(err_string.assume_init())));
             }
         }
 
@@ -172,35 +171,7 @@ macro_rules! impl_iter {
     };
 }
 
-impl_iter!(
-    FunctionIter,
-    LLVMModuleRef,
-    LLVMValueRef,
-    LLVMGetFirstFunction,
-    LLVMGetNextFunction,
-    Function
-);
-impl_iter!(
-    GlobalIter,
-    LLVMModuleRef,
-    LLVMValueRef,
-    LLVMGetFirstGlobal,
-    LLVMGetNextGlobal,
-    GlobalVariable
-);
-impl_iter!(
-    GlobalAliasIter,
-    LLVMModuleRef,
-    LLVMValueRef,
-    LLVMGetFirstGlobalAlias,
-    LLVMGetNextGlobalAlias,
-    GlobalAlias
-);
-impl_iter!(
-    GlobalIFuncIter,
-    LLVMModuleRef,
-    LLVMValueRef,
-    LLVMGetFirstGlobalIFunc,
-    LLVMGetNextGlobalIFunc,
-    GlobalIFunc
-);
+impl_iter!(FunctionIter, LLVMModuleRef, LLVMValueRef, LLVMGetFirstFunction, LLVMGetNextFunction, Function);
+impl_iter!(GlobalIter, LLVMModuleRef, LLVMValueRef, LLVMGetFirstGlobal, LLVMGetNextGlobal, GlobalVariable);
+impl_iter!(GlobalAliasIter, LLVMModuleRef, LLVMValueRef, LLVMGetFirstGlobalAlias, LLVMGetNextGlobalAlias, GlobalAlias);
+impl_iter!(GlobalIFuncIter, LLVMModuleRef, LLVMValueRef, LLVMGetFirstGlobalIFunc, LLVMGetNextGlobalIFunc, GlobalIFunc);

@@ -1,7 +1,8 @@
 use std::marker::PhantomData;
 
-use super::logger::SimpleLogger;
+use super::logger::SimplePathLogger;
 use crate::{
+    logging::NoLogger,
     manager::SymexArbiter,
     memory::array_memory::BoolectorMemory,
     smt::smt_boolector::{Boolector, BoolectorExpr},
@@ -17,7 +18,25 @@ pub type SymexWithState<Data> = SymexArbiter<UserState<Data>>;
 pub struct DefaultComposition {}
 
 impl Composition for DefaultComposition {
-    type Logger = SimpleLogger;
+    type Logger = SimplePathLogger;
+    type Memory = BoolectorMemory;
+    type SMT = Boolector;
+    type SmtExpression = BoolectorExpr;
+    type StateContainer = ();
+
+    fn logger<'a>() -> &'a mut Self::Logger {
+        todo!()
+    }
+}
+
+#[derive(Clone, Debug)]
+/// Default configuration for a defined architecture.
+///
+/// But without any path logging.
+pub struct DefaultCompositionNoLogger {}
+
+impl Composition for DefaultCompositionNoLogger {
+    type Logger = NoLogger;
     type Memory = BoolectorMemory;
     type SMT = Boolector;
     type SmtExpression = BoolectorExpr;
@@ -34,7 +53,7 @@ pub struct UserState<State: UserStateContainer> {
 }
 
 impl<State: UserStateContainer> Composition for UserState<State> {
-    type Logger = SimpleLogger;
+    type Logger = SimplePathLogger;
     type Memory = BoolectorMemory;
     type SMT = Boolector;
     type SmtExpression = BoolectorExpr;

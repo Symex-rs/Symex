@@ -235,9 +235,7 @@ impl BoolectorExpr {
     }
 
     pub fn get_constant(&self) -> Option<u64> {
-        self.0
-            .as_binary_str()
-            .map(|value| u64::from_str_radix(&value, 2).unwrap())
+        self.0.as_binary_str().map(|value| u64::from_str_radix(&value, 2).unwrap())
     }
 
     pub fn get_constant_bool(&self) -> Option<bool> {
@@ -320,9 +318,7 @@ impl BoolectorExpr {
         // Check the sign bit if max or min should be given on overflow.
         let is_negative = self.slice(self.len() - 1, self.len() - 1).simplify();
 
-        overflow
-            .ite(&is_negative.ite(&min, &max), &result)
-            .simplify()
+        overflow.ite(&is_negative.ite(&min, &max), &result).simplify()
     }
 
     /// Saturated unsigned subtraction.
@@ -357,8 +353,6 @@ impl BoolectorExpr {
         // Check the sign bit if max or min should be given on overflow.
         let is_negative = self.slice(self.len() - 1, self.len() - 1).simplify();
 
-        overflow
-            .ite(&is_negative.ite(&min, &max), &result)
-            .simplify()
+        overflow.ite(&is_negative.ite(&min, &max), &result).simplify()
     }
 }

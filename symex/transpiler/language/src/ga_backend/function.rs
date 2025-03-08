@@ -1,11 +1,18 @@
 //! Defines transpiling rules for the ast
 //! [`Functions`](crate::ast::function::Function).
 
+use std::u128;
+
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
+use syn::{parse::Parse, LitInt};
 
 use crate::{
-    ast::{function::*, operand::Operand, operations::BinOp},
+    ast::{
+        function::*,
+        operand::Operand,
+        operations::{BinOp, BinaryOperation},
+    },
     Compile,
     Error,
     TranspilerState,
@@ -44,6 +51,8 @@ impl Compile for Intrinsic {
             Self::Ror(r) => r.compile(state),
             Self::Sra(s) => s.compile(state),
             Self::Signed(s) => s.compile(state),
+            Self::Ite(i) => i.compile(state),
+            Self::Abort(a) => a.compile(state),
         }
     }
 }
@@ -282,10 +291,14 @@ impl Compile for SignExtend {
     fn compile(&self, state: &mut TranspilerState<Self::Output>) -> Result<Self::Output, Error> {
         let intermediate = state.intermediate().compile(state)?;
         let operand = self.operand.compile(state)?;
-        let bits = self.bits.clone();
+        let sign_bit = self.sign_bit.clone();
+        let size = self.target_size.clone();
         state.to_insert_above.push(quote!(Operation::SignExtend {
                 destination: #intermediate.clone(),
-                operand: #operand, bits: #bits.clone()
+                operand: #operand,
+                sign_bit: #sign_bit.clone(),
+                target_size: #size.clone()
+
         }));
         Ok(quote!(#intermediate))
     }
@@ -335,3 +348,75 @@ impl Compile for Ror {
         Ok(quote!(#intermediate))
     }
 }
+
+impl Compile for Ite {
+    type Output = TokenStream;
+
+    fn compile(&self, state: &mut TranspilerState<Self::Output>) -> Result<Self::Output, Error> {
+        state.access(self.lhs.ident.clone());
+        state.access(self.rhs.ident.clone());
+        let lhs = self.lhs.compile(state)?;
+
+        let rhs = self.rhs.compile(state)?;
+
+        let operation = self.operation.compile(state)?;
+        let mut then = Vec::with_capacity(self.then.len());
+        for el in &self.then {
+            then.push(el.compile(state)?);
+        }
+        let mut otherwise = Vec::with_capacity(self.otherwise.len());
+        for el in &self.otherwise {
+            otherwise.push(el.compile(state)?);
+        }
+        let ret = quote! {
+            Operation::Ite {
+                lhs:#lhs,
+                rhs:#rhs,
+                operation:#operation,
+                then: vec![#(#then),*],
+                otherwise: vec![#(#otherwise),*],
+            }
+        };
+        Ok(ret)
+    }
+}
+
+impl Compile for Abort {
+    type Output = TokenStream;
+
+    fn compile(&self, _state: &mut TranspilerState<Self::Output>) -> Result<Self::Output, Error> {
+        let inner = self.inner.clone();
+        Ok(quote! {Operation::Abort{error:format!(#inner)}})
+    }
+}
+//
+//impl Compile for Saturate {
+//    type Output = TokenStream;
+//    fn compile(&self, state: &mut TranspilerState<Self::Output>) ->
+// Result<Self::Output, Error> {        let lhs = self.lhs.compile(state)?;
+//        let operation = self.operation;
+//        let rhs = self.rhs.compile(state)?;
+//        let max: u64 = ((1 << self.bits as u128) - 1) as u64;
+//        let clip_to_max = match operation {
+//            BinaryOperation::Sub => false,
+//            BinaryOperation::Add => true,
+//            BinaryOperation::Mul => true,
+//            BinaryOperation::UDiv => false,
+//            op => {
+//                return Err(Error::UnsuportedInstruction(format!(
+//                    "Cannot saturate {op:?}"
+//                )))
+//            }
+//        };
+//        let bits = self.bits + 1;
+//        let intermediate_lhs = state.intermediate();
+//        let intermediate_rhs = state.intermediate();
+//        //state.to_insert_above.push(quote!(Operation::Resize {
+//        //        destination: #intermediate.clone(),
+//        //        operand: #intermediate_lhs, bits: #bits.clone()
+//        //}));
+//        //let resize = Resize {
+//        //    operand: intermediate_lhs,
+//        //};
+//    }
+//}
