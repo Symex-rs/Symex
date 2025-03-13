@@ -497,7 +497,7 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
     /// Execute a single operation or all operations contained inside an
     /// operation.
     pub(crate) fn execute_operation(&mut self, operation: &Operation, local: &mut HashMap<String, C::SmtExpression>, logger: &mut C::Logger) -> ResultOrTerminate<()> {
-        println!(
+        trace!(
             "PC: {:#x} -> Executing operation: {:?}",
             self.state.memory.get_pc().unwrap().get_constant().unwrap(),
             operation
