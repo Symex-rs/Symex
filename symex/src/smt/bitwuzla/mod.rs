@@ -37,11 +37,11 @@ impl SmtSolver for Bitwuzla {
         //ctx.set_opt(BtorOption::PrettyPrint(true));
         //ctx.set_opt(BtorOption::OutputNumberFormat(NumberFormat::Hexadecimal));
         let solver = bitwuzla::Bitwuzla::builder()
-            .logging(bitwuzla::option::LogLevel::Off)
-            .verbosity(bitwuzla::option::Verbosity::None)
-            .n_threads(1)
+            //.logging(bitwuzla::option::LogLevel::Debug)
+            //.verbosity(bitwuzla::option::Verbosity::Level3)
+            .n_threads(4)
             //.rewrite_level(bitwuzla::option::RewriteLevel::More)
-            .model_gen(ModelGen::Asserted)
+            .model_gen(ModelGen::All)
             .set_abort_callback(abort_callback)
             .incremental()
             .build();
