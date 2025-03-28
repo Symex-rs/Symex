@@ -25,22 +25,22 @@ transpiler = { path = "../symex/transpiler" }
 general_assembly = { path = "../symex/general_assembly" }
 
 # SMT-backends
-# boolector = { version = "0.4.3", features = ["vendor-lgl"] }
-boolector = { version = "0.4.3" }
+boolector = { version = "0.4.3", features = ["vendor-lgl"] }
+# boolector = { version = "0.4.3" }
 
 
 # Parsing-backends.
 armv6-m-instruction-parser = "0.3.0-rc1"
-# disarmv7 = { git = "https://github.com/ivajon/disarmv7", branch = "floats" }
-disarmv7 = {path = "../../disarmv7/" }
+disarmv7 = { git = "https://github.com/ivajon/disarmv7", branch = "floats" }
+# disarmv7 = {path = "../../disarmv7/" }
 hashbrown = "0.15.2"
 kd-tree = "0.6.0"
 fst = "0.4.7"
 regex-automata = { version = "0.1.9", features = ["transducer"] }
 dyn-clone = "1.0.18"
 
-# bitwuzla = {git = "https://github.com/ivajon/boolector-rs.git", branch = "bitwuzla"}
-bitwuzla = { path = "../../bitwuzla-rs/" }
+bitwuzla = {git = "https://github.com/ivajon/boolector-rs.git", branch = "bitwuzla"}
+# bitwuzla = { path = "../../bitwuzla-rs/" }
 
 [features]
 default = []
