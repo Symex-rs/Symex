@@ -104,7 +104,7 @@ impl ArrayMemory {
         // Check if we should zero extend the value (if it less than 8-bits).
         let value = if value.size() < BITS_IN_BYTE { value.zero_ext(BITS_IN_BYTE) } else { value };
 
-        trace!("Value {:?} len : {}", value, value.len());
+        trace!("Value {:?} len : {}", value, value.size());
         // Ensure the value we write is a multiple of `BITS_IN_BYTE`.
         assert_eq!(value.size() % BITS_IN_BYTE, 0);
 

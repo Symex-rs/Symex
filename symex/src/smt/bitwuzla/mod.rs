@@ -40,7 +40,7 @@ impl SmtSolver for Bitwuzla {
             .logging(bitwuzla::option::LogLevel::Off)
             .verbosity(bitwuzla::option::Verbosity::None)
             .n_threads(1)
-            .rewrite_level(bitwuzla::option::RewriteLevel::More)
+            //.rewrite_level(bitwuzla::option::RewriteLevel::More)
             .model_gen(ModelGen::Asserted)
             .set_abort_callback(abort_callback)
             .incremental()

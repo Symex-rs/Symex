@@ -25,8 +25,8 @@ transpiler = { path = "../symex/transpiler" }
 general_assembly = { path = "../symex/general_assembly" }
 
 # SMT-backends
-boolector = { version = "0.4.3", features = ["vendor-lgl"] }
-# boolector = { version = "0.4.3" }
+# boolector = { version = "0.4.3", features = ["vendor-lgl"] }
+boolector = { version = "0.4.3" }
 
 
 # Parsing-backends.
