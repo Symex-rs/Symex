@@ -144,10 +144,10 @@ impl Instruction32ToGAOperations for parsed_instructions::slt {
 
             Ite(rs1 < rs2, 
                 {
-                    rd = 1.local_into();
+                    rd = 1u32;
                 }, 
                 {
-                    rd = 0.local_into();
+                    rd = 0u32;
                 }
             );
         ])
@@ -167,10 +167,10 @@ impl Instruction32ToGAOperations for parsed_instructions::sltu {
 
             Ite(rs1 < rs2,
                 {
-                    rd = 1.local_into();
+                    rd = 1u32;
                 }, 
                 {
-                    rd = 0.local_into();
+                    rd = 0u32;
                 }
             );
         ])
@@ -287,11 +287,11 @@ impl Instruction32ToGAOperations for parsed_instructions::slti {
 
             Ite(rs1 < imm, 
                 {
-                    rd = 1.local_into();
+                    rd = 1u32;
 
                 }, 
                 {
-                    rd = 0.local_into();
+                    rd = 0u32;
                 }
             );
         ])
@@ -311,10 +311,10 @@ impl Instruction32ToGAOperations for parsed_instructions::sltiu {
 
             Ite(rs1 < imm, 
                 {
-                    rd = 1.local_into();
+                    rd = 1u32;
                 }, 
                 {
-                    rd = 0.local_into();
+                    rd = 0u32;
                 }
             );
         ])
@@ -328,9 +328,7 @@ impl Instruction32ToGAOperations for parsed_instructions::lb {
         let imm = self.imm.local_into();
 
         pseudo!([
-            addr:u32;
-            
-            let addr = rs1 + imm;
+            let addr:u32 = rs1 + imm;
             let value = LocalAddress(addr, 8);
             rd = SignExtend(value, 8, 32);
         ])
@@ -344,9 +342,7 @@ impl Instruction32ToGAOperations for parsed_instructions::lh {
         let imm = self.imm.local_into();
         
         pseudo!([
-            addr:u32;
-
-            let addr = rs1 + imm;
+            let addr:u32 = rs1 + imm;
             let value = LocalAddress(addr, 16);
             rd = SignExtend(value, 16, 32);
         ])
@@ -360,9 +356,7 @@ impl Instruction32ToGAOperations for parsed_instructions::lw {
         let imm = self.imm.local_into();
 
         pseudo!([
-            addr:u32;
-            
-            let addr = rs1 + imm;
+            let addr:u32 = rs1 + imm;
             rd = LocalAddress(addr, 32);
         ])
     }
@@ -375,9 +369,7 @@ impl Instruction32ToGAOperations for parsed_instructions::lbu {
         let imm = self.imm.local_into();
         
         pseudo!([
-            addr:u32;
-            
-            let addr = rs1 + imm;
+            let addr:u32 = rs1 + imm;
             let value = LocalAddress(addr, 8);
             rd = ZeroExtend(value, 32);
         ])
@@ -391,9 +383,7 @@ impl Instruction32ToGAOperations for parsed_instructions::lhu {
         let imm = self.imm.local_into();
 
         pseudo!([
-            addr:u32;
-
-            let addr = rs1 + imm;
+            let addr:u32 = rs1 + imm;
             let value = LocalAddress(addr, 16);
             rd = ZeroExtend(value, 32);
         ])
@@ -407,10 +397,9 @@ impl Instruction32ToGAOperations for parsed_instructions::sb {
         let imm = self.imm.local_into();
 
         pseudo!([
-            addr:u32;
             rs2:u8;
 
-            let addr = rs1 + imm;
+            let addr:u32 = rs1 + imm;
             LocalAddress(addr, 8) = rs2<7:0>;
         ])
     }
@@ -424,9 +413,8 @@ impl Instruction32ToGAOperations for parsed_instructions::sh {
 
         pseudo!([
             rs2:u16;
-            addr:u32;
 
-            let addr = rs1 + imm;
+            let addr:u32 = rs1 + imm;
             LocalAddress(addr, 16) = rs2<15:0>;
         ])
     }
@@ -439,9 +427,7 @@ impl Instruction32ToGAOperations for parsed_instructions::sw {
         let imm = self.imm.local_into();
 
         pseudo!([
-            addr:u32;
-
-            let addr = rs1 + imm;
+            let addr:u32 = rs1 + imm;
             LocalAddress(addr, 32) = rs2;
         ])
     }
@@ -603,7 +589,7 @@ impl Instruction32ToGAOperations for parsed_instructions::jal {
 
             let target = pc + imm;
             Jump(target);
-            rd = pc + 4.local_into();
+            rd = pc + 4u32;
         ])
     }
 }
@@ -623,7 +609,7 @@ impl Instruction32ToGAOperations for parsed_instructions::jalr {
             let target = rs1 + imm;
             target = target & least_bit_mask; // Clear the least significant bit
             Jump(target);
-            rd = pc + 4.local_into();
+            rd = pc + 4u32;
         ])
     }
 }
