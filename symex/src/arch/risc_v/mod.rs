@@ -14,6 +14,7 @@ use crate::{
 
 pub mod decoder;
 pub mod decoder_implementations;
+pub mod timing;
 
 #[derive(Debug, Default, Clone)]
 pub struct RISCV {}
