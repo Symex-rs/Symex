@@ -3,6 +3,7 @@ use std::fmt::Display;
 use colored::Colorize;
 
 use crate::{
+    debug,
     executor::PathResult,
     logging::{Logger, Region, RegionMetaData},
     manager::SymexArbiter,
@@ -131,12 +132,15 @@ impl Logger for SimplePathLogger {
     }
 
     fn warn<T: ToString>(&mut self, warning: T) {
-        let subprogram = self.regions.get_by_address(&self.pc).cloned();
+        let subprogram = self.regions.in_bounds(self.pc);
+        debug!("Matching subprograms {subprogram:?}");
+        let subprogram = subprogram.get(0).cloned();
+        // println!("Logging in {subprogram:?}");
         self.statements.push((subprogram, format!("[{}]: {}", "WARN".yellow(), warning.to_string())));
     }
 
     fn error<T: ToString>(&mut self, warning: T) {
-        let subprogram = self.regions.get_by_address(&self.pc).cloned();
+        let subprogram = self.regions.in_bounds(self.pc).get(0).cloned();
         self.statements.push((subprogram, format!("[{}]: {}", "ERROR".red(), warning.to_string())));
     }
 
@@ -170,7 +174,9 @@ impl Logger for SimplePathLogger {
     }
 
     fn assume<T: ToString>(&mut self, assumption: T) {
-        let subprogram = self.regions.get_by_address(&self.pc).cloned();
+        let subprogram = self.regions.in_bounds(self.pc);
+        debug!("Matching subprograms {subprogram:?}");
+        let subprogram = subprogram.get(0).cloned();
         self.statements.push((subprogram, format!("[{}]: {}", "ASSUME".blue(), assumption.to_string())));
     }
 

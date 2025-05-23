@@ -35,6 +35,8 @@ use disarmv7::{
         VcvtF64F32,
         VdivF32,
         VdivF64,
+        VfmxF32,
+        VfmxF64,
         VmaxF32,
         VmaxF64,
         VminF32,
@@ -336,6 +338,44 @@ impl Decode for VmulF64 {
         pseudo!([
             dn:f32;
             dd = dn*dm;
+        ])
+    }
+}
+
+impl Decode for VfmxF32 {
+    fn decode(&self, _in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
+        let Self { sd, sn, sm, negate } = self;
+        let sn = sn.local_into();
+        let sd = sd.local_into();
+        let sm = sm.local_into();
+        pseudo!([
+            sn:f32;
+            sd:f32;
+            sm:f32;
+            if (*negate) {
+                sn = 0.0f32 - sn;
+            }
+            let mul = sn*sm;
+            sd = sd + mul;
+        ])
+    }
+}
+
+impl Decode for VfmxF64 {
+    fn decode(&self, _in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
+        let Self { dd, dn, dm, negate } = self;
+        let dn = dn.local_into();
+        let dd = dd.local_into();
+        let dm = dm.local_into();
+        pseudo!([
+            dn:f64;
+            dd:f64;
+            dm:f64;
+            if (*negate) {
+                dn = 0.0f64 - dn;
+            }
+            let mul = dn*dm;
+            dd = dd + mul;
         ])
     }
 }
@@ -890,49 +930,49 @@ impl Decode for Vcvt {
                     }
                     let val = f*base;
                     let rounded:i32 = Resize(val,i32,ToZero);
-                    let rounded_f32:f32 = Resize(rounded,f32);
-                    let err:f32 = val - rounded_f32;
-                    let round_up:u1 = false;
-                    // Intermediates used in ite blocks.
-                    let cond = false;
-                    let cond2 = false;
-                    let cond3 = false;
-                    Register("FPSCR.RM") = 0b01u32;
-                    Ite(Register("FPSCR.RM") == 0b00u32,
-                        {
-                            cond:u1 = err > 0.5f32;
-                            cond2:u1 = err == 0.5f32;
-                            let intermediate_val:u32 = Resize(rounded<0:0>,u32);
-                            cond3:u1 = Resize(intermediate_val,u1);
-                            cond2 = cond2 & cond3;
-                            cond |= cond2;
-                            round_up = cond;
-                        },
-                        {}
-                    );
-                    Ite(Register("FPSCR.RM") == 0b01u32,
-                        {
-                            cond:u1 = err != 0.0f32;
-                            round_up = cond;
-                        },
-                        {}
-                    );
-                    // 0b10 is already handled by setting round up to false.
-                    Ite(Register("FPSCR.RM") == 0b11u32,
-                        {
-                            cond:u1 =  err != 0.0f32;
-                            cond2:u1 =  rounded < 0i32;
-                            cond &= cond2;
-                            round_up = cond;
-                        },
-                        {}
-                    );
-                    Ite(round_up != false,
-                        {
-                            rounded += 1i32;
-                        },
-                        {}
-                    );
+                    // let rounded_f32:f32 = Resize(rounded,f32);
+                    // let err:f32 = val - rounded_f32;
+                    // let round_up:u1 = false;
+                    // // Intermediates used in ite blocks.
+                    // let cond = false;
+                    // let cond2 = false;
+                    // let cond3 = false;
+                    // Register("FPSCR.RM") = 0b01u32;
+                    // Ite(Register("FPSCR.RM") == 0b00u32,
+                    //     {
+                    //         cond:u1 = err > 0.5f32;
+                    //         cond2:u1 = err == 0.5f32;
+                    //         let intermediate_val:u32 = Resize(rounded<0:0>,u32);
+                    //         cond3:u1 = Resize(intermediate_val,u1);
+                    //         cond2 = cond2 & cond3;
+                    //         cond |= cond2;
+                    //         round_up = cond;
+                    //     },
+                    //     {}
+                    // );
+                    // Ite(Register("FPSCR.RM") == 0b01u32,
+                    //     {
+                    //         cond:u1 = err != 0.0f32;
+                    //         round_up = cond;
+                    //     },
+                    //     {}
+                    // );
+                    // // 0b10 is already handled by setting round up to false.
+                    // Ite(Register("FPSCR.RM") == 0b11u32,
+                    //     {
+                    //         cond:u1 =  err != 0.0f32;
+                    //         cond2:u1 =  rounded < 0i32;
+                    //         cond &= cond2;
+                    //         round_up = cond;
+                    //     },
+                    //     {}
+                    // );
+                    // Ite(round_up != false,
+                    //     {
+                    //         rounded += 1i32;
+                    //     },
+                    //     {}
+                    // );
                     Warn("vcvt to i",rounded);
                     i = Cast(rounded,f32);
                     if (r) {
@@ -952,48 +992,48 @@ impl Decode for Vcvt {
                     }
                     let val = f*base;
                     let rounded:u32 = Resize(val,u32,ToZero);
-                    let rounded_f32:f32 = Resize(rounded,f32);
-                    let err:f32 = val - rounded_f32;
-                    let round_up:u1 = false;
-                    // Intermediates used in ite blocks.
-                    let cond = false;
-                    let cond2 = false;
-                    let cond3 = false;
-                    Ite(Register("FPSCR.RM") == 0b00u32,
-                        {
-                            cond:u1 =  err > 0.5f32;
-                            cond2:u1 =  err == 0.5f32;
-                            let intermediate_val:u32 = Resize(rounded<0:0>,u32);
-                            cond3:u1 = Resize(intermediate_val,u1);
-                            cond2 = cond2 & cond3;
-                            cond |= cond2;
-                            round_up = cond;
-                        },
-                        {}
-                    );
-                    Ite(Register("FPSCR.RM") == 0b01u32,
-                        {
-                            cond:u1 = err != 0.0f32;
-                            round_up = cond;
-                        },
-                        {}
-                    );
-                    // 0b10 is already handled by setting round up to false.
-                    Ite(Register("FPSCR.RM") == 0b11u32,
-                        {
-                            cond:u1 =  err != 0.0f32;
-                            cond2:u1 =  rounded < 0u32;
-                            cond &= cond2;
-                            round_up = cond;
-                        },
-                        {}
-                    );
-                    Ite(round_up != false,
-                        {
-                            rounded += 1u32;
-                        },
-                        {}
-                    );
+                    // let rounded_f32:f32 = Resize(rounded,f32);
+                    // let err:f32 = val - rounded_f32;
+                    // let round_up:u1 = false;
+                    // // Intermediates used in ite blocks.
+                    // let cond = false;
+                    // let cond2 = false;
+                    // let cond3 = false;
+                    // Ite(Register("FPSCR.RM") == 0b00u32,
+                    //     {
+                    //         cond:u1 =  err > 0.5f32;
+                    //         cond2:u1 =  err == 0.5f32;
+                    //         let intermediate_val:u32 = Resize(rounded<0:0>,u32);
+                    //         cond3:u1 = Resize(intermediate_val,u1);
+                    //         cond2 = cond2 & cond3;
+                    //         cond |= cond2;
+                    //         round_up = cond;
+                    //     },
+                    //     {}
+                    // );
+                    // Ite(Register("FPSCR.RM") == 0b01u32,
+                    //     {
+                    //         cond:u1 = err != 0.0f32;
+                    //         round_up = cond;
+                    //     },
+                    //     {}
+                    // );
+                    // // 0b10 is already handled by setting round up to false.
+                    // Ite(Register("FPSCR.RM") == 0b11u32,
+                    //     {
+                    //         cond:u1 =  err != 0.0f32;
+                    //         cond2:u1 =  rounded < 0u32;
+                    //         cond &= cond2;
+                    //         round_up = cond;
+                    //     },
+                    //     {}
+                    // );
+                    // Ite(round_up != false,
+                    //     {
+                    //         rounded += 1u32;
+                    //     },
+                    //     {}
+                    // );
                     u = Cast(rounded,f32);
                     if (r) {
                         Register("FPSCR.RM") = old_rm;

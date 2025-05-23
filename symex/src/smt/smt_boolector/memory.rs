@@ -10,7 +10,7 @@
 //! to other memory models, and in general this memory model is slower compared
 //! to e.g. object memory. However, it may provide better performance in certain
 //! situations.
-use std::fmt::Display;
+use std::{fmt::Display, marker::PhantomData};
 
 use anyhow::Context as _;
 use general_assembly::prelude::DataWord;
@@ -24,6 +24,7 @@ use crate::{
     trace,
     Composition,
     Endianness,
+    UserStateContainer,
 };
 
 #[derive(Debug, Clone)]
@@ -150,7 +151,7 @@ impl ArrayMemory {
 }
 
 #[derive(Debug, Clone)]
-pub struct BoolectorMemory {
+pub struct BoolectorMemory<State: UserStateContainer> {
     ram: ArrayMemory,
     register_file: HashMap<String, DExpr>,
     flags: HashMap<String, DExpr>,
@@ -162,14 +163,24 @@ pub struct BoolectorMemory {
     un_named_counter: usize,
     static_writes: HashMap<u64, DExpr>,
     privelege_map: Vec<(u64, u64)>,
+    cycles: u64,
+    _0: PhantomData<State>,
 }
 
-impl SmtMap for BoolectorMemory {
+impl<State: UserStateContainer> SmtMap for BoolectorMemory<State> {
     type Expression = DExpr;
     type ProgramMemory = &'static Project;
     type SMT = Boolector;
+    type StateContainer = State;
 
-    fn new(smt: Self::SMT, program_memory: &'static Project, word_size: u32, endianness: Endianness, initial_sp: Self::Expression) -> Result<Self, crate::GAError> {
+    fn new(
+        smt: Self::SMT,
+        program_memory: Self::ProgramMemory,
+        word_size: u32,
+        endianness: Endianness,
+        initial_sp: Self::Expression,
+        initial_state: &Self::StateContainer,
+    ) -> Result<Self, crate::GAError> {
         let ctx = Box::new(crate::smt::smt_boolector::BoolectorSolverContext { ctx: smt.ctx.clone() });
         let ctx = Box::leak::<'static>(ctx);
         let ram = {
@@ -194,6 +205,8 @@ impl SmtMap for BoolectorMemory {
             un_named_counter: 0,
             static_writes: HashMap::new(),
             privelege_map: Vec::new(),
+            cycles: 0,
+            _0: PhantomData,
         })
     }
 
@@ -358,6 +371,14 @@ impl SmtMap for BoolectorMemory {
         self.ram.ctx.ctx.0.set_opt(boolector::option::BtorOption::ModelGen(boolector::option::ModelGen::Disabled));
         ret
     }
+
+    fn get_cycle_count(&mut self) -> u64 {
+        self.cycles
+    }
+
+    fn set_cycle_count(&mut self, value: u64) {
+        self.cycles = value
+    }
 }
 
 impl From<MemoryError> for crate::smt::MemoryError {
@@ -366,7 +387,7 @@ impl From<MemoryError> for crate::smt::MemoryError {
     }
 }
 
-impl Display for BoolectorMemory {
+impl<State: UserStateContainer> Display for BoolectorMemory<State> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("\tVariables:\r\n")?;
         for (key, value) in &self.variables {

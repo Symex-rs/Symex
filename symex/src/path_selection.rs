@@ -41,20 +41,20 @@ pub struct DFSPathSelection<C: Composition> {
     paths: Vec<Path<C>>,
 }
 
-impl<C: Composition> DFSPathSelection<C> {
+impl<C: Composition> PathSelector<C> for DFSPathSelection<C> {
     /// Creates new without any stored paths.
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self { paths: Vec::new() }
     }
 
     /// Add a new path to be explored.
-    pub fn save_path(&mut self, path: Path<C>) {
+    fn save_path(&mut self, path: Path<C>) {
         path.state.constraints.push();
         self.paths.push(path);
     }
 
     /// Retrieve the next path to explore.
-    pub fn get_path(&mut self) -> Option<Path<C>> {
+    fn get_path(&mut self) -> Option<Path<C>> {
         match self.paths.pop() {
             Some(path) => {
                 path.state.constraints.pop();
@@ -64,11 +64,25 @@ impl<C: Composition> DFSPathSelection<C> {
         }
     }
 
-    pub fn get_pc(&self) -> Option<u64> {
+    fn get_pc(&self) -> Option<u64> {
         self.paths.last().map(|el| el.state.memory.get_pc().unwrap().get_constant().unwrap())
     }
 
-    pub fn waiting_paths(&self) -> usize {
+    fn waiting_paths(&self) -> usize {
         self.paths.len()
     }
+}
+
+pub trait PathSelector<C: Composition> {
+    /// Creates new without any stored paths.
+    fn new() -> Self;
+    /// Add a new path to be explored.
+    fn save_path(&mut self, path: Path<C>);
+
+    /// Retrieve the next path to explore.
+    fn get_path(&mut self) -> Option<Path<C>>;
+
+    fn get_pc(&self) -> Option<u64>;
+
+    fn waiting_paths(&self) -> usize;
 }

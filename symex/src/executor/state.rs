@@ -44,7 +44,6 @@ pub struct GAState<C: Composition> {
     pub constraints: C::SMT,
     pub hooks: HookContainer<C>,
     pub count_cycles: bool,
-    pub cycle_count: u64,
     pub last_instruction: Option<Instruction<C>>,
     pub last_pc: u64,
     pub continue_in_instruction: Option<ContinueInsideInstruction<C>>,
@@ -82,7 +81,7 @@ impl<C: Composition> GAState<C> {
 
         let endianness = project.get_endianness();
         let initial_sp = ctx.from_u64(sp_reg, ptr_size as u32);
-        let mut memory = C::Memory::new(ctx.clone(), project, ptr_size, endianness, initial_sp)?;
+        let mut memory = C::Memory::new(ctx.clone(), project, ptr_size, endianness, initial_sp, &state)?;
         let pc_expr = ctx.from_u64(pc_reg, ptr_size as u32);
         memory.set_register("PC", pc_expr)?;
 
@@ -98,7 +97,6 @@ impl<C: Composition> GAState<C> {
             hooks,
             user_state: state,
             count_cycles: true,
-            cycle_count: 0,
             last_instruction: None,
             last_pc: 0,
             continue_in_instruction: None,
@@ -156,6 +154,16 @@ impl<C: Composition> GAState<C> {
         !self.instruction_conditions.is_empty()
     }
 
+    /// Gets the currecnt cycle count
+    pub fn get_cycle_count(&mut self) -> u64 {
+        self.memory.get_cycle_count()
+    }
+
+    /// Sets the cycle count of the device.
+    pub fn set_cycle_count(&mut self, value: u64) {
+        self.memory.set_cycle_count(value);
+    }
+
     /// Increment the cycle counter with the cycle count of the last
     /// instruction.
     pub fn increment_cycle_count(&mut self) {
@@ -172,7 +180,7 @@ impl<C: Composition> GAState<C> {
             None => 0,
         };
         trace!("Incrementing cycles: {}, for {:?}", cycles, self.last_instruction);
-        self.cycle_count += cycles as u64;
+        self.memory.increment_cycle_count(cycles as u64);
     }
 
     /// Update the last instruction that was executed.
@@ -218,7 +226,7 @@ impl<C: Composition> GAState<C> {
         let end = project.get_endianness();
         let initial_sp = ctx.from_u64(start_stack, 32);
 
-        let memory = C::Memory::new(ctx, project, 32, end, initial_sp).unwrap();
+        let memory = C::Memory::new(ctx, project, 32, end, initial_sp, &state).unwrap();
         let mut registers = HashMap::new();
         let pc_expr = memory.from_u64(pc_reg, 32);
         registers.insert("PC".to_owned(), pc_expr);
@@ -232,7 +240,6 @@ impl<C: Composition> GAState<C> {
             hooks,
             user_state: state,
             count_cycles: true,
-            cycle_count: 0,
             last_instruction: None,
             last_pc: 0,
             continue_in_instruction: None,
@@ -373,9 +380,14 @@ impl<C: Composition> GAState<C> {
         } & !(0b1); // Not applicable for all architectures TODO: Fix this.;
         logger.update_delimiter(pc);
         if let Some(conditions) = self.hooks.get_preconditions(&pc) {
+            println!("Running preconditions @ {pc:#x}");
             let conditions = conditions.clone();
+
             for condition in conditions {
                 extract!(Ok(condition(self)), context: "While running precondition");
+                let new_pc = self.memory.get_pc().map(|val| val.get_constant().map(|el| el & (!0b1))).ok().flatten(); // Not applicable for all architectures TODO: Fix
+                                                                                                                      // this.;
+                assert!(new_pc == Some(pc), "Pre-condition altered program counter at {pc:#x}");
             }
         }
         ResultOrTerminate::Result(match self.hooks.get_pc_hooks(pc as u32) {

@@ -49,8 +49,9 @@ impl Decode for Smla {
 
             let lower = Resize(result<31:0>,u128);
             let result2 = Resize(result,u128);
-            let new = result2 != lower;
-            Flag("APSR.Q") |= new;
+            let new:u1 = result2 != lower;
+            let old_q = Resize(Flag("APSR.Q"),u1);
+            Flag("APSR.Q") = old_q | Resize(new,u1);
             rd = lower<31:0>;
         ])
     }

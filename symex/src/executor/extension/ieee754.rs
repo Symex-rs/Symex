@@ -329,7 +329,12 @@ impl<C: Composition> std::fmt::Display for FpState<C> {
 
         f.write_str("\tRegister file:\r\n")?;
         for (register_name, register_value) in registers {
-            write!(f, "\t\t{register_name}: {register_value:?}\n\n")?;
+            let mut s = format!("{:?}", register_value);
+            if s.len() > 100 {
+                s = "FP expressions".to_string();
+            }
+
+            write!(f, "\t\t{register_name}: {s}\n\n")?;
         }
         write!(f, "\r\n")
     }

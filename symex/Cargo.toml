@@ -25,14 +25,16 @@ transpiler = { path = "../symex/transpiler" }
 general_assembly = { path = "../symex/general_assembly" }
 
 # SMT-backends
-boolector = {git = "https://github.com/ivajon/boolector-rs.git", features = [] }
-bitwuzla = {git = "https://github.com/ivajon/boolector-rs.git", branch = "bitwuzla"}
+# boolector = {git = "https://github.com/ivajon/boolector-rs.git", features = [] }
+boolector = {path = "../../boolector-rs/",features = [] }
+# bitwuzla = {git = "https://github.com/ivajon/boolector-rs.git", branch = "bitwuzla"}
+bitwuzla = {path = "../../bitwuzla-rs/"}
 
 
 # Parsing-backends.
 armv6-m-instruction-parser = "0.3.0-rc1"
-disarmv7 = { git = "https://github.com/ivajon/disarmv7", branch = "floats" }
-# disarmv7 = {path = "../../disarmv7/" }
+# disarmv7 = { git = "https://github.com/ivajon/disarmv7", branch = "floats" }
+disarmv7 = {path = "../../disarmv7/" }
 hashbrown = "0.15.2"
 kd-tree = "0.6.0"
 fst = "0.4.7"

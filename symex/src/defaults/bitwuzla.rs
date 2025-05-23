@@ -1,10 +1,13 @@
 use std::marker::PhantomData;
 
+use general_assembly::extension::ieee754::OperandType;
+
 use super::logger::SimplePathLogger;
 use crate::{
     arch::NoArchitectureOverride,
     logging::NoLogger,
     manager::SymexArbiter,
+    path_selection::DFSPathSelection,
     project::Project,
     smt::bitwuzla::{expr::BitwuzlaExpr, fpexpr::FpExpr, memory::BitwuzlaMemory, Bitwuzla},
     Composition,
@@ -24,7 +27,8 @@ pub struct DefaultComposition {}
 impl Composition for DefaultComposition {
     type ArchitectureOverride = NoArchitectureOverride;
     type Logger = SimplePathLogger;
-    type Memory = BitwuzlaMemory;
+    type Memory = BitwuzlaMemory<()>;
+    type PathSelector = DFSPathSelection<Self>;
     type ProgramMemory = &'static Project;
     type SMT = Bitwuzla;
     type SmtExpression = BitwuzlaExpr;
@@ -43,7 +47,8 @@ pub struct DefaultCompositionNoLogger {}
 impl Composition for DefaultCompositionNoLogger {
     type ArchitectureOverride = NoArchitectureOverride;
     type Logger = NoLogger;
-    type Memory = BitwuzlaMemory;
+    type Memory = BitwuzlaMemory<()>;
+    type PathSelector = DFSPathSelection<Self>;
     type ProgramMemory = &'static Project;
     type SMT = Bitwuzla;
     type SmtExpression = BitwuzlaExpr;
@@ -63,7 +68,8 @@ pub struct UserState<State: UserStateContainer> {
 impl<State: UserStateContainer> Composition for UserState<State> {
     type ArchitectureOverride = NoArchitectureOverride;
     type Logger = SimplePathLogger;
-    type Memory = BitwuzlaMemory;
+    type Memory = BitwuzlaMemory<State>;
+    type PathSelector = DFSPathSelection<Self>;
     type ProgramMemory = &'static Project;
     type SMT = Bitwuzla;
     type SmtExpression = BitwuzlaExpr;

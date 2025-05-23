@@ -53,7 +53,7 @@ pub struct Project {
 impl Project {
     pub fn manual_project(program_memory: Vec<u8>, start_addr: u64, end_addr: u64, word_size: WordSize, endianness: Endianness, _symtab: HashMap<String, u64>) -> Project {
         Project {
-            segments: Segments::from_single_segment(program_memory, start_addr, end_addr),
+            segments: Segments::from_single_segment(program_memory, start_addr, end_addr, false),
             word_size,
             endianness,
             symtab: SubProgramMap::default(),
@@ -164,8 +164,8 @@ impl ProgramMemory for &'static Project {
         }
     }
 
-    fn in_bounds<Map: SmtMap>(&self, addr: &Map::Expression, memory: &Map) -> Map::Expression {
-        self.segments.could_possibly_be_out_of_bounds(addr, memory).not()
+    fn out_of_bounds<Map: SmtMap>(&self, addr: &Map::Expression, memory: &Map) -> Map::Expression {
+        self.segments.could_possibly_be_out_of_bounds(addr, memory)
     }
 
     fn get_ptr_size(&self) -> u32 {
@@ -200,25 +200,27 @@ impl ProgramMemory for &'static Project {
 
         if written {
             let mut ret = ctx.new_from_u64(0, bits);
+            let shift = ctx.new_from_u64(8, bits);
             for idx in (address..(address + bytes)) {
-                let read = writes.get(&idx).expect("Cannot read partial words");
-                ret = ret.shift(&ctx.new_from_u64(8, bits), general_assembly::shift::Shift::Lsl);
-                ret = ret.or(read);
+                let inner = ctx.new_from_u64(self.segments.read_raw_bytes(idx, 1).expect("Regions to contain the data")[0] as u64, 8);
+                let read = writes.get(&idx).unwrap_or(&inner);
+                ret = ret.shift(&shift, general_assembly::shift::Shift::Lsl);
+                ret = ret.or(&read.resize_unsigned(bits));
             }
             return Ok(ret);
         }
 
         // TODO: Convert to propper errors
-        if bits % word_size == 0 {
+        if bits == word_size {
+            // full word
+            Ok(ctx.new_from_u64(self.get_word(address).unwrap().into(), bits))
+        } else if bits % word_size == 0 {
             let mut ret = ctx.new_from_u64(0, bits);
-            for _word in 0..(bits % word_size) {
+            for _word in 0..(bits / word_size) {
                 let new_ret = ctx.new_from_u64(self.get_word(address).unwrap().into(), word_size).resize_unsigned(bits);
                 ret = ret.shift(&ctx.new_from_u64(word_size as u64, bits), general_assembly::shift::Shift::Lsl).or(&new_ret);
             }
             Ok(ret)
-        } else if bits == word_size {
-            // full word
-            Ok(ctx.new_from_u64(self.get_word(address).unwrap().into(), bits))
         } else if bits == word_size / 2 {
             // half word
             let value: u64 = match self.get_half_word(address).unwrap() {

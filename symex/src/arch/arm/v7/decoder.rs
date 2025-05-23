@@ -1634,46 +1634,56 @@ impl Convert for (usize, V7Operation) {
                 let primask = SpecialRegister::PRIMASK.local_into();
                 let basepri = SpecialRegister::BASEPRI.local_into();
                 let faultmask = SpecialRegister::FAULTMASK.local_into();
+
                 pseudo!([
-                sysm:u32 = sysm;
-                apsr:u32 = apsr;
-                rn:u32 = rn;
-                primask:u32 = primask;
-                faultmask:u32 = faultmask;
-                if (((sysm>>3) & 0b11111) == 0 && (sysm&0b100 == 0)) {
-                    if (mask & 0b10 == 2) {
-                        apsr = Resize(apsr<27:0>,u32);
-                        let intermediate = Resize(rn<31:27>,u32)<<27.local_into();
-                        apsr |= intermediate;
+                    sysm:u32 = sysm;
+                    apsr:u32 = apsr;
+                    rn:u32 = rn;
+                    primask:u32 = primask;
+                    basepri:u32;
+                    faultmask:u32 = faultmask;
+                    if (((sysm>>3) & 0b11111) == 0 && (sysm&0b100 == 0)) {
+                        if (mask & 0b10 == 2) {
+                            apsr = Resize(apsr<27:0>,u32);
+                            let intermediate = Resize(rn<31:27>,u32)<<27.local_into();
+                            apsr |= intermediate;
+                        }
                     }
-                }
-                // Discarding the SP things for now
-                // TODO! add in SP things, it is worth noting that this is
-                // for privileged execution only.
-                if (((sysm>>3) & 0b11111) == 2 && (sysm&0b111 == 0)) {
-                    // TODO! Add in priv checks
-                    let primask_intermediate = primask & REMOVE_LAST_BIT_MASK.local_into();
-                    let intermediate = Resize(rn<0:0>,u32);
-                    apsr = primask_intermediate | intermediate;
-                }
-                if (((sysm>>3) & 0b11111) == 2 && (sysm&0b111 == 1)) {
-                    // TODO! Add in priv checks
-                    let primask_intermediate= Resize(primask<31:8>,u32) << 8.local_into();
-                    let intermediate = Resize(rn<7:0>,u32);
-                    basepri = primask_intermediate | intermediate;
-                }
-                if (((sysm>>3) & 0b11111) == 2 && (sysm&0b111 == 2)) {
-                    // TODO! Add in priv checks
-                    let basepri_intermediate = Resize(primask<31:8>,u32) << 8.local_into();
-                    let intermediate = Resize(rn<7:0>,u32);
-                    basepri = basepri_intermediate | intermediate;
-                }
-                if (((sysm>>3) & 0b11111) == 2 && (sysm&0b111 == 2)) {
-                    // TODO! Add om priv and priority checks here
-                    let faultmask_intermediate = faultmask & REMOVE_LAST_BIT_MASK.local_into();
-                    let intermediate = Resize(rn<0:0>,u32);
-                    faultmask = faultmask_intermediate | intermediate;
-                }
+                    // Discarding the SP things for now
+                    // TODO! add in SP things, it is worth noting that this is
+                    // for privileged execution only.
+                    if (((sysm>>3) & 0b11111) == 2 && (sysm & 0b111 == 0)) {
+                        // TODO! Add in priv checks
+                        let primask_intermediate = primask & REMOVE_LAST_BIT_MASK.local_into();
+                        let intermediate = Resize(rn<0:0>,u32);
+                        apsr = primask_intermediate | intermediate;
+                    }
+                    if (((sysm>>3) & 0b11111) == 2 && (sysm&0b111 == 1)) {
+                        // TODO! Add in priv checks
+                        let basepri_intermediate= Resize(basepri<31:8>,u32) << 8.local_into();
+                        let intermediate = Resize(rn<7:0>,u32);
+                        basepri = basepri_intermediate | intermediate;
+                    }
+                    if (((sysm>>3) & 0b11111) == 2 && (sysm&0b111 == 2)) {
+                        // TODO! Add in priv checks
+                        let cond = rn<7:0> < basepri<7:0>;
+                        let cond2 = basepri<7:0> == 0u8;
+                        cond |= cond2;
+                        Ite( cond == true ,
+                            {
+                                let basepri_intermediate = Resize(basepri<31:8>,u32) << 8.local_into();
+                                let intermediate = Resize(rn<7:0>,u32);
+                                basepri = basepri_intermediate | intermediate;
+                            },
+                            {}
+                        );
+                    }
+                    if (((sysm>>3) & 0b11111) == 2 && (sysm&0b111 == 2)) {
+                        // TODO! Add om priv and priority checks here
+                        let faultmask_intermediate = faultmask & REMOVE_LAST_BIT_MASK.local_into();
+                        let intermediate = Resize(rn<0:0>,u32);
+                        faultmask = faultmask_intermediate | intermediate;
+                    }
                 ])
             }
             V7Operation::Mul(mul) => {
@@ -3003,6 +3013,8 @@ impl Convert for (usize, V7Operation) {
             V7Operation::VselF64(vsel_f64) => vsel_f64.decode(in_it_block),
             V7Operation::VmlF32(vml_f32) => vml_f32.decode(in_it_block),
             V7Operation::VmlF64(vml_f64) => vml_f64.decode(in_it_block),
+            V7Operation::VfmxF32(vfmx32) => vfmx32.decode(in_it_block),
+            V7Operation::VfmxF64(vfmx64) => vfmx64.decode(in_it_block),
             V7Operation::VnmlF32(vnml_f32) => vnml_f32.decode(in_it_block),
             V7Operation::VnmlF64(vnml_f64) => vnml_f64.decode(in_it_block),
             V7Operation::VnmulF32(vnmul_f32) => vnmul_f32.decode(in_it_block),

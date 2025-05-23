@@ -33,6 +33,7 @@ use std::fmt::Debug;
 use arch::{ArchError, ArchitectureOverride};
 use logging::Logger;
 use memory::MemoryError;
+use path_selection::PathSelector;
 use project::ProjectError;
 use smt::{ProgramMemory, SmtExpr, SmtFPExpr, SmtMap, SmtSolver, SolverError};
 
@@ -60,7 +61,7 @@ pub trait Composition: Clone + Debug {
 
     type SmtExpression: SmtExpr<FPExpression = Self::SmtFPExpression>;
     type SmtFPExpression: SmtFPExpr<Expression = Self::SmtExpression>;
-    type Memory: SmtMap<SMT = Self::SMT, Expression = <Self::SMT as SmtSolver>::Expression, ProgramMemory = Self::ProgramMemory>;
+    type Memory: SmtMap<SMT = Self::SMT, Expression = <Self::SMT as SmtSolver>::Expression, ProgramMemory = Self::ProgramMemory, StateContainer = Self::StateContainer>;
 
     /// If this is not [`NoOverride`](crate::arch::NoOverride) the target
     /// architecture is expected to be the provided architecture.
@@ -68,6 +69,8 @@ pub trait Composition: Clone + Debug {
 
     /// Represents the underlying program memory.
     type ProgramMemory: ProgramMemory;
+
+    type PathSelector: PathSelector<Self>;
 
     fn logger<'a>() -> &'a mut Self::Logger;
 }

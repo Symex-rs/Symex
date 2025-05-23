@@ -86,6 +86,15 @@ impl SubProgramMap {
         }
     }
 
+    pub fn in_bounds(&self, pc: u64) -> Vec<SubProgram> {
+        self.map
+            .values()
+            .chain(self.symtab.values())
+            .filter(|s| ((s.bounds.0)..=(s.bounds.1)).contains(&pc))
+            .cloned()
+            .collect()
+    }
+
     pub fn get_all_names(&self) -> Vec<String> {
         let mut ret: Vec<String> = self.symtab.keys().cloned().collect::<Vec<_>>();
         ret.extend(self.index_1.keys().cloned());

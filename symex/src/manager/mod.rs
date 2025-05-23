@@ -1,7 +1,9 @@
+use anyhow::Context;
+
 use crate::{
     arch::SupportedArchitecture,
     executor::{
-        hooks::HookContainer,
+        hooks::{HookContainer, PrioriHookContainer},
         state::GAState,
         vm::{SymexStepper, VM},
         PathResult,
@@ -55,7 +57,7 @@ impl<C: Composition> SymexArbiter<C> {
         &self.symbol_lookup
     }
 
-    pub fn run_with_hooks(&mut self, function: &SubProgram, hooks: Option<HookContainer<C>>) -> crate::Result<Runner<C>> {
+    pub fn run_with_hooks(&mut self, function: &SubProgram, hooks: Option<PrioriHookContainer<C>>) -> crate::Result<Runner<C>> {
         let mut intermediate_hooks = self.hooks.clone();
         if let Some(hooks) = hooks {
             intermediate_hooks.add_all(hooks);
@@ -74,7 +76,7 @@ impl<C: Composition> SymexArbiter<C> {
         Ok(Runner { vm, path_idx: 0 })
     }
 
-    pub fn run_with_strict_memory(&mut self, function: &SubProgram, ranges: &[(u64, u64)], hooks: Option<HookContainer<C>>) -> crate::Result<Runner<C>> {
+    pub fn run_with_strict_memory(&mut self, function: &SubProgram, ranges: &[(u64, u64)], hooks: Option<PrioriHookContainer<C>>) -> crate::Result<Runner<C>> {
         let mut intermediate_hooks = self.hooks.clone();
         let allowed = ranges
             .iter()
@@ -163,10 +165,14 @@ impl<C: Composition> Iterator for Runner<C> {
     type Item = crate::Result<(GAState<C>, C::Logger, PathResult<C>)>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some((result, state, conditions, pc, mut logger)) = match self.vm.run() {
+        if let Some((result, mut state, conditions, pc, mut logger)) = match self.vm.run() {
             Ok(res) => res,
-            Err(e) => return Some(Err(e)),
+            Err(e) => {
+                eprintln!("Error {e:?}");
+                return Some(Err(e).context("While running from iterator"));
+            }
         } {
+            let cycles = state.get_cycle_count();
             logger.set_path_idx(self.path_idx);
             logger.update_delimiter(pc);
             logger.add_constraints(
@@ -188,7 +194,7 @@ impl<C: Composition> Iterator for Runner<C> {
             }
 
             logger.record_path_result(result.clone());
-            logger.record_execution_time(state.cycle_count);
+            logger.record_execution_time(cycles);
             logger.record_final_state(state.clone());
             self.path_idx += 1;
             return Some(Ok((state, logger.clone(), result)));

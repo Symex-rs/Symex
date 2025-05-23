@@ -3,7 +3,7 @@
 use super::{hooks::HookContainer, state::GAState, GAExecutor, PathResult};
 use crate::{
     arch::SupportedArchitecture,
-    path_selection::{DFSPathSelection, Path},
+    path_selection::{DFSPathSelection, Path, PathSelector},
     project::dwarf_helper::SubProgram,
     smt::{SmtMap, SmtSolver},
     trace,
@@ -14,7 +14,7 @@ use crate::{
 #[derive(Debug)]
 pub struct VM<C: Composition> {
     pub project: <C::Memory as SmtMap>::ProgramMemory,
-    pub paths: DFSPathSelection<C>,
+    pub paths: C::PathSelector,
 }
 
 impl<C: Composition> VM<C> {
@@ -30,7 +30,7 @@ impl<C: Composition> VM<C> {
     ) -> Result<Self> {
         let mut vm = Self {
             project: project.clone(),
-            paths: DFSPathSelection::new(),
+            paths: C::PathSelector::new(),
         };
 
         let mut state = GAState::<C>::new(
@@ -62,7 +62,7 @@ impl<C: Composition> VM<C> {
     ) -> Result<Self> {
         let mut vm = Self {
             project: project.clone(),
-            paths: DFSPathSelection::new(),
+            paths: C::PathSelector::new(),
         };
 
         vm.paths.save_path(Path::new(state, None, 0, logger.clone()));
@@ -74,7 +74,7 @@ impl<C: Composition> VM<C> {
     pub(crate) fn new_test_vm(project: <C::Memory as SmtMap>::ProgramMemory, state: GAState<C>, logger: C::Logger) -> Result<Self> {
         let mut vm = Self {
             project: project.clone(),
-            paths: DFSPathSelection::new(),
+            paths: C::PathSelector::new(),
         };
 
         vm.paths.save_path(Path::new(state, None, 0, logger));
@@ -85,7 +85,7 @@ impl<C: Composition> VM<C> {
     pub fn new_with_state(project: <C::Memory as SmtMap>::ProgramMemory, state: GAState<C>, logger: C::Logger) -> Self {
         let mut vm = Self {
             project,
-            paths: DFSPathSelection::new(),
+            paths: C::PathSelector::new(),
         };
 
         vm.paths.save_path(Path::new(state, None, 0, logger));

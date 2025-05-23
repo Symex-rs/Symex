@@ -10,25 +10,29 @@ pub struct Segment {
     data: Vec<u8>,
     start_address: u64,
     end_address: u64,
+    constants: bool,
 }
 
 pub struct Segments(Vec<Segment>);
 
 impl Segments {
-    pub fn from_single_segment(data: Vec<u8>, start_addr: u64, end_addr: u64) -> Self {
+    pub fn from_single_segment(data: Vec<u8>, start_addr: u64, end_addr: u64, constants: bool) -> Self {
         Segments(vec![Segment {
             data,
             start_address: start_addr,
             end_address: end_addr,
+            constants,
         }])
     }
 
     pub(crate) fn could_possibly_be_out_of_bounds<Map: SmtMap>(&self, addr: &Map::Expression, memory: &Map) -> Map::Expression {
-        let mut ret = memory.from_bool(false);
-        for segment in self.0.iter() {
+        let mut ret = memory.from_bool(true);
+        for segment in self.0.iter().filter(|el| el.constants) {
+            // println!("Segment that spans from {:#x} until {:#x}", segment.start_address,
+            // segment.end_address);
             let start = memory.from_u64(segment.start_address, memory.get_ptr_size());
             let end = memory.from_u64(segment.end_address, memory.get_ptr_size());
-            ret = ret.and(&start.ugt(addr).or(&end.ult(addr)));
+            ret = ret.and(&addr.ult(&start).or(&addr.ugt(&end)));
         }
         ret
     }
@@ -43,17 +47,20 @@ impl Segments {
         let mut ret = vec![];
         for segment in elf_file.raw_segments() {
             let segment_type = segment.p_type.get(file.endianness());
+
             if segment_type == 1 {
                 // if it is a LOAD segment
                 let addr_start = segment.p_vaddr.get(file.endianness()) as u64;
                 //let size = segment.p_memsz.get(file.endianness());
                 let data = segment.data(file.endianness(), elf_file.data()).unwrap();
 
-                ret.push(Segment {
+                let new = Segment {
                     data: data.to_owned(),
                     start_address: addr_start,
                     end_address: addr_start + data.len() as u64,
-                })
+                    constants: segment.p_flags.get(file.endianness()) & 0b010 == 0,
+                };
+                ret.push(new)
             }
         }
         Segments(ret)
@@ -66,7 +73,6 @@ impl Segments {
             if address >= segment.start_address && address < segment.end_address {
                 let offset = (address - segment.start_address) as usize;
                 if (address + bytes as u64) > segment.end_address {
-                    println!("Reading across segments!");
                     let mut buffer: Vec<u8> = Vec::new();
                     let remaining_bytes = address + bytes as u64 - segment.end_address;
                     let bytes = bytes - remaining_bytes as usize;

@@ -152,7 +152,9 @@ impl super::ArmV7EM {
             | Vmsr(_)
             | Vmrs(_)
             | VmoveDoubleF32(_)
-            | VmoveF64(_) => false,
+            | VmoveF64(_)
+            | VfmxF64(_)
+            | VfmxF32(_) => false,
         }
     }
 
@@ -536,6 +538,9 @@ impl super::ArmV7EM {
             V7Operation::VStrF32(_) => CycleCount::Value(2),
             V7Operation::VsubF32(_) => CycleCount::Value(1),
 
+            V7Operation::VmlF32(_) | V7Operation::VmlF64(_) => CycleCount::Value(3),
+            V7Operation::VfmxF32(_) | V7Operation::VfmxF64(_) => CycleCount::Value(3),
+
             V7Operation::Stc(_)
             | V7Operation::Mcr(_)
             | V7Operation::Mrc(_)
@@ -546,8 +551,6 @@ impl super::ArmV7EM {
             | V7Operation::LdcLiteral(_)
             | V7Operation::VselF32(_)
             | V7Operation::VselF64(_)
-            | V7Operation::VmlF32(_)
-            | V7Operation::VmlF64(_)
             | V7Operation::VnmlF32(_)
             | V7Operation::VnmlF64(_)
             | V7Operation::VnmulF32(_)

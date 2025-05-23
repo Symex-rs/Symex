@@ -24,6 +24,7 @@ use crate::{
     Composition,
     Endianness,
     GAError,
+    UserStateContainer,
 };
 
 pub mod bitwuzla;
@@ -122,14 +123,22 @@ pub trait ProgramMemory: Debug + Clone {
     fn get_entry_point_names(&self) -> Vec<String>;
 
     /// Determines if the address is in range of the program memory.
-    fn in_bounds<Map: SmtMap>(&self, addr: &Map::Expression, memory: &Map) -> Map::Expression;
+    fn out_of_bounds<Map: SmtMap>(&self, addr: &Map::Expression, memory: &Map) -> Map::Expression;
 }
 pub trait SmtMap: Debug + Clone + Display {
     type Expression: SmtExpr<FPExpression = <Self::SMT as SmtSolver>::FpExpression>;
     type SMT: SmtSolver<Expression = Self::Expression>;
     type ProgramMemory: ProgramMemory;
+    type StateContainer: UserStateContainer;
 
-    fn new(smt: Self::SMT, project: Self::ProgramMemory, word_size: u32, endianness: Endianness, initial_sp: Self::Expression) -> Result<Self, GAError>;
+    fn new(
+        smt: Self::SMT,
+        project: Self::ProgramMemory,
+        word_size: u32,
+        endianness: Endianness,
+        initial_sp: Self::Expression,
+        initial_state: &Self::StateContainer,
+    ) -> Result<Self, GAError>;
 
     fn get(&mut self, idx: &Self::Expression, size: u32) -> ResultOrTerminate<Self::Expression>;
 
@@ -205,17 +214,25 @@ pub trait SmtMap: Debug + Clone + Display {
     /// Returns the underlying program memory.
     fn program_memory(&self) -> &Self::ProgramMemory;
 
-    fn dispatch_temporal_hooks<C>(&mut self, cycle_count: u64) -> VecDeque<TemporalHook<C>>
-    where
-        C: Composition<SMT = Self::SMT, SmtExpression = Self::Expression, ProgramMemory = Self::ProgramMemory, Memory = Self>,
-    {
-        VecDeque::new()
-    }
+    /// Dispatches the internal temporal hooks.
+    fn dispatch_temporal_hooks(&mut self) {}
 
     #[must_use]
     fn is_sat(&self) -> bool;
 
     fn with_model_gen<R, F: FnOnce() -> R>(&self, f: F) -> R;
+
+    /// Gets the currecnt cycle count
+    fn get_cycle_count(&mut self) -> u64;
+
+    /// Sets the cycle count of the device.
+    fn set_cycle_count(&mut self, value: u64);
+
+    /// Increments the cyclec count of the device
+    fn increment_cycle_count(&mut self, value: u64) {
+        let value = self.get_cycle_count() + value;
+        self.set_cycle_count(value);
+    }
 }
 
 /// Defines a type that can be used as an SMT solver.

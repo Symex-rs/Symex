@@ -143,16 +143,16 @@ impl ArmV7EM {
             state.memory.set_register("XPSR", reg)?;
             Ok(())
         };
-        let read_apsr_q = |state: &mut GAState<C>| {
-            let reg = state.memory.get_register("XPSR")?.slice(27, 27).resize_unsigned(32);
-            trace!("READ APSR.Q, {:?}", reg);
-            Ok(reg)
+        let read_apsr_q_flag = |state: &mut GAState<C>| {
+            let reg = state.memory.get_register("XPSR")?.slice(27, 27);
+            trace!("READ APSR.Q, {:?},size{}", reg, reg.size());
+            Ok(reg.resize_unsigned(1))
         };
 
         cfg.add_flag_write_hook("APSR.Q".to_string(), write_apsr_q);
-        cfg.add_flag_read_hook("APSR.Q".to_string(), read_apsr_q);
+        cfg.add_flag_read_hook("APSR.Q".to_string(), read_apsr_q_flag);
         cfg.add_flag_write_hook("Q".to_string(), write_apsr_q);
-        cfg.add_flag_read_hook("Q".to_string(), read_apsr_q);
+        cfg.add_flag_read_hook("Q".to_string(), read_apsr_q_flag);
 
         let write_apsr_ge = |state: &mut GAState<C>, value: C::SmtExpression| {
             let value = value.resize_unsigned(4);
@@ -394,24 +394,23 @@ impl<Override: ArchitectureOverride> Architecture<Override> for ArmV7EM {
     fn add_hooks<C: crate::Composition>(&self, cfg: &mut HookContainer<C>, map: &mut SubProgramMap) {
         trace!("Adding armv7em hooks");
         let symbolic_sized = |state: &mut GAState<C>| {
-            trace!("Making a symbolic value!");
             let value_ptr = match state.memory.get_register("R0") {
                 Ok(val) => val,
-                Err(e) => return ResultOrTerminate::Result(Err(e).context("While resolving address for new symbolic value")),
+                Err(e) => return Err(e).context("While resolving address for new symbolic value"),
             };
 
             let size = (match state.memory.get_register("R1") {
                 Ok(val) => val,
-                Err(e) => return ResultOrTerminate::Result(Err(e).context("While resolving size for new symbolic value")),
+                Err(e) => return Err(e).context("While resolving size for new symbolic value"),
             })
             .get_constant()
             .unwrap()
                 * 8;
             let name = state.label_new_symbolic("any");
             if size == 0 {
-                // let lr = state.get_register("LR".to_owned())?;
-                // state.set_register("PC".to_owned(), lr)?;
-                return ResultOrTerminate::Result(Ok(()));
+                let lr = state.get_register("LR".to_owned())?;
+                state.set_register("PC".to_owned(), lr)?;
+                return Ok(());
             }
             let symb_value = state.memory.unconstrained(&name, size as u32);
             // We should be able to do this now!
@@ -424,19 +423,19 @@ impl<Override: ArchitectureOverride> Architecture<Override> for ArmV7EM {
 
             match state.memory.set(&value_ptr, symb_value) {
                 Ok(_) => {}
-                Err(e) => return ResultOrTerminate::Result(Err(e).context("While assigning new symbolic value")),
+                Err(e) => return Err(e).context("While assigning new symbolic value"),
             };
 
-            // let lr = state.get_register("LR".to_owned())?;
-            // state.set_register("PC".to_owned(), lr)?;
-            ResultOrTerminate::Result(Ok(()))
+            let lr = state.get_register("LR".to_owned())?;
+            state.set_register("PC".to_owned(), lr)?;
+            Ok(())
         };
 
-        if let Err(_) = cfg.add_pc_precondition_regex(map, r"^symbolic_size$", symbolic_sized) {
-            trace!("Could not add symoblic hook, must not contain any calls to `symbolic_size`");
+        if let Err(_) = cfg.add_pc_hook_regex(map, r"^symbolic_size$", PCHook::Intrinsic(symbolic_sized)) {
+            debug!("Could not add symoblic hook, must not contain any calls to `symbolic_size`");
         }
-        if let Err(_) = cfg.add_pc_precondition_regex(map, r"^symbolic_size<.+>$", symbolic_sized) {
-            trace!("Could not add symoblic hook, must not contain any calls to `symbolic_size<.+>`");
+        if let Err(_) = cfg.add_pc_hook_regex(map, r"^symbolic_size<.+>$", PCHook::Intrinsic(symbolic_sized)) {
+            debug!("Could not add symoblic hook, must not contain any calls to `symbolic_size<.+>`");
         }
 
         if let Err(_) = cfg.add_pc_hook_regex(map, r"^HardFault.*$", PCHook::EndFailure("Hardfault")) {
@@ -498,17 +497,16 @@ impl<Override: ArchitectureOverride> Architecture<Override> for ArmV7EM {
         //     let r0 = match state.memory.get_register("R0") {
         //         Ok(val) => val,
         //         Err(e) => return ResultOrTerminate::Result(Err(e).context("While
-        // resolving condition to assume")),     }
-        //     .resize_unsigned(1);
+        // resolving condition to assume")),     };
         //
-        //     trace!("Assuming that {:?} == 1", r0);
-        //     state.constraints.push();
-        //     let new_expr = r0._eq(&state.memory.from_u64(1, 1));
-        //     if !state.constraints.is_sat_with_constraint(&new_expr).is_ok_and(|el|
-        // el) {         return ResultOrTerminate::Failure("Tried to assert
-        // unsatisfiable formula".to_string());     }
-        //
-        //     state.constraints.pop();
+        //     trace!("Assuming that {:?} == 1", r0.get_constant());
+        //     let r0 = r0._ne(&state.memory.from_u64(0, r0.size()));
+        //     // state.constraints.push();
+        //     // if !state.constraints.is_sat_with_constraint(&r0).is_ok_and(|el| el) {
+        //     //     return ResultOrTerminate::Failure("Tried to assert unsatisfiable
+        //     // formula".to_string()); }
+        //     //
+        //     // state.constraints.pop();
         //     state.constraints.assert(&r0);
         //
         //     // jump back to where the function was called from

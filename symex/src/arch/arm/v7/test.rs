@@ -17,6 +17,7 @@ use crate::{
         GAExecutor,
     },
     logging::NoLogger,
+    path_selection::PathSelector,
     project::{dwarf_helper::SubProgramMap, Project},
     smt::{bitwuzla::Bitwuzla, SmtExpr, SmtSolver},
     Endianness,

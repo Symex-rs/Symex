@@ -25,6 +25,40 @@ pub enum PCHook<C: Composition> {
 }
 
 #[derive(Debug, Clone)]
+pub struct PrioriHookContainer<C: Composition> {
+    register_read_hook: HashMap<String, RegisterReadHook<C>>,
+
+    register_write_hook: HashMap<String, RegisterWriteHook<C>>,
+
+    flag_read_hook: HashMap<String, FlagReadHook<C>>,
+
+    flag_write_hook: HashMap<String, FlagWriteHook<C>>,
+
+    pc_hook: HashMap<u64, PCHook<C>>,
+
+    pc_preconditions: HashMap<u64, Vec<Precondition<C>>>,
+
+    pc_preconditions_one_shots: HashMap<u64, Vec<Precondition<C>>>,
+
+    single_memory_read_hook: HashMap<u64, MemoryReadHook<C>>,
+
+    single_memory_write_hook: HashMap<u64, MemoryWriteHook<C>>,
+
+    // TODO: Replace with a proper range tree implementation.
+    range_memory_read_hook: Vec<((u64, u64), MemoryRangeReadHook<C>)>,
+
+    range_memory_write_hook: Vec<((u64, u64), MemoryRangeWriteHook<C>)>,
+
+    fp_register_read_hook: HashMap<String, FpRegisterReadHook<C>>,
+    fp_register_write_hook: HashMap<String, FpRegisterWriteHook<C>>,
+
+    /// Maps regions of priviledged code.
+    privelege_map: Vec<(u64, u64)>,
+
+    strict: bool,
+}
+
+#[derive(Debug, Clone)]
 pub struct HookContainer<C: Composition> {
     register_read_hook: HashMap<String, RegisterReadHook<C>>,
 
@@ -89,7 +123,7 @@ pub type Precondition<C> = fn(state: &mut GAState<C>) -> super::ResultOrTerminat
 
 impl<C: Composition> HookContainer<C> {
     /// Adds all the hooks contained in another state container.
-    pub fn add_all(&mut self, other: HookContainer<C>) {
+    pub fn add_all(&mut self, other: PrioriHookContainer<C>) {
         for (pc, hook) in other.pc_hook {
             self.add_pc_hook(pc, hook);
         }
@@ -295,10 +329,10 @@ impl<C: Composition> HookContainer<C> {
         let mut added = false;
         // println!("Looking in {map:?}");
         for program in map.get_all_by_regex(pattern) {
-            if program.bounds.1 == program.bounds.0 {
-                println!("[{pattern}]: Ignoring {:?} as it has 0 length", program);
-                continue;
-            }
+            // if program.bounds.1 == program.bounds.0 {
+            //     println!("[{pattern}]: Ignoring {:?} as it has 0 length", program);
+            //     continue;
+            // }
             trace!("[{pattern}]: Adding hooks for subprogram {:?}", program);
             self.add_pc_hook(program.bounds.0 & ((u64::MAX >> 1) << 1), hook.clone());
             added = true;
@@ -361,6 +395,215 @@ impl<C: Composition> HookContainer<C> {
     }
 }
 
+impl<C: Composition> PrioriHookContainer<C> {
+    /// Adds a PC hook to the executor.
+    ///
+    /// ## NOTE
+    ///
+    /// If a hook already exists for this address it will be overwritten.
+    pub fn add_pc_hook(&mut self, pc: u64, value: PCHook<C>) -> &mut Self {
+        self.pc_hook.insert(pc & ((u64::MAX >> 1) << 1), value);
+        self
+    }
+
+    /// Adds a PC hook to the executor.
+    ///
+    /// ## NOTE
+    ///
+    /// If a hook already exists for this address it will be overwritten.
+    pub fn add_pc_precondition(&mut self, pc: u64, value: Precondition<C>) -> &mut Self {
+        let pc = pc & ((u64::MAX >> 1) << 1);
+        match self.pc_preconditions.get_mut(&pc) {
+            Some(hooks) => {
+                hooks.push(value);
+            }
+            None => {
+                let _ = self.pc_preconditions.insert(pc, vec![value]);
+            }
+        }
+        self
+    }
+
+    /// Adds a PC hook to the executor once this hook has been executed it will
+    /// never be called again.
+    ///
+    /// ## NOTE
+    ///
+    /// If a hook already exists for this address it will be overwritten.
+    pub fn add_pc_precondition_oneshot(&mut self, pc: u64, value: Precondition<C>) -> &mut Self {
+        let pc = pc & ((u64::MAX >> 1) << 1);
+        match self.pc_preconditions_one_shots.get_mut(&pc) {
+            Some(hooks) => {
+                hooks.push(value);
+            }
+            None => {
+                let _ = self.pc_preconditions.insert(pc, vec![value]);
+            }
+        }
+        self
+    }
+
+    /// Adds a flag read hook to the executor.
+    ///
+    /// ## NOTE
+    ///
+    /// If a hook already exists for this register it will be overwritten.
+    pub fn add_flag_read_hook(&mut self, register: impl ToString, hook: RegisterReadHook<C>) -> &mut Self {
+        self.flag_read_hook.insert(register.to_string(), hook);
+        self
+    }
+
+    /// Adds a flag write hook to the executor.
+    ///
+    /// ## NOTE
+    ///
+    /// If a hook already exists for this register it will be overwritten.
+    pub fn add_flag_write_hook(&mut self, register: impl ToString, hook: RegisterWriteHook<C>) -> &mut Self {
+        self.flag_write_hook.insert(register.to_string(), hook);
+        self
+    }
+
+    /// Adds a register read hook to the executor.
+    ///
+    /// ## NOTE
+    ///
+    /// If a hook already exists for this register it will be overwritten.
+    pub fn add_register_read_hook(&mut self, register: impl ToString, hook: RegisterReadHook<C>) -> &mut Self {
+        self.register_read_hook.insert(register.to_string(), hook);
+        self
+    }
+
+    /// Adds a register write hook to the executor.
+    ///
+    /// ## NOTE
+    ///
+    /// If a hook already exists for this register it will be overwritten.
+    pub fn add_register_write_hook(&mut self, register: impl ToString, hook: RegisterWriteHook<C>) -> &mut Self {
+        self.register_write_hook.insert(register.to_string(), hook);
+        self
+    }
+
+    /// Adds a memory read hook to the executor.
+    ///
+    /// ## NOTE
+    ///
+    /// If a hook already exists for this address it will be overwritten.
+    pub fn add_memory_read_hook(&mut self, address: u64, hook: MemoryReadHook<C>) -> &mut Self {
+        self.single_memory_read_hook.insert(address, hook);
+        self
+    }
+
+    /// Adds a memory write hook to the executor.
+    ///
+    /// ## NOTE
+    ///
+    /// If a hook already exists for this address it will be overwritten.
+    pub fn add_memory_write_hook(&mut self, address: u64, hook: MemoryWriteHook<C>) -> &mut Self {
+        self.single_memory_write_hook.insert(address, hook);
+        self
+    }
+
+    /// Adds a range memory read hook to the executor.
+    ///
+    /// If any address in this range is read it will trigger this hook.
+    pub fn add_range_memory_read_hook(&mut self, (lower, upper): (u64, u64), hook: MemoryRangeReadHook<C>) -> &mut Self {
+        self.range_memory_read_hook.push(((lower, upper), hook));
+        self
+    }
+
+    /// Adds a range memory write hook to the executor.
+    ///
+    /// If any address in this range is written it will trigger this hook.
+    pub fn add_range_memory_write_hook(&mut self, (lower, upper): (u64, u64), hook: MemoryRangeWriteHook<C>) -> &mut Self {
+        self.range_memory_write_hook.push(((lower, upper), hook));
+        self
+    }
+
+    pub fn add_pc_precondition_regex(&mut self, map: &SubProgramMap, pattern: &'static str, hook: Precondition<C>) -> Result<()> {
+        for program in map.get_all_by_regex(pattern) {
+            trace!("[{pattern}]: Adding precondition for subprogram {:?}", program);
+            let addr = program.bounds.0 & ((u64::MAX >> 1) << 1);
+            match self.pc_preconditions.get_mut(&addr) {
+                Some(hooks) => {
+                    hooks.push(hook);
+                }
+                None => {
+                    let _ = self.pc_preconditions.insert(addr, vec![hook]);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn add_pc_precondition_regex_oneshot(&mut self, map: &SubProgramMap, pattern: &'static str, hook: Precondition<C>) -> Result<()> {
+        for program in map.get_all_by_regex(pattern) {
+            trace!("[{pattern}]: Adding precondition for subprogram {:?}", program);
+            let addr = program.bounds.0 & ((u64::MAX >> 1) << 1);
+            match self.pc_preconditions_one_shots.get_mut(&addr) {
+                Some(hooks) => {
+                    hooks.push(hook);
+                }
+                None => {
+                    let _ = self.pc_preconditions.insert(addr, vec![hook]);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Adds a pc hook via regex matching in the dwarf data.
+    pub fn add_pc_hook_regex(&mut self, map: &SubProgramMap, pattern: &'static str, hook: PCHook<C>) -> Result<()> {
+        let mut added = false;
+        // println!("Looking in {map:?}");
+        for program in map.get_all_by_regex(pattern) {
+            // if program.bounds.1 == program.bounds.0 {
+            //     println!("[{pattern}]: Ignoring {:?} as it has 0 length", program);
+            //     continue;
+            // }
+            trace!("[{pattern}]: Adding hooks for subprogram {:?}", program);
+            self.add_pc_hook(program.bounds.0 & ((u64::MAX >> 1) << 1), hook.clone());
+            added = true;
+        }
+        if !added {
+            return Err(crate::GAError::ProjectError(crate::project::ProjectError::InvalidSymbol(pattern))).context("While adding hooks via regex");
+        }
+        Ok(())
+    }
+
+    pub fn make_priveleged(&mut self, pc_low: u64, symbols: &SubProgramMap) -> crate::Result<()> {
+        trace!("Looking for {pc_low:#04x} in \n{symbols:?}");
+        let sub_program = match symbols.get_by_address(&((pc_low >> 1) << 1)) {
+            None => return Ok(()), //Err(crate::GAError::ProjectError(crate::project::ProjectError::InvalidSymbolAddress(pc_low)).into()),
+            Some(val) => val,
+        };
+        self.privelege_map.push((pc_low, sub_program.bounds.1));
+        Ok(())
+    }
+
+    pub fn make_priveleged_progam(&mut self, subprogram: &crate::project::dwarf_helper::SubProgram) -> crate::Result<()> {
+        self.privelege_map.push(subprogram.bounds);
+        Ok(())
+    }
+
+    fn is_privileged(&self, pc: u64) -> bool {
+        self.privelege_map.iter().any(|(low, high)| (*low..=*high).contains(&pc))
+    }
+
+    pub fn is_strict(&self) -> bool {
+        self.strict
+    }
+
+    /// Disables the memory protection.
+    pub fn disable_memory_protection(&mut self) {
+        self.strict = false;
+    }
+
+    /// Enables the memory protection.
+    pub fn enable_memory_protection(&mut self) {
+        self.strict = true;
+    }
+}
+
 pub struct Reader<'a, C: Composition> {
     memory: &'a mut C::Memory,
     container: &'a mut HookContainer<C>,
@@ -369,6 +612,28 @@ pub struct Reader<'a, C: Composition> {
 pub struct Writer<'a, C: Composition> {
     memory: &'a mut C::Memory,
     container: &'a mut HookContainer<C>,
+}
+
+impl<C: Composition> PrioriHookContainer<C> {
+    pub fn new() -> Self {
+        Self {
+            register_read_hook: HashMap::new(),
+            register_write_hook: HashMap::new(),
+            pc_hook: HashMap::new(),
+            single_memory_read_hook: HashMap::new(),
+            single_memory_write_hook: HashMap::new(),
+            range_memory_read_hook: Vec::new(),
+            range_memory_write_hook: Vec::new(),
+            fp_register_read_hook: HashMap::new(),
+            fp_register_write_hook: HashMap::new(),
+            flag_read_hook: HashMap::new(),
+            flag_write_hook: HashMap::new(),
+            strict: false,
+            pc_preconditions: HashMap::new(),
+            pc_preconditions_one_shots: HashMap::new(),
+            privelege_map: Vec::new(),
+        }
+    }
 }
 
 impl<C: Composition> HookContainer<C> {
@@ -436,24 +701,32 @@ impl<'a, C: Composition> Reader<'a, C> {
             let (stack_start, stack_end) = self.memory.get_stack();
             let lower = addr.ult(&stack_end);
             let upper = addr.ugt(&stack_start);
-            let mut total = lower.or(&upper);
+            let total = lower.or(&upper);
+            let mut total = total;
             let subpogram_map = self.memory.program_memory().borrow_symtab();
             let pc = match self.memory.get_pc() {
                 Ok(val) => val,
                 Err(e) => return ResultOrHook::Result(Err(e.into())),
             };
             let program = pc.get_constant().map(|pc| subpogram_map.get_by_address(&pc));
-            if let Some(Some(SubProgram { name, bounds, file, call_file })) = program {
-                let lower = self.memory.from_u64(bounds.0, self.memory.get_ptr_size());
-                let upper = self.memory.from_u64(bounds.1, self.memory.get_ptr_size());
-                total = total.or(&lower.ulte(&addr).and(&upper.ugte(&addr)));
+
+            let mut cond = self.container.could_possibly_be_invalid_read(total.clone(), addr.clone());
+            let not_stack = cond.get_constant_bool().unwrap_or(true);
+            if not_stack {
+                if not_stack {
+                    trace!("Address {:#x?} not contained in resources or stack. Trying to locate it in memory.", addr.get_constant());
+                }
+                let not_in_program_data = {
+                    let program_memory = self.memory.program_memory();
+                    program_memory.out_of_bounds(&addr, self.memory)
+                };
+                if not_stack && not_in_program_data.get_constant_bool().unwrap_or(true) {
+                    trace!("Address {:#x?} not contained in memory segments. Trying to locate it in memory.", addr.get_constant());
+                } else if not_stack {
+                    trace!("Address {:#x?} contained in a segment of constants.", addr.get_constant());
+                }
+                cond = cond.and(&not_in_program_data);
             }
-            let cond = self.container.could_possibly_be_invalid_read(total.clone(), addr.clone());
-            let in_program_data = {
-                let program_memory = self.memory.program_memory();
-                program_memory.in_bounds(&addr, self.memory)
-            };
-            let cond = cond.or(&in_program_data);
             if cond.get_constant_bool().unwrap_or(true)
                 && !self
                     .container
@@ -538,11 +811,7 @@ impl<'a, C: Composition> Writer<'a, C> {
             let lower = addr.ult(&stack_end);
             let upper = addr.ugt(&stack_start);
             let total = lower.or(&upper);
-            if self
-                .container
-                .could_possibly_be_invalid_write(total.clone(), addr.clone())
-                .get_constant_bool()
-                .unwrap_or(true)
+            if self.container.could_possibly_be_invalid_write(total, addr.clone()).get_constant_bool().unwrap_or(true)
                 && !self
                     .container
                     .is_privileged((self.memory.get_pc().expect("PC must be accessible").get_constant().expect("PC must be deterministic") >> 1) << 1)
@@ -664,8 +933,8 @@ impl<C: Composition> HookContainer<C> {
         let mut ret = Self::new();
         // intrinsic functions
         let start_cyclecount = |state: &mut GAState<C>| {
-            state.cycle_count = 0;
-            trace!("Reset the cycle count (cycle count: {})", state.cycle_count);
+            state.set_cycle_count(0);
+            trace!("Reset the cycle count (cycle count: {})", state.get_cycle_count());
 
             // jump back to where the function was called from
             let lr = state.get_register("LR".to_owned()).unwrap();
@@ -675,7 +944,7 @@ impl<C: Composition> HookContainer<C> {
         let end_cyclecount = |state: &mut GAState<C>| {
             // stop counting
             state.count_cycles = false;
-            trace!("Stopped counting cycles (cycle count: {})", state.cycle_count);
+            trace!("Stopped counting cycles (cycle count: {})", state.get_cycle_count());
 
             // jump back to where the function was called from
             let lr = state.get_register("LR".to_owned()).unwrap();
@@ -685,7 +954,14 @@ impl<C: Composition> HookContainer<C> {
 
         ret.add_pc_hook_regex(map, r"^panic.*", PCHook::EndFailure("panic")).unwrap();
         ret.add_pc_hook_regex(map, r"^panic_cold_explicit$", PCHook::EndFailure("explicit panic"));
-        ret.add_pc_hook_regex(map, r"^unwrap_failed$", PCHook::EndFailure("unwrap failed"));
+        ret.add_pc_hook_regex(
+            map,
+            r"^unwrap_failed$",
+            PCHook::EndFailure(
+                "unwrap
+        failed",
+            ),
+        );
         ret.add_pc_hook_regex(map, r"^panic_bounds_check$", PCHook::EndFailure("(panic) bounds check failed"));
         ret.add_pc_hook_regex(
             map,

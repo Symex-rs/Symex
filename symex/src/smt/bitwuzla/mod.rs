@@ -615,6 +615,7 @@ mod test {
         },
         initiation::NoArchOverride,
         logging::NoLogger,
+        path_selection::PathSelector,
         project::Project,
         smt::{
             bitwuzla::{Bitwuzla, BitwuzlaExpr},

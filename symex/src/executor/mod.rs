@@ -1,8 +1,9 @@
-//! General assembly executor
+//home/ivar/thesis/symex/symex/src/executor/mod.rs/! General assembly executor
 
-use std::collections::VecDeque;
+use std::{collections::VecDeque, fmt::Display};
 
 use anyhow::Context as _;
+use disarmv7::operation;
 use general_assembly::{
     condition::Comparison,
     prelude::{DataWord, Operand, Operation},
@@ -21,7 +22,7 @@ use crate::{
     error,
     logging::Logger,
     memory,
-    path_selection::Path,
+    path_selection::{Path, PathSelector},
     smt::{ProgramMemory, SmtExpr, SmtMap, SmtSolver, SolverError},
     trace,
     warn,
@@ -51,6 +52,20 @@ pub enum PathResult<C: Composition> {
     Failure(&'static str),
     AssumptionUnsat,
     Suppress,
+}
+
+pub enum Continue {
+    This,
+    Next,
+}
+
+impl Display for Continue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", match self {
+            Self::This => "this",
+            Self::Next => "next",
+        })
+    }
 }
 
 pub(crate) struct AddWithCarryResult<E: SmtExpr> {
@@ -135,8 +150,8 @@ macro_rules! extract {
                 ResultOrTerminate::Result(r) => match &r {
                     Ok(_r) => r.unwrap(),
                     Err(e) => {
-                        if let Err(e) = r.context(format!($($tt)*)) {
-                            return Err(e)
+                        if let Err(e) = r {
+                            return Err(e.context(format!($($tt)*)))
                         }
                         unreachable!("Invalid precondition");
                     }
@@ -294,11 +309,13 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
                         return Ok(PathResult::Failure(data));
                     }
                     PCHook::Suppress => {
+                        debug!("Supressing path");
                         logger.warn("Suppressing path");
                         self.state.increment_cycle_count();
                         return Ok(PathResult::Suppress);
                     }
                     PCHook::Intrinsic(f) => {
+                        debug!("Running intrinsic hook.");
                         f(&mut self.state)?;
 
                         // Set last instruction to empty to no count instruction twice
@@ -419,6 +436,7 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
 
         for idx in 0..instructions {
             self.state.architecture.pre_instruction_loading_hook()(&mut self.state);
+            let pc = self.state.memory.get_pc().unwrap().get_constant().expect("A constant PC");
             let instruction = match extract!(Result(self.state.get_next_instruction(logger)), context: "While trying to resume execution") {
                 HookOrInstruction::Instruction(v) => v,
                 HookOrInstruction::PcHook(hook) => match hook {
@@ -445,9 +463,13 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
                         return Ok(PathResult::Suppress);
                     }
                     PCHook::Intrinsic(f) => {
+                        trace!("Running intrinsic hook @ {pc:#x}");
                         f(&mut self.state)?;
+                        let new_pc = self.state.memory.get_pc().unwrap().get_constant().expect("A constant PC");
+                        trace!("Ran intrinsic hook @ {new_pc:#x}");
+                        assert!(pc != new_pc, "Intrinsics must update program counter.");
 
-                        // Set last instruction to empty to no count instruction twice
+                        // Set last instruction to empty to noy count instruction twice
                         self.state.last_instruction = None;
                         continue;
                     }
@@ -472,10 +494,34 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
     }
 
     // Fork execution. Will create a new path with `constraint`.
-    fn fork(&mut self, constraint: C::SmtExpression, logger: &C::Logger, msg: &'static str) -> Result<()> {
-        trace!("Save backtracking path: constraint={:?}", constraint);
+    fn fork(&mut self, constraint: C::SmtExpression, logger: &C::Logger, operation: Continue, msg: &'static str) -> Result<()> {
+        trace!("Save backtracking path: constraint={:?}, continue on {} instruction", constraint, operation);
         debug!("Forking {msg}");
-        let forked_state = self.state.clone();
+        let forked_state = match operation {
+            Continue::This => {
+                let mut clone = self.state.clone();
+                let mut ctx = self.context.clone();
+                ctx.continue_on_current();
+                clone.continue_in_instruction = Some(ContinueInsideInstruction {
+                    instruction: self.state.current_instruction.as_ref().unwrap().to_owned(),
+                    context: ctx,
+                });
+                clone
+            }
+            Continue::Next => {
+                let mut clone = self.state.clone();
+                if self.current_operation_index < (self.state.current_instruction.as_ref().unwrap().operations.len() - 1) {
+                    let mut ctx = self.context.clone();
+                    ctx.continue_on_next();
+                    clone.continue_in_instruction = Some(ContinueInsideInstruction {
+                        instruction: self.state.current_instruction.as_ref().unwrap().to_owned(),
+                        context: ctx,
+                    });
+                }
+                clone
+            }
+        };
+
         let pc = self.state.last_pc & ((u64::MAX >> 1) << 1);
         let mut new_logger = logger.fork();
         new_logger.warn(format!("{pc:#x} {msg}"));
@@ -544,10 +590,112 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
             Operand::Immediate(v) => Ok(self.get_dexpr_from_dataword(v.to_owned())),
             Operand::Address(address, width) => {
                 let address = self.get_dexpr_from_dataword(*address);
-                // let address = extract!(Ok(self.resolve_address(address, logger,false)),
+                let address = match extract!(Ok(self.resolve_address(address.clone(), logger, false))) {
+                    Some(addr) => self.state.memory.from_u64(addr, self.state.memory.get_ptr_size()),
+                    None => address,
+                };
                 // context: "While resolving address for address in local!");
-                // extract!(self.get_memory(self.state.memory.from_u64(address,
-                // self.state.memory.get_ptr_size()), *width))
+                let res = extract!(Ok(self.get_memory(address, *width)));
+                Ok(res)
+                // let res = extract!(Ok(self.get_memory(address, *width)));
+                // Ok(res)
+            }
+            Operand::AddressWithOffset {
+                address: _,
+                offset_reg: _,
+                width: _,
+            } => todo!(),
+            Operand::Local(k) => Ok((self.context.locals.get(k).expect("Local was used before it was declared!")).to_owned()),
+            Operand::AddressInLocal(local_name, width) => {
+                let address = self.context.locals.get(local_name).expect("Local was used before it was declared!").to_owned();
+                let address = match extract!(Ok(self.resolve_address(address.clone(), logger, false))) {
+                    Some(addr) => self.state.memory.from_u64(addr, self.state.memory.get_ptr_size()),
+                    None => address,
+                };
+                // context: "While resolving address for address in local!");
+                let res = extract!(Ok(self.get_memory(address, *width)));
+                Ok(res)
+                // let res = extract!(Ok(self.get_memory(address.clone(),
+                // *width))); debug!(
+                //     "Getting address {:?}
+                // results in {:?}",
+                //     address,
+                //     res.get_constant()
+                // );
+                // Ok(res)
+                // extract!(self.get_memory(address, *width))
+            }
+            Operand::Flag(f) => {
+                let value = extract!(Ok(self.state.get_flag(f.clone())));
+                Ok(value.resize_unsigned(self.project.get_word_size() as u32))
+            }
+        };
+        // if let Ok(ret) = &ret {
+        //     if let Some(c) = ret.get_constant() {
+        //         trace!("Operand {operand:?} = {c}");
+        //         let _c = c;
+        //     }
+        // }
+
+        ResultOrTerminate::Result(ret)
+    }
+
+    pub(crate) fn fork_for_all(&mut self, source: C::SmtExpression, logger: &mut C::Logger) -> ResultOrTerminate<C::SmtExpression> {
+        let exprs = match self.state.constraints.get_values(&source, 255) {
+            Ok(val) => val,
+            Err(err) => {
+                warn!("Too many solutions");
+                return ResultOrTerminate::Result(Err(err.into()));
+            }
+        };
+
+        let exprs = match exprs {
+            crate::smt::Solutions::Exactly(a) => a,
+            // NOTE: We should likely not break here but allow for a configurable number
+            // paths.
+            crate::smt::Solutions::AtLeast(_) => {
+                warn!("Number of soltions exceeeds 255.");
+
+                return ResultOrTerminate::Result(Err(SolverError::TooManySolutions.into()));
+            }
+        };
+
+        if exprs.len() == 1 {
+            return ResultOrTerminate::Result(Ok(exprs[0].clone()));
+        }
+
+        if exprs.is_empty() {
+            warn!("Unsatisfiable");
+            return ResultOrTerminate::Result(Err(SolverError::Unsat.into()));
+        }
+
+        // Create paths for all but the first address
+        for expr in &exprs[1..] {
+            let constraint = source._eq(expr);
+            if let Err(e) = self.fork(constraint, logger, Continue::This, "Forking due to non concrete address") {
+                warn!("Failed to fork state on non concrete address");
+                return ResultOrTerminate::Result(Err(e));
+            }
+        }
+
+        // assert first address and return concrete
+        let concrete_expr = exprs[0].clone();
+        self.state.constraints.assert(&source._eq(&concrete_expr));
+        ResultOrTerminate::Result(Ok(concrete_expr))
+    }
+
+    /// Get the smt expression for a operand.
+    pub(crate) fn get_operand_value_resolve(&mut self, operand: &Operand, logger: &mut C::Logger) -> ResultOrTerminate<C::SmtExpression> {
+        let ret = match operand {
+            Operand::Register(name) => self.state.get_register(name.to_owned()),
+            Operand::Immediate(v) => Ok(self.get_dexpr_from_dataword(v.to_owned())),
+            Operand::Address(address, width) => {
+                let address = self.get_dexpr_from_dataword(*address);
+                let address = match extract!(Ok(self.resolve_address(address.clone(), logger, false))) {
+                    Some(addr) => self.state.memory.from_u64(addr, self.state.memory.get_ptr_size()),
+                    None => address,
+                };
+                // context: "While resolving address for address in local!");
                 let res = extract!(Ok(self.get_memory(address, *width)));
                 Ok(res)
             }
@@ -559,12 +707,12 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
             Operand::Local(k) => Ok((self.context.locals.get(k).expect("Local was used before it was declared!")).to_owned()),
             Operand::AddressInLocal(local_name, width) => {
                 let address = self.context.locals.get(local_name).expect("Local was used before it was declared!").to_owned();
-                // let address = extract!(Ok(self.resolve_address(address, logger,false)),
+                let address = match extract!(Ok(self.resolve_address(address.clone(), logger, false))) {
+                    Some(addr) => self.state.memory.from_u64(addr, self.state.memory.get_ptr_size()),
+                    None => address,
+                };
                 // context: "While resolving address for address in local!");
-                // let res = extract!(Ok(self.get_memory(self.state.memory.from_u64(address,
-                // self.state.memory.get_ptr_size()), *width)));
-                let res = extract!(Ok(self.get_memory(address.clone(), *width)));
-                debug!("Getting address {:?} results in {:?}", address, res.get_constant());
+                let res = extract!(Ok(self.get_memory(address, *width)));
                 Ok(res)
                 // extract!(self.get_memory(address, *width))
             }
@@ -587,30 +735,40 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
     pub(crate) fn set_operand_value(&mut self, operand: &Operand, value: C::SmtExpression, logger: &mut C::Logger) -> ResultOrTerminate<()> {
         match operand {
             Operand::Register(v) => {
+                let value = if v == "PC" {
+                    extract!(Ok(self.fork_for_all(value, logger)))
+                    // return ResultOrTerminate::Result(Ok(()));
+                } else {
+                    value
+                };
+
                 trace!("Setting register {} to {:?}", v, value);
                 extract!(self.state.set_register(v.to_owned(), value).into());
             }
             Operand::Immediate(_) => panic!(), // Not prohibited change to error later
             Operand::AddressInLocal(local_name, width) => {
                 let address = extract!(Ok(self.get_operand_value(&Operand::Local(local_name.to_owned()), logger)));
-                // let address = extract!(Ok(self.resolve_address(address, logger, true)));
-                // extract!(Ok(self.set_memory(
-                //     value.simplify(),
-                //     self.state.memory.from_u64(address, self.state.memory.get_ptr_size()),
-                //     *width
-                // )));
-                trace!("Setting address {:?} to {:?}", address.get_constant(), value.get_constant());
+                let address = match extract!(Ok(self.resolve_address(address.clone(), logger, true))) {
+                    Some(addr) => self.state.memory.from_u64(addr, self.state.memory.get_ptr_size()),
+                    None => address,
+                };
+                // println!("Setting address {address:#x}");
                 extract!(Ok(self.set_memory(value.simplify(), address, *width)));
+                // trace!("Setting address {:?} to {:?}",
+                // address.get_constant(), value.get_constant());
+                // extract!(Ok(self.set_memory(value.simplify(), address,
+                // *width)));
             }
             Operand::Address(address, width) => {
                 let address = self.get_dexpr_from_dataword(*address);
-                // let address = extract!(Ok(self.resolve_address(address, logger, true)));
-                // extract!(Ok(self.set_memory(
-                //     value.simplify(),
-                //     self.state.memory.from_u64(address, self.state.memory.get_ptr_size()),
-                //     *width
-                // )));
+                let address = match extract!(Ok(self.resolve_address(address.clone(), logger, true))) {
+                    Some(addr) => self.state.memory.from_u64(addr, self.state.memory.get_ptr_size()),
+                    None => address,
+                };
+                // println!("Setting address {address:#x}");
                 extract!(Ok(self.set_memory(value.simplify(), address, *width)));
+                // extract!(Ok(self.set_memory(value.simplify(), address,
+                // *width)));
             }
             Operand::AddressWithOffset {
                 address: _,
@@ -630,56 +788,66 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
         ResultOrTerminate::Result(Ok(()))
     }
 
-    fn resolve_address(&mut self, address: C::SmtExpression, logger: &C::Logger, write: bool) -> ResultOrTerminate<u64> {
+    fn resolve_address(&mut self, address: C::SmtExpression, logger: &C::Logger, write: bool) -> ResultOrTerminate<Option<u64>> {
         debug!("Resolving address {:?} as constant", address);
         let ret = match &address.get_constant() {
-            Some(addr) => Result::Ok(*addr),
+            Some(addr) => Result::Ok(Some(*addr)),
             None => {
                 debug!("Address {:?} non deterministic!", address);
-                // Find all possible addresses
-                let (stack_start, stack_end) = self.state.memory.get_stack();
-                let lower = address.ult(&stack_end);
-                let upper = address.ugt(&stack_start);
-                let in_program_data = {
-                    let state = &self.state;
-                    let program_memory = state.memory.program_memory();
-                    program_memory.in_bounds(&address, &state.memory)
-                };
-                let total = lower.or(&upper).and(&self.state.memory.from_bool(self.state.hooks.is_strict()));
-
-                let cond_sym = match write {
-                    false => self.state.hooks.could_possibly_be_invalid_read(total.or(&in_program_data), address.clone()),
-                    true => self.state.hooks.could_possibly_be_invalid_write(total.clone(), address.clone()),
-                };
-                let cond = cond_sym.get_constant_bool();
-
-                if let Some(true) = cond {
-                    error!("Violates memory safety!");
-                    return ResultOrTerminate::Failure(format!("Local address is out of bounds."));
-                }
-                if let None = cond {
-                    warn!("Potentially memory unsafe, forking state");
-                    // Create paths for all but the first address
-                    if self.current_operation_index < self.state.current_instruction.as_ref().unwrap().operations.len() - 1 {
-                        let mut ctx = self.context.clone();
-                        ctx.continue_on_current();
-                        self.state.continue_in_instruction = Some(ContinueInsideInstruction {
-                            instruction: self.state.current_instruction.as_ref().unwrap().to_owned(),
-                            context: ctx,
-                        })
-                    }
-
-                    let constraint = cond_sym.not();
-                    if let Err(e) = self.fork(constraint, logger, "Due to non concrete address") {
-                        warn!("Failed to fork state");
-                        return ResultOrTerminate::Result(Err(e));
-                    }
-                    self.state.constraints.assert(&cond_sym);
-                    return ResultOrTerminate::Failure(format!("Local address is out of bounds."));
-                }
-
-                // Narrow the seach space ever so slightly.
-                self.state.constraints.assert(&cond_sym.not());
+                // // Find all possible addresses
+                // let (stack_start, stack_end) = self.state.memory.get_stack();
+                // let lower = address.ult(&stack_end);
+                // let upper = address.ugt(&stack_start);
+                // let not_in_program_data = {
+                //     let state = &self.state;
+                //     let program_memory = state.memory.program_memory();
+                //     program_memory.out_of_bounds(&address, &state.memory)
+                // };
+                // let total = lower.or(&upper);
+                //
+                // let cond_sym = match write {
+                //     false =>
+                // self.state.hooks.could_possibly_be_invalid_read(total.and(&
+                // not_in_program_data), address.clone()),     true =>
+                // self.state.hooks.could_possibly_be_invalid_write(total.clone(),
+                // address.clone()), };
+                // let cond = cond_sym.get_constant_bool();
+                //
+                // if let Some(true) = cond {
+                //     if self.state.hooks.is_strict() {
+                //         error!("Violates memory safety!");
+                //         return ResultOrTerminate::Failure(format!("Local address is out of
+                // bounds."));     }
+                // }
+                // if let None = cond {
+                //     if self.state.hooks.is_strict() {
+                //         warn!("Potentially memory unsafe, forking state");
+                //         // // Create paths for all but the first address
+                //         // if self.current_operation_index <
+                //         // self.state.current_instruction.as_ref().unwrap().operations.len()
+                // - 1 {         //     let mut ctx = self.context.clone(); //
+                //   ctx.continue_on_current(); //     self.state.continue_in_instruction =
+                // Some(ContinueInsideInstruction {         //
+                // instruction:         //
+                // self.state.current_instruction.as_ref().unwrap().to_owned(),
+                //         //         context: ctx,
+                //         //     })
+                //         // }
+                //
+                //         let constraint = cond_sym.not();
+                //         if let Err(e) = self.fork(constraint, logger, Continue::This, "Due to
+                // non concrete address") {             warn!("Failed to fork
+                // state");             return
+                // ResultOrTerminate::Result(Err(e));         }
+                //         self.state.constraints.assert(&cond_sym);
+                //         return ResultOrTerminate::Failure(format!("Local address is out of
+                // bounds."));     }
+                // }
+                //
+                // // Narrow the seach space ever so slightly.
+                // if self.state.hooks.is_strict() {
+                //     self.state.constraints.assert(&cond_sym.not());
+                // }
                 let addresses = match self.state.constraints.get_values(&address, 255) {
                     Ok(val) => val,
                     Err(err) => {
@@ -695,12 +863,12 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
                     crate::smt::Solutions::AtLeast(_) => {
                         warn!("Number of soltions exceeeds 255.");
 
-                        return ResultOrTerminate::Result(Err(SolverError::TooManySolutions.into()));
+                        return ResultOrTerminate::Result(Ok(None));
                     }
                 };
 
                 if addresses.len() == 1 {
-                    return ResultOrTerminate::Result(Ok(addresses[0].get_constant().unwrap()));
+                    return ResultOrTerminate::Result(Ok(Some(addresses[0].get_constant().unwrap())));
                 }
 
                 if addresses.is_empty() {
@@ -710,26 +878,25 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
 
                 // Create paths for all but the first address
                 for addr in &addresses[1..] {
-                    if self.current_operation_index < self.state.current_instruction.as_ref().unwrap().operations.len() - 1 {
-                        let mut ctx = self.context.clone();
-                        ctx.continue_on_current();
-                        self.state.continue_in_instruction = Some(ContinueInsideInstruction {
-                            instruction: self.state.current_instruction.as_ref().unwrap().to_owned(),
-                            context: ctx,
-                        })
-                    }
+                    // let mut ctx = self.context.clone();
+                    // ctx.continue_on_current();
+                    // self.state.continue_in_instruction = Some(ContinueInsideInstruction {
+                    //     instruction: self.state.current_instruction.as_ref().unwrap().to_owned(),
+                    //     context: ctx,
+                    // });
 
                     let constraint = address._eq(addr);
-                    if let Err(e) = self.fork(constraint, logger, "Forking due to non concrete address") {
+                    if let Err(e) = self.fork(constraint, logger, Continue::This, "Forking due to non concrete address") {
                         warn!("Failed to fork state on non concrete address");
                         return ResultOrTerminate::Result(Err(e));
                     }
+                    self.state.constraints.assert(&address._ne(&addr));
                 }
 
                 // assert first address and return concrete
                 let concrete_address = &addresses[0];
                 self.state.constraints.assert(&address._eq(concrete_address));
-                Ok(concrete_address.get_constant().unwrap())
+                Ok(Some(concrete_address.get_constant().unwrap()))
             }
         };
         debug!("Resolved address {:?} as constant", ret);
@@ -774,13 +941,13 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
     /// Execute a single instruction.
     pub(crate) fn execute_instruction(&mut self, i: &Instruction<C>, logger: &mut C::Logger) -> ResultOrTerminate<bool> {
         // update last pc
-        let new_pc = extract!(Ok(self.state.get_register("PC".to_owned())));
-        self.state.last_pc = new_pc.get_constant().unwrap();
+        let old_pc = extract!(Ok(self.state.get_register("PC".to_owned())));
+        self.state.last_pc = old_pc.get_constant().unwrap();
 
         // Always increment pc before executing the operations
         extract!(Ok(self.state.set_register(
             "PC".to_owned(),
-            new_pc.add(&self.state.memory.from_u64((i.instruction_size / 8) as u64, self.project.get_ptr_size(),)),
+            old_pc.add(&self.state.memory.from_u64((i.instruction_size / 8) as u64, self.project.get_ptr_size(),)),
         )));
         let new_pc = extract!(Ok(self.state.get_register("PC".to_owned())));
 
@@ -802,7 +969,12 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
                     let false_possible = extract!(Ok(self.state.constraints.is_sat_with_constraint(&c.not()).map_err(|e| e.into())));
 
                     if true_possible && false_possible {
-                        extract!(Ok(self.fork(c.not(), logger, "Forking due to conditional execution, both options are possible")));
+                        extract!(Ok(self.fork(
+                            c.not(),
+                            logger,
+                            Continue::This,
+                            "Forking due to conditional execution, both options are possible"
+                        )));
                         self.state.constraints.assert(&c);
                     }
 
@@ -813,7 +985,7 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
         };
 
         if should_run {
-            logger.update_delimiter(new_pc.get_constant().unwrap());
+            logger.update_delimiter(self.state.last_pc);
             self.context.clear();
             self.context.execution_queue.push_back((0, i.operations.clone()));
 
@@ -845,9 +1017,7 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
                 }
             }
         }
-        for message in self.state.memory.dispatch_temporal_hooks::<C>(self.state.cycle_count) {
-            extract!(Ok(message(&mut self.state)));
-        }
+        self.state.memory.dispatch_temporal_hooks();
 
         ResultOrTerminate::Result(Ok(should_run))
     }
@@ -855,22 +1025,19 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
     /// Execute a single operation or all operations contained inside an
     /// operation.
     pub(crate) fn execute_operation(&mut self, operation: &Operation, logger: &mut C::Logger) -> ResultOrTerminate<()> {
-        debug!(
-            "PC: {:#x} -> Executing operation: {:?}",
-            self.state.memory.get_pc().unwrap().get_constant().unwrap(),
-            operation
-        );
+        let pc = self.state.memory.get_pc().unwrap().get_constant().unwrap();
+        debug!("PC: {:#x} -> Executing operation: {:?}", pc, operation);
         match operation {
             Operation::Nop => (), // nop so do nothing
             Operation::Move { destination, source } => {
-                let value = extract!(Ok(self.get_operand_value(source, logger)), context: "Failed to get operand value in Move {:?} => {:?}",source, destination);
-                extract!(Ok(self.set_operand_value(destination, value.clone(), logger)), context: "Failed to set operand in Move {:?} => {:?}", source, destination);
+                let value = extract!(Ok(self.get_operand_value(source, logger)), context: "Failed to get operand value in Move {:?} => {:?} @ {pc:#x}",source, destination);
+                extract!(Ok(self.set_operand_value(destination, value.clone(), logger)), context: "Failed to set operand in Move {:?} => {:?} @ {pc:#x} ", source, destination);
             }
             Operation::Add { destination, operand1, operand2 } => {
-                let op1 = extract!(Ok(self.get_operand_value(operand1, logger)),context: "While getting operand for Add");
+                let op1 = extract!(Ok(self.get_operand_value(operand1, logger)),context: "While getting operand for Add {pc:#x}");
                 let op2 = extract!(Ok(self.get_operand_value(operand2, logger)));
                 let result = op1.add(&op2);
-                extract!(Ok(self.set_operand_value(destination, result, logger)),context: "While setting result for Add");
+                extract!(Ok(self.set_operand_value(destination, result, logger)),context: "While setting result for Add {pc:#x}");
             }
             Operation::SAdd {
                 destination,
@@ -887,10 +1054,10 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
                 extract!(Ok(self.set_operand_value(destination, result, logger)));
             }
             Operation::Sub { destination, operand1, operand2 } => {
-                let op1 = extract!(Ok(self.get_operand_value(operand1, logger)),context: "While getting operand for Sub");
+                let op1 = extract!(Ok(self.get_operand_value(operand1, logger)),context: "While getting operand for Sub {pc:#x}");
                 let op2 = extract!(Ok(self.get_operand_value(operand2, logger)));
                 let result = op1.sub(&op2);
-                extract!(Ok(self.set_operand_value(destination, result, logger)),context: "While setting result for Sub");
+                extract!(Ok(self.set_operand_value(destination, result, logger)),context: "While setting result for Sub {pc:#x}");
             }
             Operation::SSub {
                 destination,
@@ -1009,14 +1176,14 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
                 extract!(Ok(self.set_operand_value(destination, result, logger)));
             }
             Operation::ConditionalJump { destination, condition } => {
-                let dest_value = extract!(Ok(self.get_operand_value(destination, logger)));
                 let c = extract!(Ok(self.state.get_expr(condition))).simplify();
                 trace!("conditional expr: {:?}", c);
                 // if constant just jump
                 if let Some(constant_c) = c.get_constant_bool() {
                     if constant_c {
                         self.state.set_has_jumped();
-                        let destination = dest_value;
+                        let dest_value = extract!(Ok(self.get_operand_value_resolve(destination, logger)));
+                        let destination = extract!(Ok(self.fork_for_all(dest_value, logger)));
                         extract!(Ok(self.state.set_register("PC".to_owned(), destination)));
                     }
                     return ResultOrTerminate::Result(Ok(()));
@@ -1028,21 +1195,27 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
 
                 let destination: C::SmtExpression = extract!(Ok(match (true_possible, false_possible) {
                     (true, true) => {
-                        if self.current_operation_index < (self.state.current_instruction.as_ref().unwrap().operations.len() - 1) {
-                            let mut ctx = self.context.clone();
-                            ctx.continue_on_next();
-                            self.state.continue_in_instruction = Some(ContinueInsideInstruction {
-                                instruction: self.state.current_instruction.as_ref().unwrap().to_owned(),
-                                context: ctx,
-                            });
-                        }
-                        extract!(Ok(self.fork(c.not(), logger, "Forking paths due to conditional branch")));
+                        // if self.current_operation_index <
+                        // (self.state.current_instruction.as_ref().unwrap().operations.len() - 1) {
+                        //     let mut ctx = self.context.clone();
+                        //     ctx.continue_on_next();
+                        //     self.state.continue_in_instruction = Some(ContinueInsideInstruction {
+                        //         instruction:
+                        // self.state.current_instruction.as_ref().unwrap().to_owned(),
+                        //         context: ctx,
+                        //     });
+                        // }
+                        extract!(Ok(self.fork(c.not(), logger, Continue::Next, "Forking paths due to conditional branch")));
                         self.state.constraints.assert(&c);
                         self.state.set_has_jumped();
+                        let dest_value = extract!(Ok(self.get_operand_value_resolve(destination, logger)));
+                        let dest_value = extract!(Ok(self.fork_for_all(dest_value, logger)));
                         Ok(dest_value)
                     }
                     (true, false) => {
                         self.state.set_has_jumped();
+                        let dest_value = extract!(Ok(self.get_operand_value_resolve(destination, logger)));
+                        let dest_value = extract!(Ok(self.fork_for_all(dest_value, logger)));
                         Ok(dest_value)
                     }
                     (false, true) => Ok(extract!(Ok(self.state.get_register("PC".to_owned())))), /* safe to assume PC exist */
@@ -1267,6 +1440,7 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
                     Comparison::SLeq => lhs.slte(&rhs),
                     Comparison::Neq => lhs._eq(&rhs).not(),
                 };
+                let result = result.resize_unsigned(1);
                 extract!(Ok(self.set_operand_value(destination, result, logger)),context: "While storing result of compare operation");
             }
             Operation::Ite { condition, then, otherwise } => {
@@ -1294,20 +1468,11 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
                         }
                     }
                     (true, true) => {
-                        if self.current_operation_index < (self.state.current_instruction.as_ref().unwrap().operations.len()) {
-                            let mut ctx = self.context.clone();
-                            ctx.continue_on_current();
-
-                            self.state.continue_in_instruction = Some(ContinueInsideInstruction {
-                                instruction: self.state.current_instruction.as_ref().unwrap().to_owned(),
-                                // We want to re-run the same instruction.
-                                context: ctx,
-                            });
-                        }
                         extract!(
                             Ok(self.fork(
                                 result._eq(&self.state.memory.from_bool(false)),
                                 logger,
+                                Continue::This,
                                 "Forking as both paths in ITE instruction is possible"
                             )),
                             context: "While forking in ITE operation"
@@ -1324,6 +1489,7 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
             Operation::Ieee754(inner) => return self.execute_ieee754(inner.clone(), logger),
             Operation::Log { operand, meta, level } => {
                 let operand_value = extract!(Ok(self.get_operand_value(operand, logger)),context: "While executing log operation!");
+                let operand_value = operand_value.get_constant().map(|el| el.to_string()).unwrap_or(format!("{:?}", operand_value));
                 match level {
                     general_assembly::operand::LogLevel::Info => crate::info!("Exec log : \n\tMETA : {}\n\t\tVALUE: {:?}", meta, operand_value),
                     general_assembly::operand::LogLevel::Trace => crate::trace!("Exec log : \n\tMETA : {}\n\t\tVALUE: {:?}", meta, operand_value),
@@ -1364,6 +1530,7 @@ mod test {
             GAExecutor,
         },
         logging::NoLogger,
+        path_selection::PathSelector,
         project::Project,
         smt::{SmtExpr, SmtMap, SmtSolver},
         Endianness,

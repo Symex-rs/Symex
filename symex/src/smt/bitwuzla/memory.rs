@@ -1,4 +1,8 @@
-use std::{fmt::Display, rc::Rc};
+use std::{
+    fmt::Display,
+    marker::{PhantomData, PhantomPinned},
+    rc::Rc,
+};
 
 use anyhow::Context as _;
 use bitwuzla::{Array, Btor, BV};
@@ -15,6 +19,7 @@ use crate::{
     trace,
     warn,
     Endianness,
+    UserStateContainer,
 };
 
 #[derive(Debug, Clone)]
@@ -138,7 +143,7 @@ impl Context for ArrayMemory {
 }
 
 #[derive(Debug, Clone)]
-pub struct BitwuzlaMemory {
+pub struct BitwuzlaMemory<State: UserStateContainer> {
     pub(crate) ram: ArrayMemory,
     register_file: HashMap<String, BitwuzlaExpr>,
     flags: HashMap<String, BitwuzlaExpr>,
@@ -149,14 +154,24 @@ pub struct BitwuzlaMemory {
     initial_sp: BitwuzlaExpr,
     static_writes: HashMap<u64, BitwuzlaExpr>,
     privelege_map: Vec<(u64, u64)>,
+    cycles: u64,
+    _0: PhantomData<State>,
 }
 
-impl SmtMap for BitwuzlaMemory {
+impl<State: UserStateContainer> SmtMap for BitwuzlaMemory<State> {
     type Expression = BitwuzlaExpr;
     type ProgramMemory = &'static Project;
     type SMT = Bitwuzla;
+    type StateContainer = State;
 
-    fn new(smt: Self::SMT, program_memory: &'static Project, word_size: u32, endianness: Endianness, initial_sp: Self::Expression) -> Result<Self, crate::GAError> {
+    fn new(
+        smt: Self::SMT,
+        program_memory: &'static Project,
+        word_size: u32,
+        endianness: Endianness,
+        initial_sp: Self::Expression,
+        _state: &Self::StateContainer,
+    ) -> Result<Self, crate::GAError> {
         let ram = {
             let memory = Array::new(smt.ctx.clone(), word_size as u64, BITS_IN_BYTE as u64, Some("memory"));
 
@@ -178,6 +193,8 @@ impl SmtMap for BitwuzlaMemory {
             initial_sp,
             static_writes: HashMap::new(),
             privelege_map: Vec::new(),
+            cycles: 0,
+            _0: PhantomData,
         })
     }
 
@@ -357,6 +374,14 @@ impl SmtMap for BitwuzlaMemory {
     fn with_model_gen<R, F: FnOnce() -> R>(&self, f: F) -> R {
         f()
     }
+
+    fn get_cycle_count(&mut self) -> u64 {
+        self.cycles
+    }
+
+    fn set_cycle_count(&mut self, value: u64) {
+        self.cycles = value
+    }
 }
 
 //impl From<MemoryError> for crate::smt::MemoryError {
@@ -365,7 +390,7 @@ impl SmtMap for BitwuzlaMemory {
 //
 //}
 
-impl Display for BitwuzlaMemory {
+impl<State: UserStateContainer> Display for BitwuzlaMemory<State> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("\tVariables:\r\n")?;
         for (key, value) in self.variables.iter() {
