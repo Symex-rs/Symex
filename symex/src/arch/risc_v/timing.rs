@@ -20,6 +20,6 @@ impl super::RISCV {
     // Hippomenes is a single cycle processor, all intructions are guaranteed to take
     // 1 cycle. https://riscv-europe.org/summit/2024/media/proceedings/posters/116_poster.pdf
     pub fn cycle_count_hippomenes<C: crate::Composition>(instr: &ParsedInstruction32) -> CycleCount<C> {
-        CycleCount::new(1)
+        CycleCount::Value(1)
     }
 }

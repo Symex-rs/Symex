@@ -5,7 +5,7 @@ use std::fmt::Display;
 use armv6_m_instruction_parser::Error;
 
 use crate::{
-    arch::{ArchError, Architecture, ArchitectureOverride, ParseError, SupportedArchitecture},
+    arch::{ArchError, Architecture, ArchitectureOverride, ParseError, SupportedArchitecture, InterfaceRegister},
     executor::{hooks::PCHook, state::GAState},
     smt::{SmtExpr, SmtMap},
     trace,
@@ -39,6 +39,13 @@ impl<Override: ArchitectureOverride> Architecture<Override> for ArmV6M {
     where
         C: Composition<ArchitectureOverride = Override>,
     {
+    }
+
+    fn get_register_name(reg:InterfaceRegister) -> String {
+        match reg {
+            InterfaceRegister::ProgramCounter => "PC",
+            InterfaceRegister::ReturnAddress => "LR"
+        }.to_string()
     }
 
     #[allow(clippy::cast_possible_truncation)]

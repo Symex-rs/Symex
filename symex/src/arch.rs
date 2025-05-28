@@ -88,6 +88,15 @@ pub enum ParseError {
     Generic(&'static str),
 }
 
+/// Enumerates all of the registers needed to be compatible with general assembly.
+#[derive(Debug, Clone)]
+pub enum InterfaceRegister {
+    /// The program counter register, likely "PC"
+    ProgramCounter,
+    /// The return address register, "LR" on ARM
+    ReturnAddress,
+}
+
 /// Enumerates the discoverable machine code formats.
 ///
 /// # Note
@@ -107,6 +116,10 @@ pub trait ArchitectureOverride: Architecture<Self> + Clone + Default {
     /// Checks if the  value is an armv7em override.
     ///
     /// If so, it returns the underlying representation.
+    
+    fn as_riscv(&mut self) -> Option<&mut RISCV> {
+        None
+    }
     fn as_arm_v7(&mut self) -> Option<&mut ArmV7EM> {
         None
     }
@@ -151,6 +164,9 @@ pub trait Architecture<Override: ArchitectureOverride>: Debug + Display + Into<S
     where
         C: Composition<ArchitectureOverride = Override>;
 
+    /// Architecture dependent register names required by general assembly.
+    fn get_register_name(reg: InterfaceRegister) -> String;
+
     /// Creates a new instance of the architecture
     fn new() -> Self
     where
@@ -160,6 +176,11 @@ pub trait Architecture<Override: ArchitectureOverride>: Debug + Display + Into<S
 impl Architecture<Self> for NoArchitectureOverride {
     type ISA = ();
 
+    fn new() -> Self
+        where
+            Self: Sized {
+        Self
+    }
     /// Converts a slice of bytes to an [`Instruction`]
     fn translate<C: Composition>(&self, buff: &[u8], state: &GAState<C>) -> Result<Instruction<C>, ArchError> {
         unimplemented!("NoArchitectureOverride is not an architecture. Runtime checks failed.");
@@ -191,12 +212,9 @@ impl Architecture<Self> for NoArchitectureOverride {
         unimplemented!("NoArchitectureOverride is not an architecture. Runtime checks failed.");
     }
 
-    /// Creates a new instance of the architecture
-    fn new() -> Self
-    where
-        Self: Sized,
+    fn get_register_name(reg: InterfaceRegister) -> String 
     {
-        Self
+        unimplemented!("NoArchitectureOverride is not an architecture. Runtime checks failed.");
     }
 }
 
@@ -236,6 +254,7 @@ impl<Override: ArchitectureOverride> SupportedArchitecture<Override> {
         match self {
             Self::Armv6M(_) => ArmV6M::pre_instruction_loading_hook,
             Self::Armv7EM(_) => ArmV7EM::pre_instruction_loading_hook,
+            Self::RISCV(_) => RISCV::pre_instruction_loading_hook,
             Self::Override(_) => C::ArchitectureOverride::pre_instruction_loading_hook,
         }
     }
@@ -249,6 +268,7 @@ impl<Override: ArchitectureOverride> SupportedArchitecture<Override> {
         match self {
             Self::Armv6M(_) => ArmV6M::post_instruction_execution_hook,
             Self::Armv7EM(_) => ArmV7EM::post_instruction_execution_hook,
+            Self::RISCV(_) => RISCV::post_instruction_execution_hook,
             Self::Override(_) => C::ArchitectureOverride::post_instruction_execution_hook,
         }
     }
@@ -260,7 +280,26 @@ impl<Override: ArchitectureOverride> SupportedArchitecture<Override> {
         match self {
             Self::Armv6M(_) => ArmV6M::initiate_state,
             Self::Armv7EM(_) => ArmV7EM::initiate_state,
+            Self::RISCV(_) => RISCV::initiate_state,
             Self::Override(_) => C::ArchitectureOverride::initiate_state,
+        }
+    }
+
+    pub fn get_register_name(&self, reg:InterfaceRegister) -> String
+    {
+        match self {
+            Self::Armv6M(_) => <ArmV6M as Architecture<Override>>::get_register_name(reg),
+            Self::Armv7EM(_) => <ArmV7EM as Architecture<Override>>::get_register_name(reg),
+            Self::RISCV(_) => <RISCV as Architecture<Override>>::get_register_name(reg),
+            Self::Override(_) => Override::get_register_name(reg),
+        }
+    }
+    
+    fn as_riscv(&mut self) -> &mut RISCV {
+        match self {
+            Self::RISCV(riscv) => riscv,
+            Self::Override(o) => o.as_riscv().expect("Runtime checks to be valid."),
+            _ => unimplemented!("Runtime checks failed."),
         }
     }
 
@@ -299,6 +338,15 @@ impl<Override: ArchitectureOverride> TryAsMut<ArmV6M> for SupportedArchitecture<
     fn try_mut(&mut self) -> crate::Result<&mut ArmV6M> {
         match self {
             Self::Armv6M(a) => Ok(a),
+            _ => Err(crate::GAError::InvalidArchitectureRequested.into()),
+        }
+    }
+}
+
+impl<Override: ArchitectureOverride> TryAsMut<RISCV> for SupportedArchitecture<Override> {
+    fn try_mut(&mut self) -> crate::Result<&mut RISCV> {
+        match self {
+            Self::RISCV(a) => Ok(a),
             _ => Err(crate::GAError::InvalidArchitectureRequested.into()),
         }
     }

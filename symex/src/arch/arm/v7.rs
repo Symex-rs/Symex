@@ -6,7 +6,7 @@ use disarmv7::prelude::{Operation as V7Operation, *};
 use general_assembly::{extension::ieee754::RoundingMode, operation::Operation, shift::Shift};
 
 use crate::{
-    arch::{ArchError, Architecture, ArchitectureOverride, ParseError, SupportedArchitecture},
+    arch::{ArchError, Architecture, ArchitectureOverride, ParseError, SupportedArchitecture, InterfaceRegister},
     debug,
     executor::{
         hooks::{HookContainer, PCHook},
@@ -388,6 +388,13 @@ impl<Override: ArchitectureOverride> Architecture<Override> for ArmV7EM {
         C: crate::Composition<ArchitectureOverride = Override>,
     {
         Self::it_advance(state);
+    }
+
+    fn get_register_name(reg:InterfaceRegister) -> String {
+        match reg {
+            InterfaceRegister::ProgramCounter => "PC",
+            InterfaceRegister::ReturnAddress => "LR"
+        }.to_string()
     }
 
     #[allow(clippy::cast_possible_truncation)]
