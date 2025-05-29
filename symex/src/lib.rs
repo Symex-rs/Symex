@@ -35,6 +35,7 @@ use logging::Logger;
 use memory::MemoryError;
 use path_selection::PathSelector;
 use project::ProjectError;
+use rust_debug::call_stack::MemoryAccess;
 use smt::{ProgramMemory, SmtExpr, SmtFPExpr, SmtMap, SmtSolver, SolverError};
 
 pub mod arch;

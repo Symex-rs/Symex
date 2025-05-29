@@ -398,6 +398,10 @@ impl<State: UserStateContainer> SmtMap for BitwuzlaMemory<State> {
     fn set_cycle_count(&mut self, value: u64) {
         self.cycles = value
     }
+
+    fn get_registers(&mut self) -> HashMap<String, Self::Expression> {
+        self.register_file.clone()
+    }
 }
 
 //impl From<MemoryError> for crate::smt::MemoryError {

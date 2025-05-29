@@ -13,7 +13,7 @@ use crate::{
     executor::hooks::HookContainer,
     manager::SymexArbiter,
     project::{
-        dwarf_helper::{line_program, LineMap, SubProgramMap},
+        dwarf_helper::{line_program, DebugData, LineMap, SubProgramMap},
         Project,
         ProjectError,
     },
@@ -220,6 +220,7 @@ impl<'str, S: SmtSolver, Override: ArchitectureOverride> SymexConstructor<'str, 
         let project = Box::new(Project::from_binary(&binary, map.clone())?);
         let project = Box::leak(project);
         let line_map = line_program(&binary, gimli_endian).unwrap_or(LineMap::empty());
+        let debug_data = DebugData::new(Box::leak(Box::new(binary)), gimli_endian).expect("Debug data to be created");
 
         Ok(SymexArbiter::<C>::new(
             logger(&map),
@@ -230,6 +231,7 @@ impl<'str, S: SmtSolver, Override: ArchitectureOverride> SymexConstructor<'str, 
             map,
             self.override_arch,
             line_map,
+            debug_data,
         ))
     }
 }

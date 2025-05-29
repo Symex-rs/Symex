@@ -579,6 +579,35 @@ impl<Override: ArchitectureOverride> Architecture<Override> for ArmV7EM {
     {
         Self { in_it_block: false }
     }
+
+    fn register_name_to_number(name: &str) -> Option<u64> {
+        Some(match name {
+            "R0" => 0,
+            "R1" => 1,
+            "R2" => 2,
+            "R3" => 3,
+            "R4" => 4,
+            "R5" => 5,
+            "R6" => 6,
+            "R7" => 7,
+            "R8" => 8,
+            "R9" => 9,
+            "R10" => 10,
+            "R11" => 11,
+            "R12" => 12,
+            "SP" => 13,
+            "LR" => 14,
+            "PC" => 15,
+            "XPSR" => 0b1_0000,
+            "IPSR" => 16,
+            "FAULTMASK" => 0b10100,
+            "PRIMASK" => 0b10100,
+            "BASEPRI" => 0b10100,
+            "CONTROL" => 0b10100,
+            "FPSCR" => 33,
+            _ => return None,
+        })
+    }
 }
 
 impl Display for ArmV7EM {

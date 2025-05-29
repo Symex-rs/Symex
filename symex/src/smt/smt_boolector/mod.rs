@@ -776,6 +776,10 @@ impl SmtExpr for BoolectorExpr {
         self.0.as_binary_str().map(|value| u64::from_str_radix(&value, 2).unwrap())
     }
 
+    fn get_a_solution(&self, constraints: &[Self]) -> Option<u64> {
+        self.0.get_a_solution().as_u64()
+    }
+
     fn get_constant_bool(&self) -> Option<bool> {
         assert_eq!(self.len(), 1);
         self.0.as_binary_str().map(|value| value != "0")

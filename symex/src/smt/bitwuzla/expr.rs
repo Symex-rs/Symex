@@ -295,6 +295,15 @@ impl SmtExpr for BitwuzlaExpr {
         Some(self.0.get_symbol()?.to_string())
     }
 
+    fn get_a_solution(&self, constraints: &[Self]) -> Option<u64> {
+        let constraints: Vec<_> = constraints.iter().map(|el| el.0.clone()).collect();
+        match self.0.get_btor().check_sat_assuming(&constraints) {
+            bitwuzla::SolverResult::Sat => {}
+            _ => return None,
+        }
+        self.0.get_a_solution().as_u64()
+    }
+
     fn get_constant_bool(&self) -> Option<bool> {
         Some(self.0.as_binary_str()? == "1")
 

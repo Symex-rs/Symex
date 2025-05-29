@@ -9,7 +9,7 @@ use crate::{
         PathResult,
     },
     logging::Logger,
-    project::dwarf_helper::{LineMap, SubProgram, SubProgramMap},
+    project::dwarf_helper::{DebugData, LineMap, SubProgram, SubProgramMap},
     smt::{ProgramMemory, SmtExpr, SmtMap, SmtSolver},
     Composition,
     GAError,
@@ -24,6 +24,7 @@ pub struct SymexArbiter<C: Composition> {
     symbol_lookup: SubProgramMap,
     architecture: SupportedArchitecture<C::ArchitectureOverride>,
     line_map: LineMap,
+    debug_data: DebugData,
 }
 
 impl<C: Composition> SymexArbiter<C> {
@@ -36,6 +37,7 @@ impl<C: Composition> SymexArbiter<C> {
         symbol_lookup: SubProgramMap,
         architecture: SupportedArchitecture<C::ArchitectureOverride>,
         line_map: LineMap,
+        debug_data: DebugData,
     ) -> Self {
         Self {
             logger,
@@ -46,6 +48,7 @@ impl<C: Composition> SymexArbiter<C> {
             symbol_lookup,
             architecture,
             line_map,
+            debug_data,
         }
     }
 }
@@ -77,6 +80,7 @@ impl<C: Composition> SymexArbiter<C> {
             self.architecture.clone(),
             self.logger.clone(),
             self.line_map.clone(),
+            self.debug_data.clone(),
         )?;
         Ok(Runner { vm, path_idx: 0 })
     }
@@ -115,6 +119,7 @@ impl<C: Composition> SymexArbiter<C> {
             self.architecture.clone(),
             self.logger.clone(),
             self.line_map.clone(),
+            self.debug_data.clone(),
         )?;
         Ok(Runner { vm, path_idx: 0 })
     }
@@ -138,6 +143,7 @@ impl<C: Composition> SymexArbiter<C> {
             self.architecture.clone(),
             self.logger.clone(),
             self.line_map.clone(),
+            self.debug_data.clone(),
         )?;
         Ok(Runner { vm, path_idx: 0 })
     }
@@ -155,6 +161,7 @@ impl<C: Composition> SymexArbiter<C> {
             self.state_container.clone(),
             self.architecture.clone(),
             self.line_map.clone(),
+            self.debug_data.clone(),
         )?;
 
         let vm = VM::new_from_state(
@@ -194,6 +201,7 @@ impl<C: Composition> Iterator for Runner<C> {
             let cycles = state.get_cycle_count();
             logger.set_path_idx(self.path_idx);
             logger.update_delimiter(pc);
+            // logger.record_backtrace(state.get_back_trace(&conditions));
             logger.add_constraints(
                 conditions
                     .iter()

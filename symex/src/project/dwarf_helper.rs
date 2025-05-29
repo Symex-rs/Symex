@@ -2,7 +2,9 @@
 
 use std::{borrow::Cow, hash::Hash, io::BufRead};
 
+use disarmv7::arch::register;
 use gimli::{
+    read::DebugFrame,
     AttributeValue,
     CompleteLineProgram,
     DW_AT_decl_file,
@@ -14,14 +16,23 @@ use gimli::{
     DebugInfo,
     DebugLine,
     DebugStr,
+    Dwarf,
+    EndianSlice,
     LineSequence,
     Reader,
+    RunTimeEndian,
 };
 use hashbrown::{HashMap, HashSet};
 use object::{Object, ObjectSection};
 use regex::Regex;
+use rust_debug::call_stack::MemoryAccess;
 
-use crate::{debug, smt::SmtMap, trace};
+use crate::{
+    arch::{Architecture, ArchitectureOverride, SupportedArchitecture},
+    debug,
+    smt::{SmtExpr, SmtMap},
+    trace,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SubProgram {
@@ -398,4 +409,115 @@ pub(crate) fn line_program(object: &object::File<'_>, endian: gimli::RunTimeEndi
     Ok(LineMap {
         map: Some(Box::leak(Box::new(map))),
     })
+}
+
+pub struct DAP<'a, M: SmtMap, E: SmtExpr> {
+    pub mem: &'a mut M,
+    pub constraints: &'a [E],
+}
+#[derive(Clone, Debug)]
+pub struct DebugData {
+    data: &'static object::File<'static>,
+    dwarf: &'static Dwarf<EndianSlice<'static, RunTimeEndian>>,
+    debug_frame: &'static DebugFrame<EndianSlice<'static, RunTimeEndian>>,
+}
+
+impl DebugData {
+    pub(crate) fn new(object: &'static object::File<'static>, endian: gimli::RunTimeEndian) -> Result<Self, Box<dyn std::error::Error>> {
+        let load_section = |id: gimli::SectionId| -> Result<std::borrow::Cow<'_, [u8]>, Box<dyn std::error::Error>> {
+            Ok(match object.section_by_name(id.name()) {
+                Some(section) => section.uncompressed_data()?,
+                None => std::borrow::Cow::Borrowed(&[]),
+            })
+        };
+
+        // Borrow a `Cow<[u8]>` to create an `EndianSlice`.
+        let borrow_section = |section| gimli::EndianSlice::new(std::borrow::Cow::as_ref(section), endian);
+
+        // Load all of the sections.
+        let dwarf_sections = Box::leak(Box::new(gimli::DwarfSections::load(&load_section)?));
+
+        // Create `EndianSlice`s for all of the sections.
+        let dwarf = dwarf_sections.borrow(borrow_section);
+        let mut iter = dwarf.units();
+        let unit = iter.next()?.expect("Atleast one CU");
+
+        let unit = dwarf.unit(unit)?;
+        let unit = unit.unit_ref(&dwarf);
+
+        let sec = object
+            .section_by_name(".debug_frame")
+            .expect("debug frame to exist")
+            .uncompressed_data()
+            .expect("Data to be readable");
+        let frame = DebugFrame::new(Box::leak(Box::new(sec)), endian);
+
+        Ok(Self {
+            data: object,
+            dwarf: Box::leak(Box::new(dwarf)),
+            debug_frame: Box::leak(Box::new(frame)),
+        })
+    }
+
+    pub fn produce_backtrace<M: SmtMap<Expression = E>, O: ArchitectureOverride, E: SmtExpr>(
+        &self,
+        dap: &mut DAP<'_, M, E>,
+        arch: &SupportedArchitecture<O>,
+    ) -> Option<rust_debug::call_stack::StackFrame<EndianSlice<'static, RunTimeEndian>>> {
+        let mut register_map = std::collections::HashMap::new();
+        let mut registers = dap.mem.get_registers();
+        let pc = dap.mem.get_pc().expect("Valid pc");
+        registers.insert("PC".to_string(), pc);
+        registers.iter().for_each(|(reg, value)| {
+            println!("Looking up register {reg}");
+            let _ = register_map.insert(
+                arch.register_name_to_number(reg).expect("Register to be named") as u16,
+                value.get_a_solution(dap.constraints).expect("State to be sat") as u32,
+            );
+        });
+
+        for idx in 0..16 {
+            if !register_map.contains_key(&idx) {
+                register_map.insert(idx, 0);
+            }
+        }
+        let mut registers = rust_debug::registers::Registers::default();
+        registers.registers = register_map;
+
+        // TODO: Make generic!
+        registers.link_register = arch.register_name_to_number("LR").map(|el| el as usize);
+        registers.program_counter_register = arch.register_name_to_number("PC").map(|el| el as usize);
+        registers.stack_pointer_register = arch.register_name_to_number("SP").map(|el| el as usize);
+
+        let call_trace = rust_debug::call_stack::unwind_call_stack(registers.clone(), dap, &self.debug_frame).expect("Call stack to be traceable");
+
+        if call_trace.len() == 0 {
+            return None;
+        }
+        let val = &call_trace[0];
+        Some(rust_debug::call_stack::create_stack_frame(&self.dwarf, val.clone(), &registers, dap, "").expect("Stack trace being createable"))
+    }
+}
+
+impl<'a, M, E: SmtExpr> MemoryAccess for DAP<'a, M, E>
+where
+    M: SmtMap<Expression = E>,
+{
+    fn get_address(&mut self, address: &u32, num_bytes: usize) -> Option<Vec<u8>> {
+        let mut address = *address as u64;
+
+        let mut buffer = Vec::with_capacity(num_bytes);
+        for el in 0..num_bytes {
+            buffer.push(
+                self.mem
+                    .get(&self.mem.from_u64(address, self.mem.get_ptr_size()), 1)
+                    .ok()
+                    // NOTE: Approximate!
+                    .map(|el| el.get_a_solution(self.constraints))
+                    .flatten()? as u8,
+            );
+            address += 1;
+        }
+        Some(buffer)
+    }
 }

@@ -628,6 +628,7 @@ mod test {
         smt::{
             bitwuzla::{Bitwuzla, BitwuzlaExpr},
             SmtExpr,
+            SmtFPExpr,
             SmtMap,
             SmtSolver,
         },
@@ -858,7 +859,6 @@ mod test {
     }
 
     #[test]
-    #[ignore]
     fn test_fp_div_un_even_ties_to_even_explicit() {
         let mut vm = setup_test_vm();
         let project = vm.project;
@@ -974,7 +974,6 @@ mod test {
     }
 
     #[test]
-    #[ignore]
     fn test_fp_div_un_even_ties_to_even_system_level() {
         let mut vm = setup_test_vm();
         let project = vm.project;
@@ -1091,7 +1090,6 @@ mod test {
     }
 
     #[test]
-    #[ignore]
     fn test_fp_div_mul() {
         let mut vm = setup_test_vm();
         let project = vm.project;
@@ -1262,7 +1260,6 @@ mod test {
     }
 
     #[test]
-    #[ignore]
     fn test_fp_non_computational() {
         let mut vm = setup_test_vm();
         let project = vm.project;
@@ -1428,7 +1425,6 @@ mod test {
     }
 
     #[test]
-    #[ignore]
     fn test_fp_compare() {
         let mut vm = setup_test_vm();
         let project = vm.project;
@@ -1734,7 +1730,6 @@ mod test {
     }
 
     #[test]
-    #[ignore]
     fn test_fp_load_store_address() {
         let mut vm = setup_test_vm();
         let project = vm.project;
@@ -1812,13 +1807,12 @@ mod test {
     }
 
     #[test]
-    #[ignore]
-
     fn test_fp_load_store_register() {
         let mut vm = setup_test_vm();
         let project = vm.project;
         let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
         let operand_r0 = Operand::Register("R0".to_owned());
+        let operand_r1 = Operand::Register("R1".to_owned());
 
         // 1. Load an integer in to a register.
         let operation = Operation::Move {
@@ -1847,6 +1841,24 @@ mod test {
             },
         });
         executor.execute_operation(&operation, &mut NoLogger).unwrap();
+        executor.execute_operation(&operation, &mut NoLogger).unwrap();
+        let operation = Operation::Ieee754(ieee754::Operations::Sqrt {
+            operand: ieee754::Operand {
+                ty: ieee754::OperandType::Binary32,
+                value: ieee754::OperandStorage::Register {
+                    id: "FPR1".to_owned(),
+                    ty: ieee754::OperandType::Binary32,
+                },
+            },
+            destination: ieee754::Operand {
+                ty: ieee754::OperandType::Binary32,
+                value: ieee754::OperandStorage::Register {
+                    id: "FPR2".to_owned(),
+                    ty: ieee754::OperandType::Binary32,
+                },
+            },
+        });
+        executor.execute_operation(&operation, &mut NoLogger).unwrap();
         let operation = Operation::Ieee754(ieee754::Operations::Sqrt {
             operand: ieee754::Operand {
                 ty: ieee754::OperandType::Binary32,
@@ -1865,6 +1877,29 @@ mod test {
             },
         });
         executor.execute_operation(&operation, &mut NoLogger).unwrap();
+        let r1 = executor.get_operand_value(&operand_r1, &mut NoLogger).unwrap();
+        println!("R1 Result: {:?}, {:?}", r1, r1.get_constant());
+
+        let fpreg = ieee754::Operand {
+            ty: ieee754::OperandType::Binary32,
+            value: ieee754::OperandStorage::Register {
+                id: "FPR1".to_owned(),
+                ty: ieee754::OperandType::Binary32,
+            },
+        };
+        let fpreg = executor
+            .get_fp_operand_value(fpreg, ieee754::OperandType::Binary32, RoundingMode::TiesTowardZero, &mut NoLogger)
+            .unwrap();
+        println!(
+            "FPREG Result: {:?}, {:?}",
+            fpreg,
+            fpreg
+                .round_to_integral(RoundingMode::TiesTowardZero)
+                .expect("Roundable")
+                .to_bv(RoundingMode::TiesTowardZero, true)
+                .expect("Convertable")
+                .get_constant()
+        );
 
         // 4. Load that register in to a fp register and convert to a floating point
         //    value.
@@ -1896,7 +1931,6 @@ mod test {
     }
 
     #[test]
-    #[ignore]
     fn test_fp_sqrt() {
         let mut vm = setup_test_vm();
         let project = vm.project;
@@ -1975,7 +2009,6 @@ mod test {
     }
 
     #[test]
-    #[ignore]
     fn test_fp_fma() {
         let mut vm = setup_test_vm();
         let project = vm.project;
@@ -2123,7 +2156,6 @@ mod test {
         assert_eq!((r0 as u32).cast_signed(), (99 * 100) + 100);
     }
     #[test]
-    #[ignore]
     fn test_fp_abs() {
         let mut vm = setup_test_vm();
         let project = vm.project;
@@ -2272,7 +2304,6 @@ mod test {
     }
 
     #[test]
-    #[ignore]
     fn test_fp_div_un_even() {
         let mut vm = setup_test_vm();
         let project = vm.project;
@@ -2388,7 +2419,6 @@ mod test {
     }
 
     #[test]
-    #[ignore]
     fn test_fp_mul() {
         let mut vm = setup_test_vm();
         let project = vm.project;
@@ -2504,7 +2534,6 @@ mod test {
     }
 
     #[test]
-    #[ignore]
     fn test_fp_sub() {
         let mut vm = setup_test_vm();
         let project = vm.project;
@@ -2620,7 +2649,6 @@ mod test {
     }
 
     #[test]
-    #[ignore]
     fn test_fp_add() {
         let mut vm = setup_test_vm();
         let project = vm.project;

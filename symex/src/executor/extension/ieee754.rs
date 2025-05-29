@@ -36,7 +36,7 @@ where
     C: Composition<SmtFPExpression = FP>,
     FP: SmtFPExpr<Expression = C::SmtExpression>,
 {
-    fn get_fp_operand_value(&mut self, operand: Operand, destination_ty: OperandType, rm: RoundingMode, logger: &mut C::Logger) -> ResultOrTerminate<FP> {
+    pub fn get_fp_operand_value(&mut self, operand: Operand, destination_ty: OperandType, rm: RoundingMode, logger: &mut C::Logger) -> ResultOrTerminate<FP> {
         match operand.value {
             OperandStorage::Local(id) => {
                 //self.state.hooks.read_fp_register(operand,logger.ty, id, , memory)
@@ -57,7 +57,7 @@ where
                     ResultOrHook::Result(Err(r)) => return ResultOrTerminate::Result(Err(r).context("While looking up an address for floating point arithmetic")),
                     ResultOrHook::EndFailure(e) => return ResultOrTerminate::Failure(format!("{e} @ {}", self.state.debug_string())),
                 };
-                let res = read.to_fp(operand.ty, rm, true);
+                let res = read.to_fp(operand.ty, destination_ty, rm, true);
                 ResultOrTerminate::Result(res)
             }
             OperandStorage::Register { id, ty } => {
@@ -85,7 +85,7 @@ where
 
                 ResultOrTerminate::Result(
                     bv_value
-                        .to_fp(destination_ty, rm, signed)
+                        .to_fp(operand.ty, destination_ty, rm, signed)
                         .context("While retrieving a floating point value from a core-register"),
                 )
             }
@@ -97,7 +97,10 @@ where
                     (ty.size(), signed)
                 };
                 let val = val.resize_unsigned(size);
-                ResultOrTerminate::Result(val.to_fp(destination_ty, rm, signed).context("While retrieving a floating point value from a core-operand"))
+                ResultOrTerminate::Result(
+                    val.to_fp(ty, destination_ty, rm, signed)
+                        .context("While retrieving a floating point value from a core-operand"),
+                )
             }
         }
     }

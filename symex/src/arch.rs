@@ -11,7 +11,10 @@ pub mod risc_v;
 /// Defines discovery behaviour for the architectures.
 pub mod discover;
 
-use std::fmt::{Debug, Display};
+use std::{
+    fmt::{Debug, Display},
+    sync::Arc,
+};
 
 use arm::{v6::ArmV6M, v7::ArmV7EM};
 use risc_v::RISCV;
@@ -175,6 +178,11 @@ pub trait Architecture<Override: ArchitectureOverride>: Debug + Display + Into<S
     fn new() -> Self
     where
         Self: Sized;
+
+    /// Translates a named register to the register number in the core.
+    fn register_name_to_number(name: &str) -> Option<u64> {
+        None
+    }
 }
 
 impl Architecture<Self> for NoArchitectureOverride {
@@ -274,6 +282,16 @@ impl<Override: ArchitectureOverride> SupportedArchitecture<Override> {
             Self::Armv7EM(_) => ArmV7EM::post_instruction_execution_hook,
             Self::RISCV(_) => RISCV::post_instruction_execution_hook,
             Self::Override(_) => C::ArchitectureOverride::post_instruction_execution_hook,
+        }
+    }
+
+    /// Allows the architecture to define behaviour that must happen after an
+    /// instruction is executed.
+    pub fn register_name_to_number(&self, name: &str) -> Option<u64> {
+        match self {
+            Self::Armv6M(a) => <ArmV6M as Architecture<Override>>::register_name_to_number(name),
+            Self::Armv7EM(a) => <ArmV7EM as Architecture<Override>>::register_name_to_number(name),
+            Self::Override(o) => Override::register_name_to_number(name),
         }
     }
 

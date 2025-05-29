@@ -387,6 +387,10 @@ impl<State: UserStateContainer> SmtMap for BoolectorMemory<State> {
     fn unconstrained_fp(&mut self, ty: general_assembly::extension::ieee754::OperandType, name: &str) -> <Self::SMT as crate::smt::SmtSolver>::FpExpression {
         (self.ram.ctx.unconstrained(ty.size(), Some(name)), ty)
     }
+
+    fn get_registers(&mut self) -> HashMap<String, Self::Expression> {
+        self.register_file.clone()
+    }
 }
 
 impl From<MemoryError> for crate::smt::MemoryError {

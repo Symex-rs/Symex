@@ -289,8 +289,7 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
         loop {
             instruction_counter += 1;
             self.state.architecture.pre_instruction_loading_hook()(&mut self.state);
-            let msg = self.state.debug_string_new_pc();
-            let instruction = match extract!(Result(self.state.get_next_instruction(logger)), context: "While executing instruction {instruction_counter} in a resumed context @ {msg}")
+            let instruction = match extract!(Result(self.state.get_next_instruction(logger)), context: "While executing instruction {instruction_counter} in a resumed context @ {}",self.state.debug_string_new_pc())
             {
                 HookOrInstruction::Instruction(v) => v,
                 HookOrInstruction::PcHook(hook) => match hook {
@@ -506,10 +505,10 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
     }
 
     // Fork execution. Will create a new path with `constraint`.
-    fn fork(&mut self, constraint: C::SmtExpression, logger: &C::Logger, operation: Continue, msg: &'static str) -> Result<()> {
+    fn fork(&mut self, constraint: C::SmtExpression, logger: &mut C::Logger, operation: Continue, msg: &'static str) -> Result<()> {
         trace!("Save backtracking path: constraint={:?}, continue on {} instruction", constraint, operation);
         debug!("Forking {msg}");
-        let forked_state = match operation {
+        let mut forked_state = match operation {
             Continue::This => {
                 let mut clone = self.state.clone();
                 let mut ctx = self.context.clone();
@@ -536,8 +535,10 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
 
         let pc = self.state.last_pc & ((u64::MAX >> 1) << 1);
         let mut new_logger = logger.fork();
-        new_logger.warn(format!("{}: {msg}", self.state.debug_string()));
-        let path = Path::new(forked_state, Some(constraint), pc, new_logger);
+        new_logger.warn(format!("{}: {msg}", self.state.debug_string_fork()));
+        let mut path = Path::new(forked_state, Some(constraint), pc, new_logger);
+        let bt = path.state.get_back_trace(&path.constraints);
+        path.logger.record_backtrace(bt);
 
         self.vm.paths.save_path(path);
         Ok(())
@@ -579,7 +580,6 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
     fn set_memory(&mut self, data: C::SmtExpression, addr: C::SmtExpression, bits: u32) -> ResultOrTerminate<()> {
         // trace!("Setting memory addr: {:?}", address);
         // let addr = self.state.memory.from_u64(address, self.project.get_ptr_size());
-        let debug_line = self.state.debug_string();
         ResultOrTerminate::Result(match self.state.writer().write_memory(addr.clone(), data.resize_unsigned(bits)) {
             hooks::ResultOrHook::Hook(hook) => hook(&mut self.state, data, addr),
             hooks::ResultOrHook::Hooks(hooks) => {
@@ -801,7 +801,7 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
         ResultOrTerminate::Result(Ok(()))
     }
 
-    fn resolve_address(&mut self, address: C::SmtExpression, logger: &C::Logger, write: bool) -> ResultOrTerminate<Option<u64>> {
+    fn resolve_address(&mut self, address: C::SmtExpression, logger: &mut C::Logger, write: bool) -> ResultOrTerminate<Option<u64>> {
         debug!("Resolving address {:?} as constant", address);
         let ret = match &address.get_constant() {
             Some(addr) => Result::Ok(Some(*addr)),

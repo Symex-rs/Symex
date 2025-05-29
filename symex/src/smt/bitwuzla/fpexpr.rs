@@ -1,4 +1,4 @@
-use std::{borrow::Borrow, rc::Rc};
+use std::{borrow::Borrow, fmt::write, rc::Rc};
 
 use anyhow::Context;
 use bitwuzla::{fp::Formats, Bitwuzla, Btor, RoundingMode as RM, BV, FP};
@@ -53,6 +53,27 @@ impl FpExpr {
             ),
             ty: ty.clone(),
         }
+    }
+
+    fn _compare(&self, other: &Self, cmp: general_assembly::extension::ieee754::ComparisonMode, _rm: RoundingMode) -> crate::Result<bitwuzla::Bool<Rc<Btor>>> {
+        if other.ty != self.ty {
+            return Err(crate::InternalError::TypeError).context(format!("While comparing a {:?} and a {:?}", self.ty, other.ty));
+        }
+
+        let ctx: &FP<Rc<Bitwuzla>> = (&self.ctx).try_into()?;
+        let other_ctx: &FP<Rc<Bitwuzla>> = (&other.ctx).try_into()?;
+        Ok(match cmp {
+            ComparisonMode::Less => ctx.lt(other_ctx),
+            ComparisonMode::NotLess => ctx.lt(other_ctx).not(),
+            ComparisonMode::Greater => ctx.gt(other_ctx),
+            ComparisonMode::NotGreater => ctx.gt(other_ctx).not(),
+            ComparisonMode::Equal => ctx._eq(other_ctx),
+            ComparisonMode::NotEqual => ctx._eq(other_ctx).not(),
+            ComparisonMode::GreaterOrEqual => ctx.geq(other_ctx),
+            ComparisonMode::LessOrEqual => ctx.leq(other_ctx),
+            ComparisonMode::GreaterUnordered => unimplemented!("Bitwuzla has no support for this."),
+            ComparisonMode::LessUnordered => unimplemented!("Bitwuzla has no support for this."),
+        })
     }
 }
 
@@ -150,10 +171,33 @@ impl SmtFPExpr for FpExpr {
         Ok(ctx.sqrt(conv_rm(&rm)).conv(self.ty()))
     }
 
-    fn to_bv(&self, _rm: RoundingMode, _signed: bool) -> crate::Result<Self::Expression> {
+    fn to_bv(&self, rm: RoundingMode, signed: bool) -> crate::Result<Self::Expression> {
+        println!("Casting to BV");
         match &self.ctx {
             FpOrBv::Bv(bv) => Ok(super::expr::BitwuzlaExpr(bv.clone())),
-            FpOrBv::Fp(fp) => Ok(BitwuzlaExpr(BV::new(fp.btor().clone(), self.ty.size().into(), None))), //super::expr::BitwuzlaExpr(fp.to_ieee754_bv())),
+            FpOrBv::Fp(fp) => {
+                match self.ty() {
+                    OperandType::Integral { size, signed } if signed => {
+                        let tm = fp.to_sbv(conv_rm(&rm), size as u64);
+                        return Ok(BitwuzlaExpr(tm));
+                    }
+                    OperandType::Integral { size, signed } => {
+                        let tm = fp.to_ubv(conv_rm(&rm), size as u64);
+                        return Ok(BitwuzlaExpr(tm));
+                    }
+                    _ => {}
+                }
+                let e = BitwuzlaExpr(BV::new(fp.btor().clone(), self.ty.size().into(), None));
+
+                println!("Getting BV repr");
+                let fp2 = Self {
+                    ctx: FpOrBv::Fp(FP::from_ieee754_bv(&e.0, &conv_ty(&self.ty()))),
+                    ty: self.ty(),
+                };
+                // let fp2 = e.to_fp(self.ty(), rm.clone(), signed)?;
+                Bitwuzla::assert(fp2._compare(&self, ComparisonMode::Equal, rm).expect("Valid comparison"));
+                Ok(e)
+            } //super::expr::BitwuzlaExpr(fp.to_ieee754_bv())),
         }
     }
 
@@ -202,7 +246,7 @@ impl SmtFPExpr for FpExpr {
     fn round_to_integral(&self, rm: RoundingMode) -> crate::Result<Self> {
         let ctx: &FP<Rc<Bitwuzla>> = (&self.ctx).try_into()?;
         Ok(Self {
-            ctx: FpOrBv::Bv(BV::new(ctx.btor().clone(), self.ty.size().into(), None)), // ctx.round_to_integral(conv_rm(&rm)).to_sbv(conv_rm(&rm), self.ty.size().into())),
+            ctx: FpOrBv::Fp(ctx.round_to_integral(conv_rm(&rm))),
             ty: OperandType::Integral {
                 size: self.ty.size(),
                 signed: true,
@@ -210,13 +254,45 @@ impl SmtFPExpr for FpExpr {
         })
     }
 
-    fn convert_from_bv(bv: Self::Expression, rm: RoundingMode, ty: OperandType, signed: bool) -> crate::Result<Self> {
+    fn convert_from_bv(bv: Self::Expression, rm: RoundingMode, source_ty: OperandType, dest_ty: OperandType, signed: bool) -> crate::Result<Self> {
+        match source_ty {
+            OperandType::Binary16 => {
+                return Ok(Self {
+                    ctx: FpOrBv::Fp(FP::from_ieee754_bv(&bv.0, &conv_ty(&dest_ty))),
+                    ty: dest_ty,
+                })
+            }
+
+            OperandType::Binary32 => {
+                return Ok(Self {
+                    ctx: FpOrBv::Fp(FP::from_ieee754_bv(&bv.0, &conv_ty(&dest_ty))),
+                    ty: dest_ty,
+                })
+            }
+            OperandType::Binary64 => {
+                return Ok(Self {
+                    ctx: FpOrBv::Fp(FP::from_ieee754_bv(&bv.0, &conv_ty(&dest_ty))),
+                    ty: dest_ty,
+                })
+            }
+            OperandType::Binary128 => {
+                return Ok(Self {
+                    ctx: FpOrBv::Fp(FP::from_ieee754_bv(&bv.0, &conv_ty(&dest_ty))),
+                    ty: dest_ty,
+                })
+            }
+            _ => {}
+        }
+
         let ctx = match signed {
-            true => FP::from_sbv(bv.0, conv_rm(&rm), &conv_ty(&ty)),
-            false => FP::from_ubv(bv.0, conv_rm(&rm), &conv_ty(&ty)),
+            true => FP::from_sbv(bv.0, conv_rm(&rm), &conv_ty(&dest_ty)),
+            false => FP::from_ubv(bv.0, conv_rm(&rm), &conv_ty(&dest_ty)),
         };
 
-        Ok(Self { ctx: FpOrBv::Fp(ctx), ty })
+        Ok(Self {
+            ctx: FpOrBv::Fp(ctx),
+            ty: dest_ty,
+        })
     }
 }
 

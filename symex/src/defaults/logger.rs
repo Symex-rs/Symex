@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::fmt::{write, Display};
 
 use colored::Colorize;
 
@@ -18,6 +18,8 @@ pub struct PathLog {
     constraints: Vec<String>,
     execution_time: String,
     visited: Vec<String>,
+    backtrace: Vec<(String, String)>,
+    function_arguments: Vec<(String, String)>,
     log_idx: usize,
 }
 
@@ -34,6 +36,8 @@ pub struct SimplePathLogger {
 
     regions: SubProgramMap,
     current_region: Option<SubProgram>,
+    backtrace: Vec<(String, String)>,
+    function_arguments: Vec<(String, String)>,
     pc: u64,
 }
 
@@ -46,6 +50,8 @@ impl PathLog {
             constraints: Vec::new(),
             execution_time: String::new(),
             visited: Vec::new(),
+            backtrace: Vec::new(),
+            function_arguments: Vec::new(),
             log_idx,
         }
     }
@@ -100,6 +106,25 @@ impl<'a> PathLogger<'a> {
             self.path.visited.push(func);
         }
     }
+
+    fn record_backtrace<R: gimli::Reader<Offset = usize>>(&mut self, bt: Option<rust_debug::call_stack::StackFrame<R>>) {
+        if bt.is_none() {
+            self.path.backtrace = vec![];
+            return;
+        }
+        let bt = bt.unwrap();
+
+        self.path.backtrace = bt
+            .variables
+            .iter()
+            .map(|var| (var.name.clone().unwrap_or("NO NAME".to_string()), format!("{}", var.value)))
+            .collect();
+        self.path.function_arguments = bt
+            .arguments
+            .iter()
+            .map(|var| (var.name.clone().unwrap_or("NO NAME".to_string()), format!("{}", var.value)))
+            .collect();
+    }
 }
 
 impl SimplePathLogger {
@@ -115,6 +140,8 @@ impl SimplePathLogger {
             regions: state.clone(),
             current_region: None,
             pc: 0,
+            backtrace: Vec::new(),
+            function_arguments: Vec::new(),
         }
     }
 }
@@ -212,7 +239,28 @@ impl Logger for SimplePathLogger {
             regions: state.get_symbol_map().clone(),
             current_region: None,
             pc: 0,
+            backtrace: Vec::new(),
+            function_arguments: Vec::new(),
         }
+    }
+
+    fn record_backtrace<R: gimli::Reader<Offset = usize>>(&mut self, bt: Option<rust_debug::call_stack::StackFrame<R>>) {
+        if bt.is_none() {
+            self.backtrace = vec![];
+            return;
+        }
+        let bt = bt.unwrap();
+
+        self.backtrace = bt
+            .variables
+            .iter()
+            .map(|var| (var.name.clone().unwrap_or("NO NAME".to_string()), format!("{}", var.value)))
+            .collect();
+        self.function_arguments = bt
+            .arguments
+            .iter()
+            .map(|var| (var.name.clone().unwrap_or("NO NAME".to_string()), format!("{}", var.value)))
+            .collect();
     }
 }
 
@@ -299,6 +347,10 @@ impl Logger for SimpleLogger {
             path_idx: 0,
         }
     }
+
+    fn record_backtrace<R: gimli::Reader<Offset = usize>>(&mut self, bt: Option<rust_debug::call_stack::StackFrame<R>>) {
+        self.path_logger().record_backtrace(bt);
+    }
 }
 
 impl SimpleLogger {
@@ -375,6 +427,8 @@ impl Display for SimplePathLogger {
             regions: _regions,
             current_region: _,
             pc: _,
+            backtrace,
+            function_arguments,
         } = self;
 
         write!(f, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ PATH {} ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\r\n", log_idx)?;
@@ -418,6 +472,21 @@ impl Display for SimplePathLogger {
             }
         }
 
+        write!(
+            f,
+            "Named variables : \r\n\t{}\r\n",
+            self.backtrace.iter().map(|(name, val)| format!("{name} = {val}")).collect::<Vec<String>>().join("\r\n\t")
+        )?;
+
+        write!(
+            f,
+            "Function arguments: \r\n\t{}\r\n",
+            function_arguments
+                .iter()
+                .map(|(name, val)| format!("{name} = {val}"))
+                .collect::<Vec<String>>()
+                .join("\r\n\t")
+        )?;
         write!(f, "Final state : \r\n\t{}\r\n", final_state)?;
         write!(f, "Execution took : {}\r\n", execution_time)?;
 
@@ -436,6 +505,8 @@ impl Display for PathLog {
             execution_time,
             visited,
             log_idx,
+            backtrace,
+            function_arguments,
         } = self;
 
         write!(f, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ PATH {} ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\r\n", log_idx)?;
@@ -479,6 +550,20 @@ impl Display for PathLog {
             }
         }
 
+        write!(
+            f,
+            "Named variables : \r\n\t{}\r\n",
+            backtrace.iter().map(|(name, val)| format!("{name} = {val}")).collect::<Vec<String>>().join("\r\n\t")
+        )?;
+        write!(
+            f,
+            "Function arguments: \r\n\t{}\r\n",
+            function_arguments
+                .iter()
+                .map(|(name, val)| format!("{name} = {val}"))
+                .collect::<Vec<String>>()
+                .join("\r\n\t")
+        )?;
         write!(f, "Final state : \r\n\t{}\r\n", final_state)?;
         write!(f, "Execution took : {}\r\n", execution_time)?;
 

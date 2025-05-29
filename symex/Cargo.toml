@@ -18,6 +18,7 @@ object = "0.36.0"
 
 gimli = "0.31.1"
 regex = "1.10.2"
+rust-debug = { path = "../rust-debug/" }
 
 
 # Internal language.
@@ -25,8 +26,10 @@ transpiler = { path = "../symex/transpiler" }
 general_assembly = { path = "../symex/general_assembly" }
 
 # SMT-backends
-boolector = {git = "https://github.com/ivajon/boolector-rs.git", features = [] }
-bitwuzla = {git = "https://github.com/ivajon/boolector-rs.git", branch = "bitwuzla"}
+boolector = { git = "https://github.com/ivajon/boolector-rs.git", features = [
+] }
+# bitwuzla = { git = "https://github.com/ivajon/boolector-rs.git", branch = "bitwuzla" }
+bitwuzla = { path = "../../biwtuzla-rs/" }
 
 
 # Parsing-backends.
@@ -43,3 +46,6 @@ risc-v-disassembler = "0.0.1"
 default = []
 
 log = []
+
+[patch."https://github.com/ivajon/bitwuzla-sys.git"]
+bitwuzla = { path = "../../bitwuzla-sys/" }

@@ -153,6 +153,8 @@ pub trait SmtMap: Debug + Clone + Display {
 
     fn get_register(&mut self, idx: &str) -> Result<Self::Expression, MemoryError>;
 
+    fn get_registers(&mut self) -> HashMap<String, Self::Expression>;
+
     fn set_register(&mut self, idx: &str, value: Self::Expression) -> Result<(), MemoryError>;
 
     // NOTE: Might be a poor assumption that the word size for PC is 32 bit.
@@ -175,7 +177,7 @@ pub trait SmtMap: Debug + Clone + Display {
             OperandType::Integral { size, signed: _ } => size,
         };
         let ret: Self::Expression = self.unconstrained_unnamed(size);
-        ret.to_fp(ty, rm, true)
+        ret.to_fp(OperandType::Integral { size, signed: true }, ty, rm, true)
     }
 
     #[must_use]
@@ -376,9 +378,9 @@ where
         self.1.clone()
     }
 
-    fn convert_from_bv(bv: Self::Expression, _rm: RoundingMode, ty: OperandType, _signed: bool) -> crate::Result<Self> {
-        let size = ty.size();
-        Ok((bv.any(size), ty))
+    fn convert_from_bv(bv: Self::Expression, rm: RoundingMode, source_ty: OperandType, dest_ty: OperandType, signed: bool) -> crate::Result<Self> {
+        let size = dest_ty.size();
+        Ok((bv.any(size), dest_ty))
     }
 
     fn compare(&self, _other: &Self, _cmp: general_assembly::extension::ieee754::ComparisonMode, _rm: RoundingMode) -> crate::Result<Self::Expression> {
@@ -405,7 +407,7 @@ pub trait SmtFPExpr: Debug + Clone {
     /// Converts from a bv.
     ///
     /// ty represents the target type of the conversion.
-    fn convert_from_bv(bv: Self::Expression, rm: RoundingMode, ty: OperandType, signed: bool) -> crate::Result<Self>;
+    fn convert_from_bv(bv: Self::Expression, rm: RoundingMode, source_ty: OperandType, dest_ty: OperandType, signed: bool) -> crate::Result<Self>;
 
     fn round_to_integral(&self, rm: RoundingMode) -> crate::Result<Self> {
         self.any(self.ty())
@@ -472,8 +474,8 @@ pub trait SmtExpr: Debug + Clone {
     fn any(&self, width: u32) -> Self;
 
     /// Converts a bitvector to a floating point representation.
-    fn to_fp(&self, ty: OperandType, rm: RoundingMode, signed: bool) -> crate::Result<Self::FPExpression> {
-        Self::FPExpression::convert_from_bv(self.clone(), rm, ty, signed)
+    fn to_fp(&self, source_ty: OperandType, ty: OperandType, rm: RoundingMode, signed: bool) -> crate::Result<Self::FPExpression> {
+        Self::FPExpression::convert_from_bv(self.clone(), rm, source_ty, ty, signed)
     }
 
     #[allow(clippy::wrong_self_convention)]
@@ -615,6 +617,9 @@ pub trait SmtExpr: Debug + Clone {
 
     #[must_use]
     fn get_constant(&self) -> Option<u64>;
+
+    #[must_use]
+    fn get_a_solution(&self, e: &[Self]) -> Option<u64>;
 
     #[must_use]
     fn get_identifier(&self) -> Option<String>;

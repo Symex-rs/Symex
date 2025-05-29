@@ -4,6 +4,7 @@ use std::collections::VecDeque;
 
 use anyhow::Context as _;
 use general_assembly::prelude::Condition;
+use gimli::{EndianSlice, RunTimeEndian};
 use hashbrown::HashMap;
 
 use super::{
@@ -17,7 +18,11 @@ use crate::{
     debug,
     extract,
     logging::Logger,
-    project::{self, dwarf_helper::LineMap, ProjectError},
+    project::{
+        self,
+        dwarf_helper::{DebugData, LineMap, DAP},
+        ProjectError,
+    },
     smt::{ProgramMemory, SmtExpr, SmtMap, SmtSolver},
     trace,
     Composition,
@@ -56,6 +61,7 @@ pub struct GAState<C: Composition> {
     pub instruction_had_condition: bool,
     pub fp_state: FpState<C>,
     pub line_lookup: LineMap,
+    debug_data: Option<DebugData>,
 }
 
 impl<C: Composition> GAState<C> {
@@ -70,6 +76,7 @@ impl<C: Composition> GAState<C> {
         state: C::StateContainer,
         architecture: SupportedArchitecture<C::ArchitectureOverride>,
         line_lookup: LineMap,
+        debug_data: DebugData,
     ) -> std::result::Result<Self, GAError> {
         let pc_reg = start_address;
         debug!("Found function at addr: {:#X}.", pc_reg);
@@ -112,6 +119,7 @@ impl<C: Composition> GAState<C> {
             fp_state: FpState::new(),
             instruction_had_condition: false,
             line_lookup,
+            debug_data: Some(debug_data),
         };
 
         ret.architecture.initiate_state()(&mut ret);
@@ -256,6 +264,7 @@ impl<C: Composition> GAState<C> {
             fp_state: FpState::new(),
             instruction_had_condition: false,
             line_lookup: LineMap::empty(),
+            debug_data: None,
         };
         ret.architecture.initiate_state()(&mut ret);
 
@@ -471,13 +480,42 @@ impl<C: Composition> GAState<C> {
         }
     }
 
-    pub fn debug_string(&self) -> String {
+    pub fn debug_string(&mut self) -> String {
         let pc = self.last_pc & (!0b1);
         let line = self.line_lookup.lookup(pc);
-        match line {
+        let ret = match line {
             Some(line) => format!("PC : {pc:#x} -> {line}"),
             None => format!("PC: {pc:#x}"),
+        };
+        ret
+    }
+
+    pub fn debug_string_fork(&mut self) -> String {
+        let pc = self.last_pc & (!0b1);
+        let line = self.line_lookup.lookup(pc);
+        let ret = match line {
+            Some(line) => format!("PC : {pc:#x} -> {line}"),
+            None => format!("PC: {pc:#x}"),
+        };
+
+        println!("ret");
+        ret
+    }
+
+    pub fn get_back_trace(&mut self, constraints: &[C::SmtExpression]) -> Option<rust_debug::call_stack::StackFrame<EndianSlice<'static, RunTimeEndian>>> {
+        if !self.constraints.is_sat_with_constraints(constraints).ok()? {
+            return None;
         }
+        let bt = self.debug_data.as_ref().map(|el| {
+            el.produce_backtrace::<_, C::ArchitectureOverride, _>(
+                &mut DAP {
+                    mem: &mut self.memory,
+                    constraints,
+                },
+                &self.architecture,
+            )
+        });
+        bt.flatten()
     }
 
     /// Tries to convert the contained architecture to the target type.

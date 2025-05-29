@@ -84,6 +84,8 @@ pub trait Logger: Clone + core::fmt::Debug {
     fn update_delimiter<T: Into<Self::RegionDelimiter>>(&mut self, region: T);
 
     fn new<C: Composition>(state: &SymexArbiter<C>) -> Self;
+
+    fn record_backtrace<R: gimli::Reader<Offset = usize>>(&mut self, bt: Option<rust_debug::call_stack::StackFrame<R>>);
 }
 
 impl Logger for NoLogger {
@@ -117,6 +119,8 @@ impl Logger for NoLogger {
     fn new<C: Composition>(_state: &SymexArbiter<C>) -> Self {
         Self
     }
+
+    fn record_backtrace<R: gimli::Reader<Offset = usize>>(&mut self, bt: Option<rust_debug::call_stack::StackFrame<R>>) {}
 }
 
 impl From<RegionMetaData> for NoLogger {
