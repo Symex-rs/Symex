@@ -16,69 +16,54 @@ use super::{
 };
 use crate::executor::instruction::Instruction as GAInstruction;
 
-impl RISCV {
-    pub(super) fn expand<C: crate::Composition>(instr: &ParsedInstruction32) -> GAInstruction<C> {
-        let instruction_size: u32 = 32;
-        let max_cycle= todo!();
-        let memory_access: bool = todo!();
-
-        let operations = instruction_to_ga_operations(instr);
-
-        GAInstruction {
-            instruction_size,
-            max_cycle,
-            memory_access,
-            operations,
+impl InstructionToGAOperations for RISCV {
+    // Make sure to change the shift implementation to 6-bits if you want to support RV64I
+    fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
+        match instr {
+            ParsedInstruction32::add (inner) => inner.instruction_to_ga_operations(instr),
+            ParsedInstruction32::sub (inner) => inner.instruction_to_ga_operations(instr),
+            ParsedInstruction32::xor (inner) => inner.instruction_to_ga_operations(instr),
+            ParsedInstruction32::or (inner) => inner.instruction_to_ga_operations(instr),
+            ParsedInstruction32::and (inner) => inner.instruction_to_ga_operations(instr),
+            ParsedInstruction32::sll (inner) => inner.instruction_to_ga_operations(instr),
+            ParsedInstruction32::srl (inner) => inner.instruction_to_ga_operations(instr),
+            ParsedInstruction32::sra (inner) => inner.instruction_to_ga_operations(instr),
+            ParsedInstruction32::slt (inner) => inner.instruction_to_ga_operations(instr),
+            ParsedInstruction32::sltu (inner) => inner.instruction_to_ga_operations(instr),
+            ParsedInstruction32::addi (inner) => inner.instruction_to_ga_operations(instr),
+            ParsedInstruction32::xori (inner) => inner.instruction_to_ga_operations(instr),
+            ParsedInstruction32::ori (inner) => inner.instruction_to_ga_operations(instr),
+            ParsedInstruction32::andi (inner) => inner.instruction_to_ga_operations(instr),
+            ParsedInstruction32::slli (inner) => inner.instruction_to_ga_operations(instr),
+            ParsedInstruction32::srli (inner) => inner.instruction_to_ga_operations(instr),
+            ParsedInstruction32::srai (inner) => inner.instruction_to_ga_operations(instr),
+            ParsedInstruction32::slti (inner) => inner.instruction_to_ga_operations(instr),
+            ParsedInstruction32::sltiu (inner) => inner.instruction_to_ga_operations(instr),
+            ParsedInstruction32::lb (inner) => inner.instruction_to_ga_operations(instr),
+            ParsedInstruction32::lh (inner) => inner.instruction_to_ga_operations(instr),
+            ParsedInstruction32::lw (inner) => inner.instruction_to_ga_operations(instr),
+            ParsedInstruction32::lbu (inner) => inner.instruction_to_ga_operations(instr),
+            ParsedInstruction32::lhu (inner) => inner.instruction_to_ga_operations(instr),
+            ParsedInstruction32::sb (inner) => inner.instruction_to_ga_operations(instr),
+            ParsedInstruction32::sh (inner) => inner.instruction_to_ga_operations(instr),
+            ParsedInstruction32::sw (inner) => inner.instruction_to_ga_operations(instr),
+            ParsedInstruction32::beq (inner) => inner.instruction_to_ga_operations(instr),
+            ParsedInstruction32::bne (inner) => inner.instruction_to_ga_operations(instr),
+            ParsedInstruction32::blt (inner) => inner.instruction_to_ga_operations(instr),
+            ParsedInstruction32::bge (inner) => inner.instruction_to_ga_operations(instr),
+            ParsedInstruction32::bltu (inner) => inner.instruction_to_ga_operations(instr),
+            ParsedInstruction32::bgeu (inner) => inner.instruction_to_ga_operations(instr),
+            ParsedInstruction32::jal (inner) => inner.instruction_to_ga_operations(instr),
+            ParsedInstruction32::jalr (inner) => inner.instruction_to_ga_operations(instr),
+            ParsedInstruction32::lui (inner) => inner.instruction_to_ga_operations(instr),
+            ParsedInstruction32::auipc (inner) => inner.instruction_to_ga_operations(instr),
+            ParsedInstruction32::ecall (inner) => inner.instruction_to_ga_operations(instr),
+            ParsedInstruction32::ebreak (inner) => inner.instruction_to_ga_operations(instr),
         }
     }
 }
 
-// Make sure to change the shift implementation to 6-bits if you want to support RV64I
-fn instruction_to_ga_operations(instr: &ParsedInstruction32) -> Vec<GAOperation> {
-    match instr {
-        ParsedInstruction32::add (inner) => inner.instruction_to_ga_operations(instr),
-        ParsedInstruction32::sub (inner) => inner.instruction_to_ga_operations(instr),
-        ParsedInstruction32::xor (inner) => inner.instruction_to_ga_operations(instr),
-        ParsedInstruction32::or (inner) => inner.instruction_to_ga_operations(instr),
-        ParsedInstruction32::and (inner) => inner.instruction_to_ga_operations(instr),
-        ParsedInstruction32::sll (inner) => inner.instruction_to_ga_operations(instr),
-        ParsedInstruction32::srl (inner) => inner.instruction_to_ga_operations(instr),
-        ParsedInstruction32::sra (inner) => inner.instruction_to_ga_operations(instr),
-        ParsedInstruction32::slt (inner) => inner.instruction_to_ga_operations(instr),
-        ParsedInstruction32::sltu (inner) => inner.instruction_to_ga_operations(instr),
-        ParsedInstruction32::addi (inner) => inner.instruction_to_ga_operations(instr),
-        ParsedInstruction32::xori (inner) => inner.instruction_to_ga_operations(instr),
-        ParsedInstruction32::ori (inner) => inner.instruction_to_ga_operations(instr),
-        ParsedInstruction32::andi (inner) => inner.instruction_to_ga_operations(instr),
-        ParsedInstruction32::slli (inner) => inner.instruction_to_ga_operations(instr),
-        ParsedInstruction32::srli (inner) => inner.instruction_to_ga_operations(instr),
-        ParsedInstruction32::srai (inner) => inner.instruction_to_ga_operations(instr),
-        ParsedInstruction32::slti (inner) => inner.instruction_to_ga_operations(instr),
-        ParsedInstruction32::sltiu (inner) => inner.instruction_to_ga_operations(instr),
-        ParsedInstruction32::lb (inner) => inner.instruction_to_ga_operations(instr),
-        ParsedInstruction32::lh (inner) => inner.instruction_to_ga_operations(instr),
-        ParsedInstruction32::lw (inner) => inner.instruction_to_ga_operations(instr),
-        ParsedInstruction32::lbu (inner) => inner.instruction_to_ga_operations(instr),
-        ParsedInstruction32::lhu (inner) => inner.instruction_to_ga_operations(instr),
-        ParsedInstruction32::sb (inner) => inner.instruction_to_ga_operations(instr),
-        ParsedInstruction32::sh (inner) => inner.instruction_to_ga_operations(instr),
-        ParsedInstruction32::sw (inner) => inner.instruction_to_ga_operations(instr),
-        ParsedInstruction32::beq (inner) => inner.instruction_to_ga_operations(instr),
-        ParsedInstruction32::bne (inner) => inner.instruction_to_ga_operations(instr),
-        ParsedInstruction32::blt (inner) => inner.instruction_to_ga_operations(instr),
-        ParsedInstruction32::bge (inner) => inner.instruction_to_ga_operations(instr),
-        ParsedInstruction32::bltu (inner) => inner.instruction_to_ga_operations(instr),
-        ParsedInstruction32::bgeu (inner) => inner.instruction_to_ga_operations(instr),
-        ParsedInstruction32::jal (inner) => inner.instruction_to_ga_operations(instr),
-        ParsedInstruction32::jalr (inner) => inner.instruction_to_ga_operations(instr),
-        ParsedInstruction32::lui (inner) => inner.instruction_to_ga_operations(instr),
-        ParsedInstruction32::auipc (inner) => inner.instruction_to_ga_operations(instr),
-        ParsedInstruction32::ecall (inner) => inner.instruction_to_ga_operations(instr),
-        ParsedInstruction32::ebreak (inner) => inner.instruction_to_ga_operations(instr),
-    }
-}
-
-pub trait Instruction32ToGAOperations {
+pub trait InstructionToGAOperations {
     fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation>;
 }
 
