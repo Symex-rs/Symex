@@ -43,7 +43,8 @@ impl<Override: ArchitectureOverride> Architecture<Override> for RISCV {
             Endianness::Big => true,
             Endianness::Little => false,
         };
-        let instr = risc_v_disassembler::parse(&buff, is_big_endian).map_err(|e| ArchError::ParsingError(e.into(), buffer));
+        let use_abi_register_names = true;
+        let instr = risc_v_disassembler::parse(&buff, is_big_endian, use_abi_register_names).map_err(|e| ArchError::ParsingError(e.into(), buffer));
 
         debug!("PC{:#x} -> Running {:?}", state.memory.get_pc().unwrap().get_constant().unwrap(), instr);
         let instr = instr?;
@@ -63,12 +64,12 @@ impl<Override: ArchitectureOverride> Architecture<Override> for RISCV {
     fn add_hooks<C: crate::Composition>(&self, cfg: &mut HookContainer<C>, map: &mut SubProgramMap) {
         trace!("Adding RISCV hooks");
         let symbolic_sized = |state: &mut GAState<C>| {
-            let value_ptr = match state.memory.get_register("X10") {
+            let value_ptr = match state.memory.get_register("A0") {
                 Ok(val) => val,
                 Err(e) => return Err(e).context("While resolving address for new symbolic value"),
             };
 
-            let size = (match state.memory.get_register("X11") {
+            let size = (match state.memory.get_register("A1") {
                 Ok(val) => val,
                 Err(e) => return Err(e).context("While resolving size for new symbolic value"),
             })
@@ -135,7 +136,7 @@ impl<Override: ArchitectureOverride> Architecture<Override> for RISCV {
     fn get_register_name(reg: InterfaceRegister) -> String {
         match reg {
             InterfaceRegister::ProgramCounter => "PC",
-            InterfaceRegister::ReturnAddress => "X1",
+            InterfaceRegister::ReturnAddress => "RA",
         }
         .to_string()
     }

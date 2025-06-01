@@ -93,42 +93,8 @@ impl Into<Operand> for u8 {
     }
 }
 
-impl Into<Operand> for Register {
+impl Into<Operand> for &str {
     fn local_into(self) -> Operand {
-        Operand::Register(match self {
-            Register::x0 => "X0".to_owned(),
-            Register::x1 => "X1".to_owned(),
-            Register::x2 => "X2".to_owned(),
-            Register::x3 => "X3".to_owned(),
-            Register::x4 => "X4".to_owned(),
-            Register::x5 => "X5".to_owned(),
-            Register::x6 => "X6".to_owned(),
-            Register::x7 => "X7".to_owned(),
-            Register::x8 => "X8".to_owned(),
-            Register::x9 => "X9".to_owned(),
-            Register::x10 => "X10".to_owned(),
-            Register::x11 => "X11".to_owned(),
-            Register::x12 => "X12".to_owned(),
-            Register::x13 => "X13".to_owned(),
-            Register::x14 => "X14".to_owned(),
-            Register::x15 => "X15".to_owned(),
-            Register::x16 => "X16".to_owned(),
-            Register::x17 => "X17".to_owned(),
-            Register::x18 => "X18".to_owned(),
-            Register::x19 => "X19".to_owned(),
-            Register::x20 => "X20".to_owned(),
-            Register::x21 => "X21".to_owned(),
-            Register::x22 => "X22".to_owned(),
-            Register::x23 => "X23".to_owned(),
-            Register::x24 => "X24".to_owned(),
-            Register::x25 => "X25".to_owned(),
-            Register::x26 => "X26".to_owned(),
-            Register::x27 => "X27".to_owned(),
-            Register::x28 => "X28".to_owned(),
-            Register::x29 => "X29".to_owned(),
-            Register::x30 => "X30".to_owned(),
-            Register::x31 => "X31".to_owned(),
-        })
+        Operand::Register(self.to_ascii_uppercase())
     }
 }
-
