@@ -216,7 +216,6 @@ impl<C: Composition> Iterator for Runner<C> {
 
             if let PathResult::Suppress = result {
                 logger.warn("Suppressing path");
-                self.path_idx += 1;
                 return self.next();
             }
 

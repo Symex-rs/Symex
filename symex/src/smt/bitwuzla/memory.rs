@@ -84,7 +84,7 @@ impl ArrayMemory {
     /// full bytes must be read.
     fn internal_read(&self, addr: &BitwuzlaExpr, bits: u32, ptr_size: u32) -> Result<BitwuzlaExpr, MemoryError> {
         let value = if bits < BITS_IN_BYTE {
-            self.read_u8(addr).slice(bits - 1, 0)
+            self.read_u8(addr).slice(0, bits - 1)
         } else {
             // Ensure we only read full bytes now.
             assert_eq!(bits % BITS_IN_BYTE, 0, "Must read bytes, if bits >= 8");

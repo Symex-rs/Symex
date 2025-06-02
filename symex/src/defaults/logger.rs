@@ -7,7 +7,7 @@ use crate::{
     executor::PathResult,
     logging::{Logger, Region, RegionMetaData},
     manager::SymexArbiter,
-    project::dwarf_helper::{SubProgram, SubProgramMap},
+    project::dwarf_helper::{CallStack, SubProgram, SubProgramMap},
 };
 
 #[derive(Clone, Debug)]
@@ -107,7 +107,7 @@ impl<'a> PathLogger<'a> {
         }
     }
 
-    fn record_backtrace<R: gimli::Reader<Offset = usize>>(&mut self, bt: Option<rust_debug::call_stack::StackFrame<R>>) {
+    fn record_backtrace(&mut self, bt: Option<CallStack>) {
         if bt.is_none() {
             self.path.backtrace = vec![];
             return;
@@ -115,11 +115,13 @@ impl<'a> PathLogger<'a> {
         let bt = bt.unwrap();
 
         self.path.backtrace = bt
+            .final_frame
             .variables
             .iter()
             .map(|var| (var.name.clone().unwrap_or("NO NAME".to_string()), format!("{}", var.value)))
             .collect();
         self.path.function_arguments = bt
+            .final_frame
             .arguments
             .iter()
             .map(|var| (var.name.clone().unwrap_or("NO NAME".to_string()), format!("{}", var.value)))
@@ -244,7 +246,7 @@ impl Logger for SimplePathLogger {
         }
     }
 
-    fn record_backtrace<R: gimli::Reader<Offset = usize>>(&mut self, bt: Option<rust_debug::call_stack::StackFrame<R>>) {
+    fn record_backtrace(&mut self, bt: Option<CallStack>) {
         if bt.is_none() {
             self.backtrace = vec![];
             return;
@@ -252,11 +254,13 @@ impl Logger for SimplePathLogger {
         let bt = bt.unwrap();
 
         self.backtrace = bt
+            .final_frame
             .variables
             .iter()
             .map(|var| (var.name.clone().unwrap_or("NO NAME".to_string()), format!("{}", var.value)))
             .collect();
         self.function_arguments = bt
+            .final_frame
             .arguments
             .iter()
             .map(|var| (var.name.clone().unwrap_or("NO NAME".to_string()), format!("{}", var.value)))
@@ -348,7 +352,7 @@ impl Logger for SimpleLogger {
         }
     }
 
-    fn record_backtrace<R: gimli::Reader<Offset = usize>>(&mut self, bt: Option<rust_debug::call_stack::StackFrame<R>>) {
+    fn record_backtrace(&mut self, bt: Option<CallStack>) {
         self.path_logger().record_backtrace(bt);
     }
 }

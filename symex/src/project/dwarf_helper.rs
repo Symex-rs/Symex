@@ -25,7 +25,7 @@ use gimli::{
 use hashbrown::{HashMap, HashSet};
 use object::{Object, ObjectSection};
 use regex::Regex;
-use rust_debug::call_stack::MemoryAccess;
+use rust_debug::call_stack::{CallFrame, MemoryAccess, StackFrame};
 
 use crate::{
     arch::{Architecture, ArchitectureOverride, SupportedArchitecture},
@@ -415,11 +415,17 @@ pub struct DAP<'a, M: SmtMap, E: SmtExpr> {
     pub mem: &'a mut M,
     pub constraints: &'a [E],
 }
+
 #[derive(Clone, Debug)]
 pub struct DebugData {
     data: &'static object::File<'static>,
     dwarf: &'static Dwarf<EndianSlice<'static, RunTimeEndian>>,
     debug_frame: &'static DebugFrame<EndianSlice<'static, RunTimeEndian>>,
+}
+
+pub struct CallStack {
+    pub final_frame: StackFrame<EndianSlice<'static, RunTimeEndian>>,
+    pub stack_trace: Vec<(CallFrame, Vec<(String, String)>)>,
 }
 
 impl DebugData {
@@ -459,11 +465,7 @@ impl DebugData {
         })
     }
 
-    pub fn produce_backtrace<M: SmtMap<Expression = E>, O: ArchitectureOverride, E: SmtExpr>(
-        &self,
-        dap: &mut DAP<'_, M, E>,
-        arch: &SupportedArchitecture<O>,
-    ) -> Option<rust_debug::call_stack::StackFrame<EndianSlice<'static, RunTimeEndian>>> {
+    pub fn produce_backtrace<M: SmtMap<Expression = E>, O: ArchitectureOverride, E: SmtExpr>(&self, dap: &mut DAP<'_, M, E>, arch: &SupportedArchitecture<O>) -> Option<CallStack> {
         let mut register_map = std::collections::HashMap::new();
         let mut registers = dap.mem.get_registers();
         let pc = dap.mem.get_pc().expect("Valid pc");
@@ -495,7 +497,42 @@ impl DebugData {
             return None;
         }
         let val = &call_trace[0];
-        Some(rust_debug::call_stack::create_stack_frame(&self.dwarf, val.clone(), &registers, dap, "").expect("Stack trace being createable"))
+        let current_frame = rust_debug::call_stack::create_stack_frame(&self.dwarf, val.clone(), &registers, dap, "").expect("Stack trace being createable");
+        let stack_trace = call_trace
+            .iter()
+            .map(|el| {
+                let mut regs = rust_debug::registers::Registers::default();
+                regs.registers = std::collections::HashMap::with_capacity(16);
+                for (idx, el) in el.registers.iter().enumerate() {
+                    if let Some(reg) = el {
+                        let _ = regs.registers.insert(idx as u16, *reg);
+                    } else {
+                        let _ = regs.registers.insert(idx as u16, 0);
+                    }
+                }
+                registers.link_register = arch.register_name_to_number("LR").map(|el| el as usize);
+                registers.program_counter_register = arch.register_name_to_number("PC").map(|el| el as usize);
+                registers.stack_pointer_register = arch.register_name_to_number("SP").map(|el| el as usize);
+
+                let frame = rust_debug::call_stack::create_stack_frame(&self.dwarf, val.clone(), &registers, dap, "").expect("Stack trace being createable");
+
+                let args = frame
+                    .arguments
+                    .iter()
+                    .map(|el| {
+                        (
+                            el.name.clone().unwrap_or("Unnamed arguement".to_string()),
+                            el.value.clone().to_value().map(|el| el.to_string()).unwrap_or("Unable to get value".to_string()),
+                        )
+                    })
+                    .collect::<_>();
+                (el.clone(), args)
+            })
+            .collect::<Vec<_>>();
+        Some(CallStack {
+            final_frame: current_frame,
+            stack_trace,
+        })
     }
 }
 

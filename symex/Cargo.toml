@@ -41,6 +41,7 @@ fst = "0.4.7"
 regex-automata = { version = "0.1.9", features = ["transducer"] }
 dyn-clone = "1.0.18"
 risc-v-disassembler = "0.0.1"
+z3-sys = "0.8.1"
 
 [features]
 default = []

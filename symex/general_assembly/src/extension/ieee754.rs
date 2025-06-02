@@ -423,3 +423,26 @@ impl std::fmt::Display for RoundingMode {
         })
     }
 }
+impl OperandType {
+    /// Returns the fractional bits in the floating point
+    pub const fn fraction(&self) -> u64 {
+        match self {
+            Self::Binary16 => 10 + 1,
+            Self::Binary32 => 23 + 1,
+            Self::Binary64 => 53 + 1,
+            Self::Binary128 => 113 + 1,
+            Self::Integral { size: _, signed: _ } => todo!(),
+        }
+    }
+
+    /// Returns the exponent bits in the float
+    pub const fn exponent(&self) -> u64 {
+        match self {
+            Self::Binary128 => 128 - self.fraction(),
+            Self::Binary64 => 64 - self.fraction(),
+            Self::Binary32 => 32 - self.fraction(),
+            Self::Binary16 => 16 - self.fraction(),
+            Self::Integral { size: _, signed: _ } => todo!(),
+        }
+    }
+}

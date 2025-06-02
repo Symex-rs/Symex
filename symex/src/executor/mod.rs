@@ -284,6 +284,8 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
         } else {
             self.state.architecture.post_instruction_execution_hook()(&mut self.state);
         }
+        let bt = self.state.get_back_trace(&[]);
+        logger.record_backtrace(bt);
 
         let mut instruction_counter = 0;
         loop {
@@ -537,8 +539,8 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
         let mut new_logger = logger.fork();
         new_logger.warn(format!("{}: {msg}", self.state.debug_string_fork()));
         let mut path = Path::new(forked_state, Some(constraint), pc, new_logger);
-        let bt = path.state.get_back_trace(&path.constraints);
-        path.logger.record_backtrace(bt);
+        // let bt = path.state.get_back_trace(&path.constraints);
+        // path.logger.record_backtrace(bt);
 
         self.vm.paths.save_path(path);
         Ok(())

@@ -28,6 +28,7 @@ use crate::{
 };
 
 pub mod bitwuzla;
+pub mod z3;
 //pub mod deterministic;
 pub mod smt_boolector;
 
@@ -145,12 +146,24 @@ pub trait SmtMap: Debug + Clone + Display {
     fn get_word(&mut self, idx: &Self::Expression) -> ResultOrTerminate<Self::Expression> {
         self.get(idx, self.get_word_size())
     }
+
+    /// Writes a symbolic value to the given address.
     fn set(&mut self, idx: &Self::Expression, value: Self::Expression) -> Result<(), MemoryError>;
+
+    /// Retrieves a particular flag from memory.
+    ///
+    /// If the target flag does not exist the memory map is expected to
+    /// introduce a new symbolic value for this register.
 
     fn get_flag(&mut self, idx: &str) -> Result<Self::Expression, MemoryError>;
 
+    /// Sets the value of the given flag.
     fn set_flag(&mut self, idx: &str, value: Self::Expression) -> Result<(), MemoryError>;
 
+    /// Gets the given register.from memory.
+    ///
+    /// If the target register does not exist the memory map is expected to
+    /// introduce a new symbolic value for this register.
     fn get_register(&mut self, idx: &str) -> Result<Self::Expression, MemoryError>;
 
     fn get_registers(&mut self) -> HashMap<String, Self::Expression>;
@@ -284,11 +297,6 @@ pub trait SmtSolver: Debug + Clone {
     fn from_u64(&self, value: u64, size: u32) -> Self::Expression;
 
     #[must_use]
-    #[allow(clippy::wrong_self_convention)]
-    /// Create an expression of size `bits` from a binary string.
-    fn from_binary_string(&self, bits: &str) -> Self::Expression;
-
-    #[must_use]
     /// Creates an expression of size `size` containing the maximum unsigned
     /// value.
     fn unsigned_max(&self, size: u32) -> Self::Expression;
@@ -309,8 +317,6 @@ pub trait SmtSolver: Debug + Clone {
             SolverResult::Unknown => Err(SolverError::Unknown),
         }
     }
-
-    fn get_value(&self, expr: &Self::Expression) -> Result<Self::Expression, SolverError>;
 
     /// Pushes a constraint to the queue.
     fn push(&self);
@@ -346,13 +352,6 @@ pub trait SmtSolver: Debug + Clone {
     /// [`Solutions`] has variants for if the number of solution exceeds the
     /// upper bound.
     fn get_values(&self, expr: &Self::Expression, upper_bound: u32) -> Result<Solutions<Self::Expression>, SolverError>;
-
-    /// Returns `true` if `lhs` and `rhs` must be equal under the current
-    /// constraints.
-    fn must_be_equal(&self, lhs: &Self::Expression, rhs: &Self::Expression) -> Result<bool, SolverError>;
-
-    /// Check if `lhs` and `rhs` can be equal under the current constraints.
-    fn can_equal(&self, lhs: &Self::Expression, rhs: &Self::Expression) -> Result<bool, SolverError>;
 
     /// Find solutions to `expr`.
     ///

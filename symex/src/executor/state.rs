@@ -20,7 +20,7 @@ use crate::{
     logging::Logger,
     project::{
         self,
-        dwarf_helper::{DebugData, LineMap, DAP},
+        dwarf_helper::{CallStack, DebugData, LineMap, DAP},
         ProjectError,
     },
     smt::{ProgramMemory, SmtExpr, SmtMap, SmtSolver},
@@ -502,7 +502,7 @@ impl<C: Composition> GAState<C> {
         ret
     }
 
-    pub fn get_back_trace(&mut self, constraints: &[C::SmtExpression]) -> Option<rust_debug::call_stack::StackFrame<EndianSlice<'static, RunTimeEndian>>> {
+    pub fn get_back_trace(&mut self, constraints: &[C::SmtExpression]) -> Option<CallStack> {
         if !self.constraints.is_sat_with_constraints(constraints).ok()? {
             return None;
         }

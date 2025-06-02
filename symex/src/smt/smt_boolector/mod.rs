@@ -74,10 +74,6 @@ impl SmtSolver for Boolector {
         self.inner_from_u64(value, size)
     }
 
-    fn from_binary_string(&self, bits: &str) -> Self::Expression {
-        self.inner_from_binary_string(bits)
-    }
-
     fn unsigned_max(&self, size: u32) -> Self::Expression {
         self.inner_unsigned_max(size)
     }
@@ -88,10 +84,6 @@ impl SmtSolver for Boolector {
 
     fn signed_min(&self, size: u32) -> Self::Expression {
         self.inner_signed_min(size)
-    }
-
-    fn get_value(&self, expr: &Self::Expression) -> Result<Self::Expression, super::SolverError> {
-        self.inner_get_value(expr)
     }
 
     fn push(&self) {
@@ -116,14 +108,6 @@ impl SmtSolver for Boolector {
 
     fn get_values(&self, expr: &Self::Expression, upper_bound: u32) -> Result<super::Solutions<Self::Expression>, super::SolverError> {
         self.inner_get_values(expr, upper_bound)
-    }
-
-    fn must_be_equal(&self, lhs: &Self::Expression, rhs: &Self::Expression) -> Result<bool, super::SolverError> {
-        self.inner_must_be_equal(lhs, rhs)
-    }
-
-    fn can_equal(&self, lhs: &Self::Expression, rhs: &Self::Expression) -> Result<bool, super::SolverError> {
-        self.inner_can_equal(lhs, rhs)
     }
 
     fn get_solutions(&self, expr: &Self::Expression, upper_bound: u32) -> Result<super::Solutions<Self::Expression>, super::SolverError> {

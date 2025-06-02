@@ -3,6 +3,7 @@ use std::hash::Hash;
 use crate::{
     executor::{state::GAState, PathResult},
     manager::SymexArbiter,
+    project::dwarf_helper::CallStack,
     Composition,
 };
 
@@ -85,7 +86,7 @@ pub trait Logger: Clone + core::fmt::Debug {
 
     fn new<C: Composition>(state: &SymexArbiter<C>) -> Self;
 
-    fn record_backtrace<R: gimli::Reader<Offset = usize>>(&mut self, bt: Option<rust_debug::call_stack::StackFrame<R>>);
+    fn record_backtrace(&mut self, bt: Option<CallStack>);
 }
 
 impl Logger for NoLogger {
@@ -120,7 +121,7 @@ impl Logger for NoLogger {
         Self
     }
 
-    fn record_backtrace<R: gimli::Reader<Offset = usize>>(&mut self, bt: Option<rust_debug::call_stack::StackFrame<R>>) {}
+    fn record_backtrace(&mut self, bt: Option<CallStack>) {}
 }
 
 impl From<RegionMetaData> for NoLogger {
