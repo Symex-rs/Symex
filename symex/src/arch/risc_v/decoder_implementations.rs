@@ -1,11 +1,7 @@
-use risc_v_disassembler::{
-    ParsedInstruction32,
-    parsed_instructions,
-    Register,
-};
+use risc_v_disassembler::{parsed_instructions, ParsedInstruction32, Register};
 
 use general_assembly::{
-    condition::{Condition, Comparison},
+    condition::{Comparison, Condition},
     operand::{DataWord, Operand},
     operation::Operation as GAOperation,
 };
@@ -13,10 +9,14 @@ use general_assembly::{
 use transpiler::pseudo;
 
 use super::{
-    RISCV,
     decoder::{sealed::Into, InstructionToGAOperations},
+    RISCV,
 };
 use crate::executor::instruction::Instruction as GAInstruction;
+
+// "PC-" is a workaround to get the current PC value, which is needed because Symex increments the
+// PC BEFORE executing the instruction.
+// "PC-" is handled by the hook "pc_decrementer", defined in the risc_v mod.
 
 impl InstructionToGAOperations for parsed_instructions::add {
     fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
@@ -141,10 +141,10 @@ impl InstructionToGAOperations for parsed_instructions::slt {
             rs2:i32;
             rd:u32;
 
-            Ite(rs1 < rs2, 
+            Ite(rs1 < rs2,
                 {
                     rd = 1u32;
-                }, 
+                },
                 {
                     rd = 0u32;
                 }
@@ -167,7 +167,7 @@ impl InstructionToGAOperations for parsed_instructions::sltu {
             Ite(rs1 < rs2,
                 {
                     rd = 1u32;
-                }, 
+                },
                 {
                     rd = 0u32;
                 }
@@ -195,13 +195,13 @@ impl InstructionToGAOperations for parsed_instructions::xori {
         let rd = self.rd.local_into();
         let rs1 = self.rs1.local_into();
         let imm = self.imm.local_into();
-        
+
         pseudo!([
             rd:u32;
 
             rd = rs1 ^ imm;
         ])
-    }   
+    }
 }
 
 impl InstructionToGAOperations for parsed_instructions::ori {
@@ -267,7 +267,7 @@ impl InstructionToGAOperations for parsed_instructions::srai {
 
         pseudo!([
             shamt:u8;
-            
+
             rd = rs1 asr shamt<4:0>;
         ])
     }
@@ -284,11 +284,11 @@ impl InstructionToGAOperations for parsed_instructions::slti {
             imm:i32;
             rd:u32;
 
-            Ite(rs1 < imm, 
+            Ite(rs1 < imm,
                 {
                     rd = 1u32;
 
-                }, 
+                },
                 {
                     rd = 0u32;
                 }
@@ -308,10 +308,10 @@ impl InstructionToGAOperations for parsed_instructions::sltiu {
             imm:u32;
             rd:u32;
 
-            Ite(rs1 < imm, 
+            Ite(rs1 < imm,
                 {
                     rd = 1u32;
-                }, 
+                },
                 {
                     rd = 0u32;
                 }
@@ -339,7 +339,7 @@ impl InstructionToGAOperations for parsed_instructions::lh {
         let rd = self.rd.local_into();
         let rs1 = self.rs1.local_into();
         let imm = self.imm.local_into();
-        
+
         pseudo!([
             let addr:u32 = rs1 + imm;
             let value = LocalAddress(addr, 16);
@@ -366,7 +366,7 @@ impl InstructionToGAOperations for parsed_instructions::lbu {
         let rd = self.rd.local_into();
         let rs1 = self.rs1.local_into();
         let imm = self.imm.local_into();
-        
+
         pseudo!([
             let addr:u32 = rs1 + imm;
             let value = LocalAddress(addr, 8);
@@ -437,18 +437,18 @@ impl InstructionToGAOperations for parsed_instructions::beq {
         let rs1 = self.rs1.local_into();
         let rs2 = self.rs2.local_into();
         let imm = self.imm.local_into();
-        let pc = Operand::Register("PC".to_owned());
+        let pc = Operand::Register("PC-".to_owned());
 
         pseudo!([
             rs1:u32;
             rs2:u32;
             imm:u32;
 
-            Ite(rs1 == rs2, 
+            Ite(rs1 == rs2,
                 {
                     let target = pc + imm;
                     Jump(target);
-                }, 
+                },
                 {
                 }
             );
@@ -461,18 +461,18 @@ impl InstructionToGAOperations for parsed_instructions::bne {
         let rs1 = self.rs1.local_into();
         let rs2 = self.rs2.local_into();
         let imm = self.imm.local_into();
-        let pc = Operand::Register("PC".to_owned());
+        let pc = Operand::Register("PC-".to_owned());
 
         pseudo!([
             rs1:u32;
             rs2:u32;
             imm:u32;
 
-            Ite(rs1 != rs2, 
+            Ite(rs1 != rs2,
                 {
                     let target = pc + imm;
                     Jump(target);
-                }, 
+                },
                 {
                 }
             );
@@ -485,18 +485,18 @@ impl InstructionToGAOperations for parsed_instructions::blt {
         let rs1 = self.rs1.local_into();
         let rs2 = self.rs2.local_into();
         let imm = self.imm.local_into();
-        let pc = Operand::Register("PC".to_owned());
+        let pc = Operand::Register("PC-".to_owned());
 
         pseudo!([
             rs1:i32;
             rs2:i32;
             imm:u32;
 
-            Ite(rs1 < rs2, 
+            Ite(rs1 < rs2,
                 {
                     let target = pc + imm;
                     Jump(target);
-                }, 
+                },
                 {
                 }
             );
@@ -509,18 +509,18 @@ impl InstructionToGAOperations for parsed_instructions::bge {
         let rs1 = self.rs1.local_into();
         let rs2 = self.rs2.local_into();
         let imm = self.imm.local_into();
-        let pc = Operand::Register("PC".to_owned());
+        let pc = Operand::Register("PC-".to_owned());
 
         pseudo!([
             rs1:i32;
             rs2:i32;
             imm:u32;
 
-            Ite(rs1 >= rs2, 
+            Ite(rs1 >= rs2,
                 {
                     let target = pc + imm;
                     Jump(target);
-                }, 
+                },
                 {
                 }
             );
@@ -533,18 +533,18 @@ impl InstructionToGAOperations for parsed_instructions::bltu {
         let rs1 = self.rs1.local_into();
         let rs2 = self.rs2.local_into();
         let imm = self.imm.local_into();
-        let pc = Operand::Register("PC".to_owned());
+        let pc = Operand::Register("PC-".to_owned());
 
         pseudo!([
             rs1:u32;
             rs2:u32;
             imm:u32;
 
-            Ite(rs1 < rs2, 
+            Ite(rs1 < rs2,
                 {
                     let target = pc + imm;
                     Jump(target);
-                }, 
+                },
                 {
                 }
             );
@@ -557,18 +557,18 @@ impl InstructionToGAOperations for parsed_instructions::bgeu {
         let rs1 = self.rs1.local_into();
         let rs2 = self.rs2.local_into();
         let imm = self.imm.local_into();
-        let pc = Operand::Register("PC".to_owned());
+        let pc = Operand::Register("PC-".to_owned());
 
         pseudo!([
             rs1:u32;
             rs2:u32;
             imm:u32;
 
-            Ite(rs1 >= rs2, 
+            Ite(rs1 >= rs2,
                 {
                     let target = pc + imm;
                     Jump(target);
-                }, 
+                },
                 {
                 }
             );
@@ -580,7 +580,7 @@ impl InstructionToGAOperations for parsed_instructions::jal {
     fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
         let rd = self.rd.local_into();
         let imm = self.imm.local_into();
-        let pc = Operand::Register("PC".to_owned());
+        let pc = Operand::Register("PC-".to_owned());
 
         pseudo!([
             rd:u32;
@@ -598,7 +598,7 @@ impl InstructionToGAOperations for parsed_instructions::jalr {
         let rd = self.rd.local_into();
         let imm = self.imm.local_into();
         let rs1 = self.rs1.local_into();
-        let pc = Operand::Register("PC".to_owned());
+        let pc = Operand::Register("PC-".to_owned());
         let least_bit_mask = Operand::Immediate(DataWord::Word32(!0b1));
 
         pseudo!([
@@ -630,8 +630,8 @@ impl InstructionToGAOperations for parsed_instructions::auipc {
     fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
         let rd = self.rd.local_into();
         let imm = self.imm.local_into();
-        let pc = Operand::Register("PC".to_owned());
-        
+        let pc = Operand::Register("PC-".to_owned());
+
         pseudo!([
             rd:u32;
 
@@ -642,17 +642,16 @@ impl InstructionToGAOperations for parsed_instructions::auipc {
 
 impl InstructionToGAOperations for parsed_instructions::ecall {
     fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
-        vec![
-            GAOperation::Abort {error:"ecall requires external system modelling".to_string()}
-        ]
+        vec![GAOperation::Abort {
+            error: "ecall requires external system modelling".to_string(),
+        }]
     }
 }
 
 impl InstructionToGAOperations for parsed_instructions::ebreak {
     fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
-        vec![
-            GAOperation::Abort {error:"ebreak requires external system modelling".to_string()}
-        ]
+        vec![GAOperation::Abort {
+            error: "ebreak requires external system modelling".to_string(),
+        }]
     }
 }
-
