@@ -17,10 +17,10 @@ use crate::{
             Jump,
             LocalAddress,
             Log,
+            MultiplyAndAccumulate,
             Register,
             Resize,
             Rotation,
-            // Saturate,
             SetCFlag,
             SetCFlagRot,
             SetNFlag,
@@ -455,9 +455,26 @@ impl TypeCheck for IRExpr {
                     (BinaryOperation::BitwiseAnd, Type::U(_) | Type::I(_)) => lhs,
                     (BinaryOperation::BitwiseXor, Type::U(_) | Type::I(_)) => lhs,
                     (BinaryOperation::AddWithCarry, Type::U(_) | Type::I(_)) => lhs,
-                    (BinaryOperation::LogicalLeftShift, Type::U(_) | Type::I(_)) => lhs,
-                    (BinaryOperation::LogicalRightShift, Type::U(_) | Type::I(_)) => lhs,
-                    (BinaryOperation::ArithmeticRightShift, Type::U(_) | Type::I(_)) => lhs,
+                    (BinaryOperation::LogicalLeftShift, Type::U(size) | Type::I(size))
+                    | (BinaryOperation::LogicalRightShift, Type::U(size) | Type::I(size))
+                    | (BinaryOperation::ArithmeticRightShift, Type::U(size) | Type::I(size)) => {
+                         match rhs {
+                            Type::F16 | Type::F32 | Type::F64 | Type::F128 => return Err(TypeError::UnsuportedOperation(
+                            format!("Cannot shift using a floating point variable as the shifting amount"),rhs_operand.span()
+                            )),
+
+                            Type::I(size2) | Type::U(size2) if size == size => {
+                                lhs
+                            },
+                            Type::Unit => return Err(TypeError::UnsuportedOperation(
+                        format!("Cannot shift using unit type as shift amount."),rhs_operand.span())),
+                            _ => {return Err(TypeError::UnsuportedOperation(
+                        format!("Shift amount must be the same size as the operand"),lhs_operand.span().join(rhs_operand.span()).expect("Same file")))
+
+                            }
+                        }
+
+                    }
                     (BinaryOperation::Compare(_), _) => Type::U(1),
                     _ => {
                         return Err(TypeError::UnsuportedOperation(
@@ -1309,6 +1326,83 @@ impl TypeCheck for Intrinsic {
                     operand.span(),
                 )),
             },
+            Intrinsic::MultiplyAndAccumulate(MultiplyAndAccumulate { lhs, rhs, addend }) => {
+                let ty = lhs.type_check(meta)?;
+                let lhs_ty = match ty {
+                    Some(Type::F16 | Type::F32 | Type::F64 | Type::F128) => {
+                        ty.expect("Previous checks to work")
+                    }
+                    None => {
+                        return Err(TypeError::TypeMustBeKnown(
+                            "Cannot fma for untyped variables.".to_string(),
+                            lhs.span(),
+                        ))
+                    }
+                    Some(Type::U(_) | Type::I(_) | Type::Unit) => {
+                        return Err(TypeError::UnsuportedOperation(
+                            "Cannot compute fma for non floating point values".to_string(),
+                            lhs.span(),
+                        ))
+                    }
+                };
+
+                let ty = rhs.type_check(meta)?;
+                let rhs_ty = match ty {
+                    Some(Type::F16 | Type::F32 | Type::F64 | Type::F128) => {
+                        ty.expect("Previous checks to work")
+                    }
+                    None => {
+                        return Err(TypeError::TypeMustBeKnown(
+                            "Cannot fma for untyped variables.".to_string(),
+                            rhs.span(),
+                        ))
+                    }
+                    Some(Type::U(_) | Type::I(_) | Type::Unit) => {
+                        return Err(TypeError::UnsuportedOperation(
+                            "Cannot compute fma for non floating point values".to_string(),
+                            rhs.span(),
+                        ))
+                    }
+                };
+
+                let ty = addend.type_check(meta)?;
+                let addend_ty = match ty {
+                    Some(Type::F16 | Type::F32 | Type::F64 | Type::F128) => {
+                        ty.expect("Previous checks to work")
+                    }
+                    None => {
+                        return Err(TypeError::TypeMustBeKnown(
+                            "Cannot fma for untyped variables.".to_string(),
+                            addend.span(),
+                        ))
+                    }
+                    Some(Type::U(_) | Type::I(_) | Type::Unit) => {
+                        return Err(TypeError::UnsuportedOperation(
+                            "Cannot compute fma for non floating point values".to_string(),
+                            addend.span(),
+                        ))
+                    }
+                };
+
+                if rhs_ty != lhs_ty {
+                    return Err(TypeError::UnsuportedOperation(
+                        format!("Cannot multiply {lhs_ty} and  {rhs_ty}"),
+                        lhs.span().join(rhs.span()).expect("Same file"),
+                    ));
+                }
+                if addend_ty != lhs_ty {
+                    return Err(TypeError::UnsuportedOperation(
+                        format!("Cannot add {lhs_ty} and  {addend_ty}"),
+                        lhs.span()
+                            .join(rhs.span())
+                            .expect("Same file")
+                            .join(addend.span())
+                            .expect("Same file"),
+                    ));
+                }
+
+                Ok(Some(lhs_ty))
+            }
             Intrinsic::IsNormal(IsNormal { operand }) => match operand.type_check(meta)? {
                 Some(Type::F16 | Type::F32 | Type::F64 | Type::F128) => Ok(Some(Type::U(1))),
                 None => Err(TypeError::TypeMustBeKnown(

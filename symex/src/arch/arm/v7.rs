@@ -33,6 +33,7 @@ pub mod timing;
 #[derive(Debug, Default, Clone)]
 pub struct ArmV7EM {
     pub in_it_block: bool,
+    pub it_instr: bool,
 }
 
 impl ArmV7EM {
@@ -316,12 +317,13 @@ impl ArmV7EM {
     }
 
     fn it_advance<C: crate::Composition>(state: &mut GAState<C>) {
-        if !state.architecture.as_v7().in_it_block {
+        if state.architecture.as_v7().it_instr {
             return;
         }
         trace!("Running IT advance");
         let (cond, it) = Self::current_cond(state);
         if let Some(it) = it {
+            trace!("IT STATE WAS ZERO in last 4 bits");
             if it.mask::<0, 3>() == 0 {
                 return;
             }
@@ -353,13 +355,20 @@ impl<Override: ArchitectureOverride> Architecture<Override> for ArmV7EM {
     {
         trace!("Setting XPSR to zeros");
         state.set_register("XPSR".to_string(), state.memory.from_u64(0, 32));
-        state.set_register("FPSCR.RM", state.memory.from_u64(0b11, 32));
+
+        let rm = state.get_register("FPSCR.RM").expect("RM read to be valid");
+        let rm = rm.get_constant().unwrap_or(0b11);
+        state.set_register("FPSCR.RM", state.memory.from_u64(rm, 32));
     }
 
     fn pre_instruction_loading_hook<C>(state: &mut GAState<C>)
     where
         C: crate::Composition<ArchitectureOverride = Override>,
     {
+        let rm = state.get_register("FPSCR.RM").expect("RM read to be valid");
+        let rm = rm.get_constant().unwrap_or(0b11);
+        state.set_register("FPSCR.RM", state.memory.from_u64(rm, 32));
+
         state.architecture.as_v7().in_it_block = false;
         let (cond, it) = Self::current_cond(state);
         trace!("ITSTATE.IT as {cond}");
@@ -535,13 +544,19 @@ impl<Override: ArchitectureOverride> Architecture<Override> for ArmV7EM {
         cfg.add_memory_read_hook(0x4000c008, read_reset_done);
     }
 
-    fn translate<C: crate::Composition>(&self, buff: &[u8], state: &GAState<C>) -> Result<Instruction<C>, ArchError> {
+    fn translate<C: crate::Composition>(buff: &[u8], state: &mut GAState<C>) -> Result<Instruction<C>, ArchError> {
         let mut buffer = [0; 4];
         (0..4).zip(buff.iter()).zip(buffer.iter_mut()).for_each(|((_, source), dest)| *dest = *source);
         trace!("decoding, buff : {:?}", buff);
         let mut buff: disarmv7::buffer::PeekableBuffer<u8, _> = buff.iter().cloned().into();
 
         let instr = V7Operation::parse(&mut buff).map_err(|e| ArchError::ParsingError(e.into(), buffer));
+        let v7 = state.architecture.as_v7();
+        if let Ok((_, V7Operation::It(_))) = &instr {
+            v7.it_instr = true;
+        } else {
+            v7.it_instr = false;
+        }
 
         debug!("in_it_block: {}", state.get_in_conditional_block());
         debug!("PC{:#x} -> Running {:?}", state.memory.get_pc().unwrap().get_constant().unwrap(), instr);
@@ -577,7 +592,40 @@ impl<Override: ArchitectureOverride> Architecture<Override> for ArmV7EM {
     where
         Self: Sized,
     {
-        Self { in_it_block: false }
+        Self {
+            in_it_block: false,
+            it_instr: false,
+        }
+    }
+
+    fn register_number_to_name(idx: u64) -> Option<String> {
+        Some(match idx {
+            0 => "R0".to_string(),
+            1 => "R1".to_string(),
+            2 => "R2".to_string(),
+            3 => "R3".to_string(),
+            4 => "R4".to_string(),
+            5 => "R5".to_string(),
+            6 => "R6".to_string(),
+            7 => "R7".to_string(),
+            8 => "R8".to_string(),
+            9 => "R9".to_string(),
+            10 => "R10".to_string(),
+            11 => "R11".to_string(),
+            12 => "R12".to_string(),
+            13 => "SP".to_string(),
+            14 => "LR".to_string(),
+            15 => "PC".to_string(),
+            0b1_0000 => "XPSR".to_string(),
+            16 => "IPSR".to_string(),
+            0b10100 => "FAULTMASK".to_string(),
+            0b10100 => "PRIMASK".to_string(),
+            0b10100 => "BASEPRI".to_string(),
+            0b10100 => "CONTROL".to_string(),
+            33 => "FPSCR".to_string(),
+            idx if (64..(64 + 16)).contains(&idx) => format!("S{}", idx - 64),
+            _ => return None,
+        })
     }
 
     fn register_name_to_number(name: &str) -> Option<u64> {
@@ -605,8 +653,24 @@ impl<Override: ArchitectureOverride> Architecture<Override> for ArmV7EM {
             "BASEPRI" => 0b10100,
             "CONTROL" => 0b10100,
             "FPSCR" => 33,
+            _ if name.starts_with("S") => {
+                let num: u64 = name.strip_prefix("S").map(|el| el.parse().ok()).flatten()?;
+                64 + num
+            }
+            _ if name.starts_with("D") => {
+                todo!()
+            }
             _ => return None,
         })
+    }
+
+    fn nan_encoding(ty: general_assembly::extension::ieee754::OperandType) -> u64 {
+        match ty {
+            general_assembly::extension::ieee754::OperandType::Binary16 => (((0 << 5) | (0x1f)) << 10) | 1 << 9,
+            general_assembly::extension::ieee754::OperandType::Binary32 => (((0 << 8) | (0xff)) << 23) | 1 << 22,
+            general_assembly::extension::ieee754::OperandType::Binary64 => (((0 << 11) | (0x7ff)) << 52) | 1 << 51,
+            _ => unimplemented!("No support for other encodings"),
+        }
     }
 }
 

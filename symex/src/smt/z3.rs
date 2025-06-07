@@ -11,7 +11,7 @@ use hashbrown::HashMap;
 use z3_sys::{Z3_get_numeral_uint64, Z3_mk_fpa_fma, Z3_mk_fpa_mul, Z3_L_TRUE};
 
 use super::{MemoryError, ProgramMemory, SmtExpr, SmtFPExpr, SmtMap, SmtSolver};
-use crate::{defaults::z3, executor::ResultOrTerminate, memory::BITS_IN_BYTE, project::Project, Endianness, UserStateContainer};
+use crate::{arch::SupportedArchitecture, defaults::z3, executor::ResultOrTerminate, memory::BITS_IN_BYTE, project::Project, Endianness, UserStateContainer};
 
 #[derive(Debug)]
 pub struct Z3Context {
@@ -70,15 +70,15 @@ impl<UserState: UserStateContainer> SmtMap for Z3Array<UserState> {
     type SMT = Z3Solver;
     type StateContainer = UserState;
 
-    fn new(
+    fn new<O: crate::arch::ArchitectureOverride>(
         smt: Self::SMT,
-        program_memory: &'static Project,
-        word_size: u32,
+        program_memory: Self::ProgramMemory,
         endianness: Endianness,
         initial_sp: Self::Expression,
         _state: &Self::StateContainer,
+        arch: &SupportedArchitecture<O>,
     ) -> Result<Self, crate::GAError> {
-        let ram = { ArrayMemory::new(smt.ctx.clone(), word_size, endianness) };
+        let ram = { ArrayMemory::new(smt.ctx.clone(), arch.word_size() as u32, endianness) };
         Ok(Self {
             ram,
             register_file: HashMap::new(),
@@ -86,7 +86,7 @@ impl<UserState: UserStateContainer> SmtMap for Z3Array<UserState> {
             variables: HashMap::new(),
             fp_variables: HashMap::new(),
             program_memory,
-            word_size,
+            word_size: arch.word_size() as u32,
             pc: 0,
             initial_sp,
             static_writes: HashMap::new(),

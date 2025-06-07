@@ -44,9 +44,10 @@ fn conv_rm(rm: &RoundingMode) -> RM {
 
 impl FpExpr {
     pub fn unconstrained(ctx: Rc<Btor>, ty: &OperandType, name: Option<&str>) -> Self {
+        let cty = conv_ty(ty);
         Self {
             ctx: FpOrBv::Fp(
-                bitwuzla::FP::new(ctx, conv_ty(ty), name)
+                bitwuzla::FP::new(ctx, cty, name)
                     .map_err(|e| crate::GAError::SolverError(SolverError::Generic(format!("{e:?}"))))
                     .context("fp any")
                     .expect("Failed to create a new fp variable"),
@@ -172,7 +173,6 @@ impl SmtFPExpr for FpExpr {
     }
 
     fn to_bv(&self, rm: RoundingMode, signed: bool) -> crate::Result<Self::Expression> {
-        println!("Casting to BV");
         match &self.ctx {
             FpOrBv::Bv(bv) => Ok(super::expr::BitwuzlaExpr(bv.clone())),
             FpOrBv::Fp(fp) => {
@@ -187,15 +187,18 @@ impl SmtFPExpr for FpExpr {
                     }
                     _ => {}
                 }
-                let e = BitwuzlaExpr(BV::new(fp.btor().clone(), self.ty.size().into(), None));
 
-                println!("Getting BV repr");
-                let fp2 = Self {
-                    ctx: FpOrBv::Fp(FP::from_ieee754_bv(&e.0, &conv_ty(&self.ty()))),
-                    ty: self.ty(),
-                };
-                // let fp2 = e.to_fp(self.ty(), rm.clone(), signed)?;
-                Bitwuzla::assert(fp2._compare(&self, ComparisonMode::Equal, rm).expect("Valid comparison"));
+                let e = BitwuzlaExpr(BV::new(fp.btor().clone(), self.ty.size().into(), None));
+                #[cfg(feature = "bitwuzla-exact-fp")]
+                {
+                    // TODO: Replace this with a edgecase for NaN.
+                    let fp2 = Self {
+                        ctx: FpOrBv::Fp(FP::from_ieee754_bv(&e.0, &conv_ty(&self.ty()))),
+                        ty: self.ty(),
+                    };
+                    // let fp2 = e.to_fp(self.ty(), rm.clone(), signed)?;
+                    Bitwuzla::assert(fp2._compare(&self, ComparisonMode::Equal, rm).expect("Valid comparison"));
+                }
                 Ok(e)
             } //super::expr::BitwuzlaExpr(fp.to_ieee754_bv())),
         }

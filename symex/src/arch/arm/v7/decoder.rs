@@ -1531,7 +1531,7 @@ impl Convert for (usize, V7Operation) {
                 let is_pc = rd == Register::PC;
                 let rd = rd.local_into();
                 pseudo!([
-                    rd:u32;
+                    rd:u32;rm:u32;
                     // NOTE: This likely clears the pipeline!
                     //
                     // see ALUWritePC
@@ -1540,10 +1540,11 @@ impl Convert for (usize, V7Operation) {
                        Jump(dest);
                     }
 
-                    rd:u32 = rm;
+                    let result = rm;
+                    rd:u32 = result;
                     if (s.is_some_and(|el| el)) {
-                           SetNFlag(rd);
-                           SetZFlag(rd);
+                        Flag("N") = result<31>;
+                        Flag("Z") = result == 0u32;
                     }
                 ])
             }
@@ -3203,7 +3204,7 @@ impl Into<Operand> for u32 {
     }
 }
 fn mask_dyn(start: u32, end: u32) -> u32 {
-    (1 << (end - start + 1)) - 1
+    ((1 << (end - start + 1)) - 1) << start
 }
 
 impl<T1, T2, T11: sealed::Into<T1>, T22: sealed::Into<T2>> sealed::Into<(T1, T2)> for (T11, T22) {

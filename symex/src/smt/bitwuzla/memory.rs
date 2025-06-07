@@ -6,16 +6,20 @@ use std::{
 
 use anyhow::Context as _;
 use bitwuzla::{Array, Btor, BV};
-use general_assembly::prelude::DataWord;
+use general_assembly::{
+    extension::ieee754::{OperandType, RoundingMode},
+    prelude::DataWord,
+};
 use hashbrown::HashMap;
 use tracing_subscriber::registry::Data;
 
 use super::{expr::BitwuzlaExpr, fpexpr::FpExpr, Bitwuzla};
 use crate::{
+    arch::Architecture,
     executor::ResultOrTerminate,
     memory::{MemoryError, BITS_IN_BYTE},
     project::Project,
-    smt::{sealed::Context, ProgramMemory, SmtExpr, SmtFPExpr, SmtMap},
+    smt::{sealed::Context, ProgramMemory, SmtExpr, SmtFPExpr, SmtMap, SmtSolver},
     trace,
     warn,
     Endianness,
@@ -149,6 +153,7 @@ pub struct BitwuzlaMemory<State: UserStateContainer> {
     flags: HashMap<String, BitwuzlaExpr>,
     variables: HashMap<String, BitwuzlaExpr>,
     fp_variables: HashMap<String, FpExpr>,
+    fp_registers: HashMap<String, FpExpr>,
     program_memory: &'static Project,
     word_size: u32,
     pc: u64,
@@ -165,20 +170,20 @@ impl<State: UserStateContainer> SmtMap for BitwuzlaMemory<State> {
     type SMT = Bitwuzla;
     type StateContainer = State;
 
-    fn new(
+    fn new<O: crate::arch::ArchitectureOverride>(
         smt: Self::SMT,
-        program_memory: &'static Project,
-        word_size: u32,
+        program_memory: Self::ProgramMemory,
         endianness: Endianness,
         initial_sp: Self::Expression,
         _state: &Self::StateContainer,
+        arch: &crate::arch::SupportedArchitecture<O>,
     ) -> Result<Self, crate::GAError> {
         let ram = {
-            let memory = Array::new(smt.ctx.clone(), word_size as u64, BITS_IN_BYTE as u64, Some("memory"));
+            let memory = Array::new(smt.ctx.clone(), arch.word_size() as u64, BITS_IN_BYTE as u64, Some("memory"));
 
             ArrayMemory {
                 ctx: smt.ctx,
-                ptr_size: word_size as u32,
+                ptr_size: arch.word_size() as u32,
                 memory,
                 endianness,
             }
@@ -186,11 +191,12 @@ impl<State: UserStateContainer> SmtMap for BitwuzlaMemory<State> {
         Ok(Self {
             ram,
             register_file: HashMap::new(),
+            fp_registers: HashMap::new(),
             flags: HashMap::new(),
             variables: HashMap::new(),
             fp_variables: HashMap::new(),
             program_memory,
-            word_size,
+            word_size: arch.word_size() as u32,
             pc: 0,
             initial_sp,
             static_writes: HashMap::new(),
@@ -297,6 +303,12 @@ impl<State: UserStateContainer> SmtMap for BitwuzlaMemory<State> {
         Ok(())
     }
 
+    #[cfg(not(feature = "bitwuzla-exact-fp"))]
+    fn set_fp_register(&mut self, idx: &str, value: <Self::SMT as SmtSolver>::FpExpression, rm: RoundingMode, signed: bool) -> Result<(), crate::smt::MemoryError> {
+        self.fp_registers.insert(idx.to_string(), value);
+        Ok(())
+    }
+
     fn get_register(&mut self, idx: &str) -> Result<Self::Expression, crate::smt::MemoryError> {
         if idx == "PC" {
             return self.get_pc();
@@ -317,9 +329,73 @@ impl<State: UserStateContainer> SmtMap for BitwuzlaMemory<State> {
         Ok(ret)
     }
 
+    #[cfg(not(feature = "bitwuzla-exact-fp"))]
+    fn get_fp_register(
+        &mut self,
+        idx: &str,
+        source_ty: OperandType,
+        dest_ty: OperandType,
+        rm: RoundingMode,
+        signed: bool,
+    ) -> Result<<Self::SMT as SmtSolver>::FpExpression, crate::smt::MemoryError> {
+        let ret = match self.fp_registers.get(idx) {
+            Some(val) => val.clone(),
+            None => {
+                let ret = self.unconstrained_fp(source_ty, idx);
+                self.fp_registers.insert(idx.to_owned(), ret.clone());
+                ret
+            }
+        };
+        if self.variables.get(idx).is_none() {
+            self.fp_variables.insert(idx.to_owned(), ret.clone());
+        }
+        // Ensure that any read from the same register returns the
+        //self.register_file.get(idx);
+        Ok(ret)
+    }
+
     fn from_u64(&self, value: u64, size: u32) -> Self::Expression {
         assert!(size != 0, "Tried to create a 0 width value");
         BitwuzlaExpr(BV::from_u64(self.ram.ctx.clone(), value & ((1u128 << size) - 1) as u64, size as u64))
+    }
+
+    #[allow(clippy::wrong_self_convention)]
+    /// Create a new expression from an `u64` value of size `size`.
+    fn from_f64(&mut self, value: f64, rm: RoundingMode, ty: OperandType) -> crate::Result<<Self::SMT as SmtSolver>::FpExpression> {
+        let size = match ty {
+            OperandType::Binary16 => 16,
+            OperandType::Binary32 => 32,
+            OperandType::Binary64 => 64,
+            OperandType::Binary128 => 128,
+            OperandType::Integral { size, signed: _ } => size,
+        };
+        let value = match ty {
+            OperandType::Binary16 => {
+                todo!("No support in the rust compiler for binary16");
+                // let value = (value as f16).to_bits() as u64;
+                // self.from_u64(value, size)
+            }
+            OperandType::Binary32 => {
+                let value = (value as f32).to_bits() as u64;
+                self.from_u64(value, size)
+            }
+            OperandType::Binary64 => {
+                let value = (value as f64).to_bits() as u64;
+                self.from_u64(value, size)
+            }
+            OperandType::Binary128 => {
+                todo!("TODO! Represent 128 bit numbers");
+                // let value = (value as f64).to_bits() as u64;
+                // self.from_u64(value, size)
+            }
+            OperandType::Integral { size: _, signed: _ } => panic!("Cannot create fp expression from binary"),
+        };
+        let source_ty = match ty.clone() {
+            OperandType::Integral { size: _, signed: _ } => panic!("Cannot create fp expression from binary"),
+            t => t,
+        };
+
+        value.to_fp(source_ty, ty, rm, true)
     }
 
     fn from_bool(&self, value: bool) -> Self::Expression {

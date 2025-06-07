@@ -225,6 +225,14 @@ impl<C: Composition> HookContainer<C> {
             self.add_register_write_hook(reg, hook);
         }
 
+        for (reg, hook) in other.fp_register_read_hook {
+            self.add_fp_register_read_hook(reg, hook);
+        }
+
+        for (reg, hook) in other.fp_register_write_hook {
+            self.add_fp_register_write_hook(reg, hook);
+        }
+
         for (range, hook) in other.range_memory_read_hook {
             self.add_range_memory_read_hook(range, hook);
         }
@@ -342,6 +350,26 @@ impl<C: Composition> HookContainer<C> {
     /// If a hook already exists for this register it will be overwritten.
     pub fn add_register_write_hook(&mut self, register: impl ToString, hook: RegisterWriteHook<C>) -> &mut Self {
         self.register_write_hook.insert(register.to_string(), hook);
+        self
+    }
+
+    /// Adds a register read hook to the executor.
+    ///
+    /// ## NOTE
+    ///
+    /// If a hook already exists for this register it will be overwritten.
+    pub fn add_fp_register_write_hook(&mut self, register: impl ToString, hook: FpRegisterWriteHook<C>) -> &mut Self {
+        self.fp_register_write_hook.insert(register.to_string(), hook);
+        self
+    }
+
+    /// Adds a register write hook to the executor.
+    ///
+    /// ## NOTE
+    ///
+    /// If a hook already exists for this register it will be overwritten.
+    pub fn add_fp_register_read_hook(&mut self, register: impl ToString, hook: FpRegisterReadHook<C>) -> &mut Self {
+        self.fp_register_read_hook.insert(register.to_string(), hook);
         self
     }
 
@@ -569,6 +597,26 @@ impl<C: Composition> PrioriHookContainer<C> {
     /// If a hook already exists for this register it will be overwritten.
     pub fn add_register_write_hook(&mut self, register: impl ToString, hook: RegisterWriteHook<C>) -> &mut Self {
         self.register_write_hook.insert(register.to_string(), hook);
+        self
+    }
+
+    /// Adds a register read hook to the executor.
+    ///
+    /// ## NOTE
+    ///
+    /// If a hook already exists for this register it will be overwritten.
+    pub fn add_fp_register_write_hook(&mut self, register: impl ToString, hook: FpRegisterWriteHook<C>) -> &mut Self {
+        self.fp_register_write_hook.insert(register.to_string(), hook);
+        self
+    }
+
+    /// Adds a register write hook to the executor.
+    ///
+    /// ## NOTE
+    ///
+    /// If a hook already exists for this register it will be overwritten.
+    pub fn add_fp_register_read_hook(&mut self, register: impl ToString, hook: FpRegisterReadHook<C>) -> &mut Self {
+        self.fp_register_read_hook.insert(register.to_string(), hook);
         self
     }
 
@@ -877,6 +925,21 @@ impl<'a, C: Composition> Reader<'a, C> {
         ResultOrHook::Result(self.memory.get_register(id).into())
     }
 
+    pub fn read_fp_register(
+        &mut self,
+        id: &str,
+        source_ty: OperandType,
+        dest_ty: OperandType,
+        rm: RoundingMode,
+        signed: bool,
+    ) -> ResultOrHook<std::result::Result<C::SmtFPExpression, MemoryError>, FpRegisterReadHook<C>> {
+        if let Some(hook) = self.container.fp_register_read_hook.get(id) {
+            return ResultOrHook::Hook(*hook);
+        }
+
+        ResultOrHook::Result(self.memory.get_fp_register(id, source_ty, dest_ty, rm, signed))
+    }
+
     pub fn read_flag(&mut self, id: &String) -> ResultOrHook<std::result::Result<C::SmtExpression, MemoryError>, FlagReadHook<C>> {
         if let Some(hook) = self.container.flag_read_hook.get(id) {
             return ResultOrHook::Hook(*hook);
@@ -912,7 +975,7 @@ impl<'a, C: Composition> Writer<'a, C> {
                             false => "Unsat".to_string(),
                         }),
                     },
-                    on_stack.get_constant_bool(),
+                    on_stack.get_constant_bool().map(|el| !el),
                 ));
             }
         }
@@ -954,6 +1017,20 @@ impl<'a, C: Composition> Writer<'a, C> {
         }
 
         ResultOrHook::Result(self.memory.set_register(id, value.clone()))
+    }
+
+    pub fn write_fp_register(
+        &mut self,
+        id: &str,
+        value: &C::SmtFPExpression,
+        rm: RoundingMode,
+        signed: bool,
+    ) -> ResultOrHook<std::result::Result<(), MemoryError>, FpRegisterWriteHook<C>> {
+        if let Some(hook) = self.container.fp_register_write_hook.get(id) {
+            return ResultOrHook::Hook(*hook);
+        }
+
+        ResultOrHook::Result(self.memory.set_fp_register(id, value.clone(), rm, signed))
     }
 
     pub fn write_flag(&mut self, id: &String, value: &C::SmtExpression) -> ResultOrHook<std::result::Result<(), MemoryError>, FlagWriteHook<C>> {

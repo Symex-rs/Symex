@@ -52,6 +52,7 @@ impl Compile for (Intrinsic, Type) {
             Intrinsic::IsNormal(i) => i.compile(state),
             Intrinsic::IsFinite(i) => i.compile(state),
             Intrinsic::Log(l) => l.compile(state),
+            Intrinsic::MultiplyAndAccumulate(m) => m.compile(state),
             // Intrinsic::Saturate(s) => s.compile(state),
         }
     }
@@ -681,6 +682,31 @@ impl Compile for Sqrt {
     }
 }
 
+impl Compile for MultiplyAndAccumulate {
+    type Output = TokenStream;
+
+    fn compile(&self, state: &mut TranspilerState<Self::Output>) -> Result<Self::Output, Error> {
+        let Self { lhs, rhs, addend } = self;
+        let lhs_ty = lhs.get_type();
+        let lhs = lhs.compile(state)?;
+        let intermediate = state.intermediate(lhs_ty).compile(state)?;
+        let rhs = rhs.compile(state)?;
+        let add = addend.compile(state)?;
+
+        // TODO: implement for other types.
+
+        state.to_insert_above.push(quote! { 
+            general_assembly::operation::Operation::Ieee754(general_assembly::extension::ieee754::Operations::FusedMultiplication {
+                lhs:#lhs,
+                rhs:#rhs,
+                add:#add,
+                destination:#intermediate,
+            })
+        });
+
+        Ok(intermediate)
+    }
+}
 impl Compile for IsFinite {
     type Output = TokenStream;
 

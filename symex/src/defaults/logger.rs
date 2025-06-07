@@ -4,10 +4,11 @@ use colored::Colorize;
 
 use crate::{
     debug,
-    executor::PathResult,
+    executor::{state::GAState, PathResult},
     logging::{Logger, Region, RegionMetaData},
     manager::SymexArbiter,
     project::dwarf_helper::{CallStack, SubProgram, SubProgramMap},
+    Composition,
 };
 
 #[derive(Clone, Debug)]
@@ -101,8 +102,9 @@ impl<'a> PathLogger<'a> {
         self.path.execution_time = time;
     }
 
-    fn visit(&mut self, func: String) {
+    fn visit<C: Composition>(&mut self, func: String, state: &mut GAState<C>) {
         if Some(&func) != self.path.visited.last() {
+            // let bt = state.get_back_trace(&[]);
             self.path.visited.push(func);
         }
     }
@@ -173,7 +175,7 @@ impl Logger for SimplePathLogger {
         self.statements.push((subprogram, format!("[{}]: {}", "ERROR".red(), warning.to_string())));
     }
 
-    fn update_delimiter<T: Into<Self::RegionDelimiter>>(&mut self, region: T) {
+    fn update_delimiter<T: Into<Self::RegionDelimiter>, C: Composition>(&mut self, region: T, state: &mut GAState<C>) {
         self.pc = region.into();
         let region = self.regions.get_by_address(&self.pc).cloned();
 
@@ -181,8 +183,22 @@ impl Logger for SimplePathLogger {
             .as_ref()
             .is_some_and(|el| self.current_region.as_ref().is_some_and(|other| other != el) || self.current_region.is_none())
         {
+            // let bt = state.get_back_trace(&[]);
+            //
+            // if let Some(bt) = bt {
+            //     // self.visited.clear();
+            //     for (bt, args) in bt.stack_trace {
+            //         let region = self.regions.get_by_address(&bt.start_address).cloned();
+            //         if let Some(region) = region {
+            //             let arguments = args.iter().map(|(name, value)| format!("{} =
+            // {}", name.clone(), value)).collect::<Vec<_>>().join(", ");
+            //             self.visited.push(format!("{}({})", region.name.clone(),
+            // arguments));         }
+            //     }
+            // } else {
             let region = unsafe { region.as_ref().unwrap_unchecked() };
-            self.visited.push(region.name.clone());
+            self.visited.push(format!("{}", region.name.clone()));
+            // }
         }
         self.current_region = region;
     }
@@ -276,12 +292,12 @@ impl Logger for SimpleLogger {
         self.clone()
     }
 
-    fn update_delimiter<T: Into<Self::RegionDelimiter>>(&mut self, region: T) {
+    fn update_delimiter<T: Into<Self::RegionDelimiter>, C: crate::Composition>(&mut self, region: T, state: &mut crate::executor::state::GAState<C>) {
         self.pc = region.into();
         self.current_region = self.regions.get_by_address(&self.pc).cloned();
         if let Some(region) = &self.current_region {
             let name = region.name.clone();
-            self.path_logger().visit(name);
+            self.path_logger().visit(name, state);
         }
     }
 

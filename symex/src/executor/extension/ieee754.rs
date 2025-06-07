@@ -14,16 +14,14 @@ use crate::{
 
 /// The state required to perform floating point operations.
 #[derive(Clone, Debug)]
-pub struct FpState<C: Composition> {
-    registers: HashMap<String, <C::SMT as SmtSolver>::FpExpression>,
+pub struct FpState {
     pub rounding_mode: RoundingMode,
 }
 
-impl<C: Composition> FpState<C> {
+impl FpState {
     /// Creates a new instance of FP state.
     pub fn new() -> Self {
         Self {
-            registers: HashMap::new(),
             rounding_mode: RoundingMode::TiesTowardZero,
         }
     }
@@ -61,13 +59,14 @@ where
                 ResultOrTerminate::Result(res)
             }
             OperandStorage::Register { id, ty } => {
-                let hook = self.state.hooks.read_fp_register(ty, &id, &self.state.fp_state.registers, rm, &mut self.state.memory);
+                let hook = self.state.hooks.reader(&mut self.state.memory).read_fp_register(&id, ty, destination_ty, rm, true);
 
                 match hook {
                     ResultOrHook::Hook(hook) => ResultOrTerminate::Result(hook(&mut self.state)),
                     ResultOrHook::EndFailure(e) => ResultOrTerminate::Failure(e),
                     ResultOrHook::Hooks(_) => todo!("Handle multiple hooks"),
-                    ResultOrHook::Result(e) => ResultOrTerminate::Result(Ok(e)),
+                    ResultOrHook::Result(Ok(e)) => ResultOrTerminate::Result(Ok(e)),
+                    ResultOrHook::Result(Err(e)) => ResultOrTerminate::Result(Err(e).context("While resolving register value")),
                 }
             }
             OperandStorage::Immediate { value, ty } => ResultOrTerminate::Result(self.state.memory.from_f64(value, rm, ty)),
@@ -134,14 +133,14 @@ where
                         Err(crate::GAError::InternalError(InternalError::TypeError)).context(format!("While writing {ty:?} to {:?} register", value.ty())),
                     );
                 }
-                let hook = self.state.hooks.write_fp_register(&id, value.clone(), &mut self.state.fp_state.registers);
+                let hook = self.state.hooks.writer(&mut self.state.memory).write_fp_register(&id, &value, rm, true);
 
                 match hook {
                     ResultOrHook::Hook(hook) => ResultOrTerminate::Result(hook(&mut self.state, value)),
                     ResultOrHook::EndFailure(e) => ResultOrTerminate::Failure(e),
                     ResultOrHook::Hooks(_) => todo!("Handle multiple hooks"),
                     ResultOrHook::Result(Ok(e)) => ResultOrTerminate::Result(Ok(e)),
-                    ResultOrHook::Result(Err(e)) => ResultOrTerminate::Result(Err(e)),
+                    ResultOrHook::Result(Err(e)) => ResultOrTerminate::Result(Err(e).context("While resolving register value")),
                 }
             }
             // NOTE: This is now explicitly prohibited as this does not affect the program memory,
@@ -326,20 +325,11 @@ where
     }
 }
 
-impl<C: Composition> std::fmt::Display for FpState<C> {
+impl std::fmt::Display for FpState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let Self { registers, rounding_mode } = self;
+        let Self { rounding_mode } = self;
         write!(f, "Rounding mode : {rounding_mode}\r\n")?;
 
-        f.write_str("\tRegister file:\r\n")?;
-        for (register_name, register_value) in registers {
-            let mut s = format!("{:?}", register_value);
-            if s.len() > 100 {
-                s = "FP expressions".to_string();
-            }
-
-            write!(f, "\t\t{register_name}: {s}\n\n")?;
-        }
         write!(f, "\r\n")
     }
 }

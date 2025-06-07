@@ -247,7 +247,7 @@ impl super::ArmV7EM {
             V7Operation::It(_) => {
                 let counter = |state: &mut GAState<C>| match state.get_last_instruction() {
                     Some(instr) => match instr.instruction_size {
-                        16 => 0,
+                        // 16 => 0,
                         _ => 1,
                     },
                     None => 1,
@@ -540,6 +540,8 @@ impl super::ArmV7EM {
 
             V7Operation::VmlF32(_) | V7Operation::VmlF64(_) => CycleCount::Value(3),
             V7Operation::VfmxF32(_) | V7Operation::VfmxF64(_) => CycleCount::Value(3),
+            V7Operation::VPushF32(VPushF32 { imm32: _, registers }) => CycleCount::Value(1 + registers.len()),
+            V7Operation::VPushF64(VPushF64 { imm32: _, registers }) => CycleCount::Value(1 + registers.len() * 2),
 
             V7Operation::Stc(_)
             | V7Operation::Mcr(_)
@@ -585,8 +587,6 @@ impl super::ArmV7EM {
             | V7Operation::VStmF64(_)
             | V7Operation::VStrF32(_)
             | V7Operation::VStrF64(_)
-            | V7Operation::VPushF32(_)
-            | V7Operation::VPushF64(_)
             | V7Operation::VLdrF32(_)
             | V7Operation::VLdrF64(_)
             | V7Operation::VPopF32(_)

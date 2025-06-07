@@ -1,6 +1,6 @@
 use armv6_m_instruction_parser::registers;
 use disarmv7::{
-    arch::{register::IEEE754RoundingMode, Condition},
+    arch::{register::IEEE754RoundingMode, Condition, Register},
     operation::{
         ConversionArgument,
         F32OrF64,
@@ -84,11 +84,10 @@ use transpiler::pseudo;
 use super::{sealed::Into, Decode};
 use crate::{
     arch::Architecture,
-    defaults::bitwuzla::DefaultCompositionNoLogger,
     executor::{hooks::HookContainer, state::GAState, vm::VM, GAExecutor},
     logging::NoLogger,
     project::Project,
-    smt::{bitwuzla::Bitwuzla, SmtExpr, SmtSolver},
+    smt::{SmtExpr, SmtSolver},
     Endianness,
     WordSize,
 };
@@ -348,6 +347,7 @@ impl Decode for VfmxF32 {
         let sn = sn.local_into();
         let sd = sd.local_into();
         let sm = sm.local_into();
+        // Issue with bit 4, IOX exception. Not detected.
         pseudo!([
             sn:f32;
             sd:f32;
@@ -355,8 +355,7 @@ impl Decode for VfmxF32 {
             if (*negate) {
                 sn = 0.0f32 - sn;
             }
-            let mul = sn*sm;
-            sd = sd + mul;
+            sd = fma(sn,sm,sd);
         ])
     }
 }
@@ -374,8 +373,9 @@ impl Decode for VfmxF64 {
             if (*negate) {
                 dn = 0.0f64 - dn;
             }
-            let mul = dn*dm;
-            dd = dd + mul;
+            dd = fma(dn,dm,dd);
+
+            // dd = dd + mul;
         ])
     }
 }
@@ -1275,8 +1275,11 @@ impl Decode for VPushF64 {
             Register("SP&") = Register("SP&") - imm32;
             for register in registers.into_iter() {
                 register:f64;
-                LocalAddress(address,64) = Cast(register,u64);
-                address += 8.local_into();
+                let intermediate:u64 = Cast(register,u64);
+                LocalAddress(address,32) = intermediate<63:32>;
+                address += 4.local_into();
+                LocalAddress(address,32) = intermediate<31:0>;
+                address += 4.local_into();
             }
         ])
     }
@@ -1285,6 +1288,7 @@ impl Decode for VPushF64 {
 impl Decode for VLdrF32 {
     fn decode(&self, _in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
         let Self { add, imm32, rn, sd } = self;
+        let is_pc = *rn == Register::PC;
         let imm32 = imm32.local_into();
         let rn = rn.local_into();
         let sd = sd.local_into();
@@ -1292,6 +1296,10 @@ impl Decode for VLdrF32 {
             rn:u32;
             sd:f32;
             let base = rn;
+            if (is_pc) {
+                base = Register("PC+");
+                base = Resize(base<31:2>,u32) << 2u32;
+            }
             let address = base;
             if (*add) {
                 address += imm32;
@@ -1308,6 +1316,7 @@ impl Decode for VLdrF32 {
 impl Decode for VLdrF64 {
     fn decode(&self, _in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
         let Self { add, imm32, rn, dd } = self;
+        let is_pc = *rn == Register::PC;
         let imm32 = imm32.local_into();
         let rn = rn.local_into();
         let dd = dd.local_into();
@@ -1315,6 +1324,10 @@ impl Decode for VLdrF64 {
             rn:u32;
             sd:f64;
             let base = rn;
+            if (is_pc) {
+                base = Register("PC+");
+                base = Resize(base<31:2>,u32) << 2u32;
+            }
             let address = base;
             if (*add) {
                 address += imm32;
@@ -1448,24 +1461,23 @@ impl Decode for VmoveF64 {
         let dm = dm.local_into();
         let rt = rt.local_into();
         let rt2 = rt2.local_into();
+        println!("RT : {rt:?}");
+        println!("RT2 : {rt2:?}");
 
-        let ret = pseudo!([
+        pseudo!([
             dm:f64;rt:u32;rt2:u32;
 
             if(*to_core) {
                 let value:u64 = Cast(dm,u64);
-                let intermediate:u64 = Resize(value<31:0>,u64);
-                rt = Resize(intermediate,u32);
-                intermediate = Resize(value<63:32:u64>,u64);
-                rt2 = Resize(intermediate,u32);
+                rt =  value<63:32:u64>;
+                rt2 = value<31:0:u64>;
             } else {
                 let value:u64 = Resize(rt,u64);
-                let intermediate = Resize(rt2,u64) << 32.local_into();
+                let intermediate = Resize(rt2,u64) << 32u64;
                 value |= intermediate;
                 dm = Cast(value,f64);
             }
-        ]);
-        ret
+        ])
     }
 }
 
@@ -1583,12 +1595,12 @@ impl super::sealed::Into<Operand> for Wrappedu64 {
 impl super::sealed::Into<Operand> for Wrappedu32 {
     fn local_into(self) -> Operand {
         let val_ptr: *const u32 = (&self.0) as *const u32;
+        let value = unsafe { core::ptr::read(val_ptr as *const f32) } as f64;
+
+        println!("Writing {value}");
         Operand {
             ty: OperandType::Binary32,
-            value: OperandStorage::Immediate {
-                value: unsafe { core::ptr::read(val_ptr as *const f32) } as f64,
-                ty: OperandType::Binary32,
-            },
+            value: OperandStorage::Immediate { value, ty: OperandType::Binary32 },
         }
     }
 }

@@ -1,11 +1,14 @@
 //! Helper functions to read dwarf debug data.
 
-use std::{borrow::Cow, hash::Hash, io::BufRead};
+use std::{borrow::Cow, hash::Hash, io::BufRead, marker::PhantomData};
 
 use disarmv7::arch::register;
+use general_assembly::extension::ieee754::RoundingMode;
 use gimli::{
     read::DebugFrame,
     AttributeValue,
+    BaseAddresses,
+    CfaRule,
     CompleteLineProgram,
     DW_AT_decl_file,
     DW_AT_decl_line,
@@ -20,7 +23,10 @@ use gimli::{
     EndianSlice,
     LineSequence,
     Reader,
+    RegisterRule,
     RunTimeEndian,
+    UnwindContext,
+    UnwindSection,
 };
 use hashbrown::{HashMap, HashSet};
 use object::{Object, ObjectSection};
@@ -30,8 +36,10 @@ use rust_debug::call_stack::{CallFrame, MemoryAccess, StackFrame};
 use crate::{
     arch::{Architecture, ArchitectureOverride, SupportedArchitecture},
     debug,
-    smt::{SmtExpr, SmtMap},
+    executor::state::GAState,
+    smt::{SmtExpr, SmtFPExpr, SmtMap},
     trace,
+    Composition,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -428,7 +436,150 @@ pub struct CallStack {
     pub stack_trace: Vec<(CallFrame, Vec<(String, String)>)>,
 }
 
+#[derive(Clone)]
+enum Either<A, B, C> {
+    Const(C),
+    FP(B),
+    BV(A),
+}
+
+pub struct CallStackBuilder<'ctx, C: Composition> {
+    addr: BaseAddresses,
+    ctx: UnwindContext<usize>,
+    state: &'ctx mut GAState<C>,
+    debug_data: &'ctx DebugData,
+    pc: u64,
+    arch: &'ctx SupportedArchitecture<C::ArchitectureOverride>,
+    registers: HashMap<String, Either<C::SmtExpression, C::SmtFPExpression, u64>>,
+    frames: Vec<CF<C>>,
+}
+
+impl<'ctx, C: Composition> CallStackBuilder<'ctx, C> {
+    fn build(state: &'ctx mut GAState<C>, debug_data: &'ctx DebugData, arch: &'ctx SupportedArchitecture<C::ArchitectureOverride>) {
+        let addr = gimli::BaseAddresses::default();
+        let ctx = gimli::UnwindContext::new();
+
+        let mut b = Self {
+            addr,
+            ctx,
+            pc: state.last_pc.clone(),
+            state,
+            debug_data,
+            arch,
+            registers: HashMap::new(),
+            frames: Vec::new(),
+        };
+        b.build_recursive(1);
+    }
+
+    fn build_recursive(&mut self, mut depth: usize) {
+        if depth == 0 {
+            return;
+        }
+        depth -= 1;
+        let pc = self.pc;
+        let unwind_info = match self
+            .debug_data
+            .debug_frame
+            .unwind_info_for_address(&mut self.addr, &mut self.ctx, pc, gimli::DebugFrame::cie_from_offset)
+        {
+            Ok(v) => v,
+            Err(e) => {
+                return;
+            }
+        };
+
+        let base = match unwind_info.cfa() {
+            CfaRule::RegisterAndOffset { register, offset } => {
+                let register = register.0;
+                let reg_name = self.arch.register_number_to_name(register as u64).expect("TODO, must return None here");
+                self.state
+                    .get_register(reg_name)
+                    .expect("Register to exist in lookup")
+                    .get_constant()
+                    .expect("Offset registers to be of known value.") as i64
+                    + offset
+            }
+            CfaRule::Expression(expr) => {
+                unimplemented!()
+            }
+        } as u64;
+        for (register, ref rule) in unwind_info.registers() {
+            let name = self.arch.register_number_to_name(register.0 as u64).expect("Register name to exist");
+            let val: Either<C::SmtExpression, C::SmtFPExpression, u64> = match rule {
+                RegisterRule::Undefined => {
+                    if name == "PC" {
+                        Either::Const(self.pc)
+                    } else if name == "SP" {
+                        Either::Const(base)
+                    } else {
+                        continue;
+                    }
+                }
+                RegisterRule::SameValue => self
+                    .registers
+                    .get(&name)
+                    .cloned()
+                    .unwrap_or(Either::BV(self.state.get_register(&name).expect("Register to be availiable"))),
+                RegisterRule::Offset(o) => {
+                    let addr = self.state.memory.from_u64((base as i64 + o) as u64, self.arch.word_size() as u32);
+                    Either::BV(self.state.memory.get(&addr, self.arch.word_size() as u32).expect("Reading to be possible"))
+                }
+                RegisterRule::ValOffset(o) => Either::Const((o + base as i64) as u64),
+                RegisterRule::Register(r) => {
+                    let name = self.arch.register_number_to_name(r.0 as u64).expect("Register name to exist");
+                    self.registers
+                        .get(&name)
+                        .cloned()
+                        .unwrap_or(Either::BV(self.state.get_register(&name).expect("Register to be availiable")))
+                }
+                RegisterRule::Constant(c) => Either::Const(*c),
+                _ => unimplemented!("Return None here instead"),
+            };
+            self.registers.insert(name, val);
+        }
+        let frame = CF {
+            pc,
+            base,
+            registers: self.registers.clone(),
+        };
+        self.frames.push(frame);
+        self.pc = self.registers.get("LR").map(|el| el.get_constant()).flatten().expect("LR to be constant");
+
+        self.build_recursive(depth);
+    }
+}
+impl<BV: SmtExpr, FP: SmtFPExpr> Either<BV, FP, u64> {
+    fn get_constant(&self) -> Option<u64> {
+        match self {
+            Self::BV(b) => b.get_constant(),
+            Self::Const(c) => Some(*c),
+            Self::FP(f) => f.to_bv(RoundingMode::TiesTowardZero, false).ok().map(|el| el.get_constant()).flatten(),
+        }
+    }
+
+    fn get_a_constant(&self) -> Option<u64> {
+        match self {
+            Self::BV(b) => b.get_a_solution(&[]),
+            Self::Const(c) => Some(*c),
+            Self::FP(f) => f.to_bv(RoundingMode::TiesTowardZero, false).ok().map(|el| el.get_constant()).flatten(),
+        }
+    }
+}
+
+struct CF<C: Composition> {
+    pc: u64,
+    registers: HashMap<String, Either<C::SmtExpression, C::SmtFPExpression, u64>>,
+    base: u64,
+}
+
 impl DebugData {
+    // fn unwind_symbolic_rec(&self, base_address: gimli::BaseAddresses, ctx: &mut
+    // UnwindContext) {     self.debug_frame.unwind_info_for_address(&
+    // base_address, ctx, address, get_cie) }
+
+    pub fn unwind_symbolic(&self) {}
+
     pub(crate) fn new(object: &'static object::File<'static>, endian: gimli::RunTimeEndian) -> Result<Self, Box<dyn std::error::Error>> {
         let load_section = |id: gimli::SectionId| -> Result<std::borrow::Cow<'_, [u8]>, Box<dyn std::error::Error>> {
             Ok(match object.section_by_name(id.name()) {
@@ -471,7 +622,6 @@ impl DebugData {
         let pc = dap.mem.get_pc().expect("Valid pc");
         registers.insert("PC".to_string(), pc);
         registers.iter().for_each(|(reg, value)| {
-            println!("Looking up register {reg}");
             let _ = register_map.insert(
                 arch.register_name_to_number(reg).expect("Register to be named") as u16,
                 value.get_a_solution(dap.constraints).expect("State to be sat") as u32,

@@ -154,7 +154,11 @@ fn setup_test_vm() -> VM<DefaultCompositionNoLogger> {
     let project_global = Box::new(Project::manual_project(vec![], 0, 0, WordSize::Bit32, Endianness::Little, HashMap::new()));
     let project: &'static Project = Box::leak(project_global);
     let mut hooks = HookContainer::new();
-    ArmV7EM { in_it_block: false }.add_hooks(&mut hooks, &mut SubProgramMap::empty());
+    ArmV7EM {
+        in_it_block: false,
+        it_instr: false,
+    }
+    .add_hooks(&mut hooks, &mut SubProgramMap::empty());
     let state = GAState::<DefaultCompositionNoLogger>::create_test_state(
         project,
         ctx.clone(),

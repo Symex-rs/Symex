@@ -162,6 +162,40 @@ impl<C: Composition> SymexArbiter<C> {
             self.architecture.clone(),
             self.line_map.clone(),
             self.debug_data.clone(),
+            None,
+        )?;
+
+        let vm = VM::new_from_state(
+            self.project.clone(),
+            &self.ctx,
+            state,
+            0xfffffffe,
+            self.state_container.clone(),
+            self.hooks.clone(),
+            self.architecture.clone(),
+            self.logger.clone(),
+        )?;
+        Ok(Runner { vm, path_idx: 0 })
+    }
+
+    pub fn run_from_pc_with_hooks(&mut self, pc: u64, language: LangagueHooks, add_hooks: Option<PrioriHookContainer<C>>) -> crate::Result<Runner<C>> {
+        let mut hooks = self.hooks.clone();
+        hooks.add_language_hooks(&self.symbol_lookup, language);
+        if let Some(new_hooks) = add_hooks {
+            hooks.add_all(new_hooks);
+        }
+        let state = GAState::new(
+            self.ctx.clone(),
+            self.ctx.clone(),
+            self.project.clone(),
+            hooks,
+            0xfffffffe,
+            pc,
+            self.state_container.clone(),
+            self.architecture.clone(),
+            self.line_map.clone(),
+            self.debug_data.clone(),
+            None,
         )?;
 
         let vm = VM::new_from_state(
@@ -200,7 +234,7 @@ impl<C: Composition> Iterator for Runner<C> {
         } {
             let cycles = state.get_cycle_count();
             logger.set_path_idx(self.path_idx);
-            logger.update_delimiter(pc);
+            logger.update_delimiter(pc, &mut state);
             // logger.record_backtrace(state.get_back_trace(&conditions));
             logger.add_constraints(
                 conditions

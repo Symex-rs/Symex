@@ -284,14 +284,14 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
         } else {
             self.state.architecture.post_instruction_execution_hook()(&mut self.state);
         }
-        let bt = self.state.get_back_trace(&[]);
-        logger.record_backtrace(bt);
+        // let bt = self.state.get_back_trace(&[]);
+        // logger.record_backtrace(bt);
 
         let mut instruction_counter = 0;
         loop {
             instruction_counter += 1;
             self.state.architecture.pre_instruction_loading_hook()(&mut self.state);
-            let instruction = match extract!(Result(self.state.get_next_instruction(logger)), context: "While executing instruction {instruction_counter} in a resumed context @ {}",self.state.debug_string_new_pc())
+            let instruction = match extract!(Result(self.state.get_next_instruction(logger)), context: "While executing instruction {instruction_counter} in a resumed context @ {}",self.state.debug_string_address(self.state.last_pc))
             {
                 HookOrInstruction::Instruction(v) => v,
                 HookOrInstruction::PcHook(hook) => match hook {
@@ -311,7 +311,7 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
                     }
                     PCHook::EndFailure(reason) => {
                         debug!("Symbolic execution ended unsuccessfully");
-                        let data = *reason;
+                        let data = reason;
                         self.state.increment_cycle_count();
                         return Ok(PathResult::Failure(data));
                     }
@@ -397,7 +397,7 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
                     }
                     PCHook::EndFailure(reason) => {
                         debug!("Symbolic execution ended unsuccessfully");
-                        let data = *reason;
+                        let data = reason;
                         self.state.increment_cycle_count();
                         return Ok(Some(PathResult::Failure(data)));
                     }
@@ -466,7 +466,7 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
                     }
                     PCHook::EndFailure(reason) => {
                         debug!("Symbolic execution ended unsuccessfully");
-                        let data = *reason;
+                        let data = reason;
                         self.state.increment_cycle_count();
                         return Ok(PathResult::Failure(data));
                     }
@@ -508,8 +508,19 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
 
     // Fork execution. Will create a new path with `constraint`.
     fn fork(&mut self, constraint: C::SmtExpression, logger: &mut C::Logger, operation: Continue, msg: &'static str) -> Result<()> {
-        trace!("Save backtracking path: constraint={:?}, continue on {} instruction", constraint, operation);
-        debug!("Forking {msg}");
+        // println!("Save backtracking path: constraint={:?}, continue on {}
+        // instruction", constraint, operation);
+        let pc = self.state.last_pc;
+
+        println!("Forking {msg} @ {pc:#x}");
+        println!("Forking {msg} @ {pc:#x}");
+        println!("Forking {msg} @ {pc:#x}");
+        let line_info = self.state.debug_string_new_pc();
+        println!("Forking {msg} @ {pc:#x};\r\n{line_info}");
+        println!("Forking {msg} @ {pc:#x};\r\n{line_info}");
+        println!("Forking {msg} @ {pc:#x};\r\n{line_info}");
+        println!("Forking {msg} @ {pc:#x};\r\n{line_info}");
+
         let mut forked_state = match operation {
             Continue::This => {
                 let mut clone = self.state.clone();
@@ -763,10 +774,10 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
             Operand::Immediate(_) => panic!(), // Not prohibited change to error later
             Operand::AddressInLocal(local_name, width) => {
                 let address = extract!(Ok(self.get_operand_value(&Operand::Local(local_name.to_owned()), logger)));
-                let address = match extract!(Ok(self.resolve_address(address.clone(), logger, true))) {
-                    Some(addr) => self.state.memory.from_u64(addr, self.state.memory.get_ptr_size()),
-                    None => address,
-                };
+                // let address = match extract!(Ok(self.resolve_address(address.clone(), logger,
+                // true))) {     Some(addr) => self.state.memory.from_u64(addr,
+                // self.state.memory.get_ptr_size()),     None => address,
+                // };
                 // println!("Setting address {address:#x}");
                 extract!(Ok(self.set_memory(value.simplify(), address, *width)));
                 // trace!("Setting address {:?} to {:?}",
@@ -901,7 +912,7 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
                     // });
 
                     let constraint = address._eq(addr);
-                    if let Err(e) = self.fork(constraint, logger, Continue::This, "Forking due to non concrete address") {
+                    if let Err(e) = self.fork(constraint, logger, Continue::This, "Forking due to non concrete address while resolving address") {
                         warn!("Failed to fork state on non concrete address");
                         return ResultOrTerminate::Result(Err(e));
                     }
@@ -994,6 +1005,10 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
                         self.state.constraints.assert(&c);
                     }
 
+                    if !true_possible && !false_possible {
+                        return ResultOrTerminate::Result(Err(SolverError::Unsat).context("While determining if executor should run."));
+                    }
+
                     true_possible
                 }
             },
@@ -1002,7 +1017,7 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
 
         if should_run {
             debug!("{}", self.state.debug_string());
-            logger.update_delimiter(self.state.last_pc);
+            logger.update_delimiter(self.state.last_pc, &mut self.state);
             self.context.clear();
             self.context.execution_queue.push_back((0, i.operations.clone()));
 
@@ -1224,7 +1239,7 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
                         //         context: ctx,
                         //     });
                         // }
-                        extract!(Ok(self.fork(c.not(), logger, Continue::Next, "Forking paths due to conditional branch")));
+                        extract!(Ok(self.fork(c.not(), logger, Continue::This, "Forking paths due to conditional branch")));
                         self.state.constraints.assert(&c);
                         self.state.set_has_jumped();
                         let dest_value = extract!(Ok(self.get_operand_value(destination, logger)));
@@ -2227,7 +2242,6 @@ mod test {
             assert_eq!(r0_value, 2);
 
             let r1_value = executor.get_operand_value(&r1, &mut NoLogger).ok().unwrap().get_constant();
-            println!("R1 : {r1_value:#x?}");
             assert!(r1_value.is_none());
             assert!(executor.vm.paths.get_path().is_none())
         } else {

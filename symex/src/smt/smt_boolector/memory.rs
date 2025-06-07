@@ -20,7 +20,13 @@ use crate::{
     executor::ResultOrTerminate,
     memory::{MemoryError, BITS_IN_BYTE},
     project::Project,
-    smt::{sealed::Context, smt_boolector::Boolector, DArray, DContext, DExpr, ProgramMemory, SmtExpr, SmtMap},
+    smt::{
+        sealed::Context,
+        smt_boolector::{Boolector, DArray, DContext, DExpr},
+        ProgramMemory,
+        SmtExpr,
+        SmtMap,
+    },
     trace,
     Composition,
     Endianness,
@@ -173,22 +179,27 @@ impl<State: UserStateContainer> SmtMap for BoolectorMemory<State> {
     type SMT = Boolector;
     type StateContainer = State;
 
-    fn new(
+    fn new<O: crate::arch::ArchitectureOverride>(
         smt: Self::SMT,
         program_memory: Self::ProgramMemory,
-        word_size: u32,
         endianness: Endianness,
         initial_sp: Self::Expression,
-        initial_state: &Self::StateContainer,
+        _state: &Self::StateContainer,
+        arch: &crate::arch::SupportedArchitecture<O>,
     ) -> Result<Self, crate::GAError> {
         let ctx = Box::new(crate::smt::smt_boolector::BoolectorSolverContext { ctx: smt.ctx.clone() });
         let ctx = Box::leak::<'static>(ctx);
         let ram = {
-            let memory = DArray::new(&crate::smt::smt_boolector::BoolectorSolverContext { ctx: smt.ctx }, word_size, BITS_IN_BYTE, "memory");
+            let memory = DArray::new(
+                &crate::smt::smt_boolector::BoolectorSolverContext { ctx: smt.ctx },
+                arch.word_size() as u32,
+                BITS_IN_BYTE,
+                "memory",
+            );
 
             ArrayMemory {
                 ctx,
-                ptr_size: word_size,
+                ptr_size: arch.ptr_size() as u32,
                 memory,
                 endianness,
             }
@@ -199,7 +210,7 @@ impl<State: UserStateContainer> SmtMap for BoolectorMemory<State> {
             flags: HashMap::new(),
             variables: HashMap::new(),
             program_memory,
-            word_size,
+            word_size: arch.word_size() as u32,
             pc: 0,
             initial_sp,
             un_named_counter: 0,
@@ -393,12 +404,6 @@ impl<State: UserStateContainer> SmtMap for BoolectorMemory<State> {
     }
 }
 
-impl From<MemoryError> for crate::smt::MemoryError {
-    fn from(value: MemoryError) -> Self {
-        Self::MemoryFileError(value)
-    }
-}
-
 impl<State: UserStateContainer> Display for BoolectorMemory<State> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("\tVariables:\r\n")?;
@@ -437,7 +442,7 @@ fn strip(s: String) -> String {
 #[cfg(test)]
 mod test {
     use super::ArrayMemory;
-    use crate::{smt::DContext, Endianness};
+    use crate::{smt::smt_boolector::DContext, Endianness};
 
     fn setup_test_memory(endianness: Endianness) -> ArrayMemory {
         let ctx = Box::new(DContext::new());

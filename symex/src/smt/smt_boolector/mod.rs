@@ -21,6 +21,15 @@ pub(super) use solver::BoolectorIncrementalSolver;
 
 use super::{SmtExpr, SmtFPExpr, SmtSolver, Solutions, SolverError};
 
+#[must_use]
+pub type DExpr = BoolectorExpr;
+#[must_use]
+pub type DSolver = BoolectorIncrementalSolver;
+#[must_use]
+pub type DContext = BoolectorSolverContext;
+#[must_use]
+pub type DArray = BoolectorArray;
+
 #[derive(Debug, Clone)]
 pub struct Boolector {
     pub ctx: Pinned<Btor>,

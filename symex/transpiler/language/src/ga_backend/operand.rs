@@ -53,10 +53,10 @@ impl Compile for WrappedLiteral {
                 quote_spanned! {span => general_assembly::operand::Operand::Immediate(general_assembly::prelude::DataWord::Word32(#val as u32))},
             ),
             Type::U(64) => Ok(
-                quote_spanned! {span => general_assembly::operand::Operand::Immediate(general_assembly::prelude::DataWord::Word32(#val as u64))},
+                quote_spanned! {span => general_assembly::operand::Operand::Immediate(general_assembly::prelude::DataWord::Word64(#val as u64))},
             ),
             Type::U(128) => Ok(
-                quote_spanned! {span => general_assembly::operand::Operand::Immediate(general_assembly::prelude::DataWord::Word32(#val as u128))},
+                quote_spanned! {span => general_assembly::operand::Operand::Immediate(general_assembly::prelude::DataWord::Word128(#val as u128))},
             ),
             Type::I(8) => Ok(
                 quote_spanned! {span =>general_assembly::operand::Operand::Immediate(general_assembly::prelude::DataWord::Word8((#val).cast_unsigned()))},

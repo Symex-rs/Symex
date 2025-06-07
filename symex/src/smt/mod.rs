@@ -13,6 +13,7 @@ use hashbrown::HashMap;
 use sealed::Context;
 
 use crate::{
+    arch::{Architecture, ArchitectureOverride, SupportedArchitecture},
     executor::{
         hooks::{HookContainer, TemporalHook},
         instruction::CycleCount,
@@ -27,19 +28,13 @@ use crate::{
     UserStateContainer,
 };
 
+#[cfg(feature = "bitwuzla")]
 pub mod bitwuzla;
+#[cfg(feature = "z3")]
 pub mod z3;
 //pub mod deterministic;
+#[cfg(feature = "boolector")]
 pub mod smt_boolector;
-
-#[must_use]
-pub type DExpr = smt_boolector::BoolectorExpr;
-#[must_use]
-pub type DSolver = smt_boolector::BoolectorIncrementalSolver;
-#[must_use]
-pub type DContext = smt_boolector::BoolectorSolverContext;
-#[must_use]
-pub type DArray = smt_boolector::BoolectorArray;
 
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 pub enum SolverError {
@@ -132,14 +127,14 @@ pub trait SmtMap: Debug + Clone + Display {
     type ProgramMemory: ProgramMemory;
     type StateContainer: UserStateContainer;
 
-    fn new(
+    fn new<O: ArchitectureOverride>(
         smt: Self::SMT,
-        project: Self::ProgramMemory,
-        word_size: u32,
+        program_memory: Self::ProgramMemory,
         endianness: Endianness,
         initial_sp: Self::Expression,
-        initial_state: &Self::StateContainer,
-    ) -> Result<Self, GAError>;
+        _state: &Self::StateContainer,
+        arch: &SupportedArchitecture<O>,
+    ) -> Result<Self, crate::GAError>;
 
     fn get(&mut self, idx: &Self::Expression, size: u32) -> ResultOrTerminate<Self::Expression>;
 
@@ -169,6 +164,22 @@ pub trait SmtMap: Debug + Clone + Display {
     fn get_registers(&mut self) -> HashMap<String, Self::Expression>;
 
     fn set_register(&mut self, idx: &str, value: Self::Expression) -> Result<(), MemoryError>;
+
+    fn set_fp_register(&mut self, idx: &str, value: <Self::SMT as SmtSolver>::FpExpression, rm: RoundingMode, signed: bool) -> Result<(), MemoryError> {
+        self.set_register(idx, value.to_bv(rm, signed).expect("Float conversion to be valid"))
+    }
+
+    fn get_fp_register(
+        &mut self,
+        idx: &str,
+        source_ty: OperandType,
+        dest_ty: OperandType,
+        rm: RoundingMode,
+        signed: bool,
+    ) -> Result<<Self::SMT as SmtSolver>::FpExpression, MemoryError> {
+        let reg = self.get_register(idx)?;
+        Ok(reg.to_fp(source_ty, dest_ty, rm, signed).expect("Floatingpoint conversion to be valid"))
+    }
 
     // NOTE: Might be a poor assumption that the word size for PC is 32 bit.
     fn get_pc(&self) -> Result<Self::Expression, MemoryError>;
@@ -668,6 +679,12 @@ pub trait SmtExpr: Debug + Clone {
     /// Removes the latest requirement from the queue.
 
     fn pop(&self);
+}
+
+impl From<crate::memory::MemoryError> for crate::smt::MemoryError {
+    fn from(value: crate::memory::MemoryError) -> Self {
+        Self::MemoryFileError(value)
+    }
 }
 
 pub(crate) mod sealed {

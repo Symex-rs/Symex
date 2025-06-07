@@ -20,7 +20,7 @@ use crate::{
     logging::Logger,
     project::{
         self,
-        dwarf_helper::{CallStack, DebugData, LineMap, DAP},
+        dwarf_helper::{CallStack, DebugData, LineMap, SubProgram, DAP},
         ProjectError,
     },
     smt::{ProgramMemory, SmtExpr, SmtMap, SmtSolver},
@@ -31,8 +31,8 @@ use crate::{
     Result,
 };
 
-pub enum HookOrInstruction<'a, C: Composition> {
-    PcHook(&'a PCHook<C>),
+pub enum HookOrInstruction<C: Composition> {
+    PcHook(PCHook<C>),
     Instruction(Instruction<C>),
 }
 
@@ -59,8 +59,9 @@ pub struct GAState<C: Composition> {
     has_jumped: bool,
     pub instruction_conditions: VecDeque<Condition>,
     pub instruction_had_condition: bool,
-    pub fp_state: FpState<C>,
+    pub fp_state: FpState,
     pub line_lookup: LineMap,
+    entry_subprogram: Option<SubProgram>,
     debug_data: Option<DebugData>,
 }
 
@@ -77,6 +78,7 @@ impl<C: Composition> GAState<C> {
         architecture: SupportedArchitecture<C::ArchitectureOverride>,
         line_lookup: LineMap,
         debug_data: DebugData,
+        entry_subprogram: Option<SubProgram>,
     ) -> std::result::Result<Self, GAError> {
         let pc_reg = start_address;
         debug!("Found function at addr: {:#X}.", pc_reg);
@@ -90,7 +92,7 @@ impl<C: Composition> GAState<C> {
 
         let endianness = project.get_endianness();
         let initial_sp = ctx.from_u64(sp_reg, ptr_size as u32);
-        let mut memory = C::Memory::new(ctx.clone(), project, ptr_size, endianness, initial_sp, &state)?;
+        let mut memory = C::Memory::new(ctx.clone(), project, endianness, initial_sp, &state, &architecture)?;
         let pc_expr = ctx.from_u64(pc_reg, ptr_size as u32);
         memory.set_register("PC", pc_expr)?;
 
@@ -120,6 +122,7 @@ impl<C: Composition> GAState<C> {
             instruction_had_condition: false,
             line_lookup,
             debug_data: Some(debug_data),
+            entry_subprogram,
         };
 
         ret.architecture.initiate_state()(&mut ret);
@@ -238,7 +241,7 @@ impl<C: Composition> GAState<C> {
         let end = project.get_endianness();
         let initial_sp = ctx.from_u64(start_stack, 32);
 
-        let memory = C::Memory::new(ctx, project, 32, end, initial_sp, &state).unwrap();
+        let memory = C::Memory::new(ctx, project, end, initial_sp, &state, &architecture).unwrap();
         let mut registers = HashMap::new();
         let pc_expr = memory.from_u64(pc_reg, 32);
         registers.insert("PC".to_owned(), pc_expr);
@@ -265,6 +268,7 @@ impl<C: Composition> GAState<C> {
             instruction_had_condition: false,
             line_lookup: LineMap::empty(),
             debug_data: None,
+            entry_subprogram: None,
         };
         ret.architecture.initiate_state()(&mut ret);
 
@@ -385,14 +389,14 @@ impl<C: Composition> GAState<C> {
     }
 
     /// Get the next instruction based on the address in the PC register.
-    pub fn get_next_instruction(&mut self, logger: &mut C::Logger) -> ResultOrTerminate<HookOrInstruction<'_, C>> {
+    pub fn get_next_instruction(&mut self, logger: &mut C::Logger) -> ResultOrTerminate<HookOrInstruction<C>> {
         let pc = match self.memory.get_pc().map(|val| val.get_constant().ok_or(GAError::NonDeterministicPC)) {
             Ok(Ok(val)) => val,
             Ok(Err(err)) => return ResultOrTerminate::Result(Err(err).context("While reading instruction")),
             Err(err) => return ResultOrTerminate::Result(Err(err).context("While reading instruction")),
             // Err(Ok(err)) => return ResultOrTerminate::Result(Err(crate::GAError::InternalError(InternalError::InvalidErrorCombination))),
         } & !(0b1); // Not applicable for all architectures TODO: Fix this.;
-        logger.update_delimiter(pc);
+        logger.update_delimiter(pc, self);
         if let Some(conditions) = self.hooks.get_preconditions(&pc) {
             // println!("Running preconditions @ {pc:#x}");
             let conditions = conditions.clone();
@@ -404,30 +408,35 @@ impl<C: Composition> GAState<C> {
                 assert!(new_pc == Some(pc), "Pre-condition altered program counter at {pc:#x}");
             }
         }
-        ResultOrTerminate::Result(match self.hooks.get_pc_hooks(pc as u32) {
-            ResultOrHook::Hook(hook) => Ok(HookOrInstruction::PcHook(hook)),
-            ResultOrHook::Hooks(_) => todo!("Handle multiple hooks on a single address"),
-            ResultOrHook::Result(pc) => Ok(HookOrInstruction::Instruction({
-                //println!("PC {pc:#x}");
-                extract!(Ok(ResultOrTerminate::Result(
-                    match self.instruction_from_array_ptr(&extract!(Ok(ResultOrTerminate::Result(match self.memory.get_from_instruction_memory(pc.into()) {
-                        Ok(val) => Ok(val),
-                        Err(e) => Err(e).context("While reading instruction"),
-                    })))) {
-                        Ok(val) => Ok(val),
-                        Err(e) => Err(e).context("While reading instruction"),
-                    }
-                )))
-            })),
-            _ => todo!("Handle out of bounds reads for program memory reads"),
-        })
+        let pc = {
+            match self.hooks.get_pc_hooks(pc as u32) {
+                ResultOrHook::Hook(hook) => return ResultOrTerminate::Result(Ok(HookOrInstruction::PcHook(hook.clone()))),
+                ResultOrHook::Hooks(_) => todo!("Handle multiple hooks on a single address"),
+                ResultOrHook::Result(pc) => pc,
+                _ => todo!("Handle out of bounds reads for program memory reads"),
+            }
+            .clone()
+        };
+        ResultOrTerminate::Result(Ok(HookOrInstruction::Instruction({
+            let pc = pc.clone();
+            //println!("PC {pc:#x}");
+            extract!(Ok(ResultOrTerminate::Result(
+                match self.instruction_from_array_ptr(&extract!(Ok(ResultOrTerminate::Result(match self.memory.get_from_instruction_memory(pc.into()) {
+                    Ok(val) => Ok(val),
+                    Err(e) => Err(e).context("While reading instruction"),
+                })))) {
+                    Ok(val) => Ok(val),
+                    Err(e) => Err(e).context("While reading instruction"),
+                }
+            )))
+        })))
     }
 
     #[doc(hidden)]
     /// Get the next instruction based on the address in the PC register.
     ///
     /// This function ignores the hooks.
-    pub fn get_next_instruction_raw(&self) -> Result<Instruction<C>> {
+    pub fn get_next_instruction_raw(&mut self) -> Result<Instruction<C>> {
         let pc = self.memory.get_pc().map(|val| val.get_constant().ok_or(GAError::NonDeterministicPC))?? & !(0b1); // Not applicable for all architectures TODO: Fix this.;
         Ok(self.instruction_from_array_ptr(&self.memory.get_from_instruction_memory(pc)?)?)
     }
@@ -450,8 +459,8 @@ impl<C: Composition> GAState<C> {
         Ok(self.memory.set(address, value)?)
     }
 
-    pub fn instruction_from_array_ptr(&self, data: &[u8]) -> project::Result<Instruction<C>> {
-        self.architecture.translate(data, self).map_err(|el| el.into())
+    pub fn instruction_from_array_ptr(&mut self, data: &[u8]) -> project::Result<Instruction<C>> {
+        self.architecture.translate()(data, self).map_err(|el| el.into())
     }
 
     pub fn reader<'a>(&'a mut self) -> Reader<'a, C> {
@@ -472,20 +481,22 @@ impl<C: Composition> GAState<C> {
     }
 
     pub fn debug_string_address(&self, address: u64) -> String {
+        let name = self.entry_subprogram.as_ref().map(|el| el.name.clone()).unwrap_or("No subprogram".to_string());
         let pc = address & (!0b1);
         let line = self.line_lookup.lookup(pc);
         match line {
-            Some(line) => format!("PC : {pc:#x} -> {line}"),
-            None => format!("PC: {pc:#x}"),
+            Some(line) => format!("PC : {pc:#x} -> {line} ({name})"),
+            None => format!("PC: {pc:#x} ({name})"),
         }
     }
 
     pub fn debug_string(&mut self) -> String {
+        let name = self.entry_subprogram.as_ref().map(|el| el.name.clone()).unwrap_or("No subprogram".to_string());
         let pc = self.last_pc & (!0b1);
         let line = self.line_lookup.lookup(pc);
         let ret = match line {
-            Some(line) => format!("PC : {pc:#x} -> {line}"),
-            None => format!("PC: {pc:#x}"),
+            Some(line) => format!("PC : {pc:#x} -> {line} ({name})"),
+            None => format!("PC: {pc:#x} ({name})"),
         };
         ret
     }
@@ -498,7 +509,6 @@ impl<C: Composition> GAState<C> {
             None => format!("PC: {pc:#x}"),
         };
 
-        println!("ret");
         ret
     }
 

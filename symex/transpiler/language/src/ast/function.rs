@@ -111,6 +111,9 @@ pub enum Intrinsic {
     IsNormal(IsNormal),
     /// Checks if a value is finite.
     IsFinite(IsFinite),
+
+    /// Multiplies two numbers and adds the third number to the result.
+    MultiplyAndAccumulate(MultiplyAndAccumulate),
     // Saturate(Saturate),
 }
 
@@ -340,6 +343,17 @@ pub struct Cast {
     pub operand: Operand,
     /// The target type to cast to.
     pub target_type: Type,
+}
+
+/// Multiplies and accumulates the three operands
+#[derive(Debug, Clone, PartialEq)]
+pub struct MultiplyAndAccumulate {
+    /// The lhs of the multiplication.
+    pub lhs: Operand,
+    /// The rhs of the multiplication.
+    pub rhs: Operand,
+    /// The addend to the multiplication.
+    pub addend: Operand,
 }
 
 impl PartialEq for Abort {

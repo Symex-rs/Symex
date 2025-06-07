@@ -46,6 +46,7 @@ impl<C: Composition> VM<C> {
             architecture,
             line_map,
             debug_data,
+            Some(function.clone()),
         )?;
         state.memory.set_pc(function.bounds.0 as u32)?;
 

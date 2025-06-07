@@ -93,7 +93,7 @@ impl<Override: ArchitectureOverride> Architecture<Override> for ArmV6M {
         cfg.add_memory_read_hook(0x4000c008, read_reset_done);
     }
 
-    fn translate<C: crate::Composition>(&self, buff: &[u8], _state: &GAState<C>) -> Result<crate::executor::instruction::Instruction<C>, ArchError> {
+    fn translate<C: crate::Composition>(buff: &[u8], _state: &mut GAState<C>) -> Result<crate::executor::instruction::Instruction<C>, ArchError> {
         let mut buffer = [0; 4];
         for (source, dest) in buff[0..4].iter().zip(buffer.iter_mut()) {
             *dest = *source;
@@ -124,6 +124,10 @@ impl<Override: ArchitectureOverride> Architecture<Override> for ArmV6M {
         Self: Sized,
     {
         Self {}
+    }
+
+    fn nan_encoding(ty: general_assembly::extension::ieee754::OperandType) -> u64 {
+        unimplemented!("No support for floating point arithmetic")
     }
 }
 

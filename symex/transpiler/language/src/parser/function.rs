@@ -160,6 +160,12 @@ impl Parse for Intrinsic {
             return Ok(Self::IsFinite(el));
         }
 
+        let speculative = input.fork();
+        if let Ok(el) = speculative.parse() {
+            input.advance_to(&speculative);
+            return Ok(Self::MultiplyAndAccumulate(el));
+        }
+
         Ok(Self::SetZFlag(input.parse()?))
     }
 }
@@ -844,6 +850,24 @@ impl Parse for Log {
             call_site,
             meta,
         })
+    }
+}
+
+impl Parse for MultiplyAndAccumulate {
+    fn parse(input: ParseStream) -> Result<Self> {
+        let id: Ident = input.parse()?;
+        if id.to_string().to_lowercase() != "fma" {
+            return Err(syn::Error::new(id.span(), "Expected isfinite"));
+        }
+
+        let content;
+        syn::parenthesized!(content in input);
+        let lhs = content.parse()?;
+        let _: Token![,] = content.parse()?;
+        let rhs = content.parse()?;
+        let _: Token![,] = content.parse()?;
+        let addend = content.parse()?;
+        Ok(Self { lhs, rhs, addend })
     }
 }
 // impl Parse for Saturate {
