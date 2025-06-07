@@ -1,11 +1,18 @@
 # SYMEX
 
-Symbolic execution engine that can operate on either LLVM IR or ARMv6-M/ARMv7-M or ARMv7-EM machine code. Main use is to analyze Rust programs but programs written in other languages can potentially be analyzed.
+Symbolic execution engine that can operate on:
+
+- LLVM IR
+- ARMv6-M/ARMv7-M
+- ARMv7-EM machine code
+- RISC-V (only RV32I base integer instruction set is currently supported)
+
+Main use is to analyze Rust programs but programs written in other languages can potentially be analyzed.
 Because the library used to read LLVM bytecode is large and cumbersome is the LLVM IR part of the tool hidden behind the feature flag `llvm`.
 
 Since Symex was originally written with only LLVM IR execution in mind are the integration of machine code execution not always done coherently.
 Work is ongoing on how the two parts should coexist.
-Because of this is the following documentation split up in two different parts one for LLVM IR and one for ARMv6-M machine code.
+Because of this is the following documentation split up in two different parts one for LLVM IR and one for ARMv6-M/ARMv7-M/ARMv7-EM/RISC-V machine code.
 
 ## Binary
 
@@ -40,6 +47,10 @@ The max cycle count for each path is calculated by counting the number of cycles
 The cycle counting model does not contain any model of a branch predictor. This means that the branching model always flushes the pipeline thus incurring a lot more cycles estimated as soon as a branch can be predicted by the hardware.
 This could be improved greatly by adding a branch prediction model. The cycle counting model also assumes that the code encounters zero wait states, i.e. the code is running from RAM. The Cycle counts for each instruction are based on the [cortex-m4 documentation](https://developer.arm.com/documentation/ddi0439/b/CHDDIGAC).
 
+### Note on cycle counting for RISC-V
+
+The cycle counts are based on the single-cycle, non-pipelined [Hippomenes architecture](https://github.com/perlindgren/hippomenes).
+
 ### Limitations for armv7-(e)m
 
 The armv7 support lacks implementations for [`DSP`](https://developer.arm.com/documentation/ddi0403/d/Application-Level-Architecture/The-ARMv7-M-Instruction-Set/Data-processing-instructions/Parallel-addition-and-subtraction-instructions--DSP-extension) and the [`floating point extension`](https://developer.arm.com/documentation/ddi0403/d/Application-Level-Architecture/Application-Level-Programmers--Model/The-optional-Floating-point-extension). The DSP extension is parsable by the [`disarmv7`](https://github.com/ivario123/disarmv7) but is not implemented in the [decoder](symex/src/general_assembly/arch/arm/v7/decoder.rs).
@@ -73,6 +84,10 @@ The current (v7) implementation lacks support for floating point instructions, t
 #### Include support for hardware semaphores
 
 This is nontrivial as it extensive modeling of the system if it is to be useful. However, we could implement the baseline definition from the data sheet if we simply added a hashmap to keep track of which memory addresses are subject to a semaphore.
+
+#### Support for more RISC-V instruction sets
+
+Right now only RV32I base integer instruction set is supported.
 
 ## LLVM IR
 
@@ -205,9 +220,9 @@ You can also narrow down the scope to specific modules, e.g. the executor.
 Licensed under either of
 
 - Apache License, Version 2.0
-  ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
+  ([LICENSE-APACHE](LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>)
 - MIT license
-  ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+  ([LICENSE-MIT](LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
 
 at your option.
 
