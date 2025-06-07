@@ -329,7 +329,6 @@ impl<R: Reader<Offset = usize>> EvaluatorValue<R> {
                             }
                         }
                         None => {
-                            println!("Register {register:?}");
                             return Err(anyhow!("Requires reg"));
                         }
                     };

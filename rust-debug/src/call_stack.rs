@@ -351,7 +351,6 @@ pub fn unwind_call_stack<R: Reader<Offset = usize>, M: MemoryAccess>(registers: 
         }
         regs[*reg as usize] = Some(*val);
     }
-    println!("SP({sp_reg}) => {:?}", regs[sp_reg]);
     let code_location = registers.get_register_value(&(pc_reg as u16)).map(|v| *v as u64);
 
     unwind_call_stack_recursive(
@@ -396,8 +395,6 @@ fn unwind_call_stack_recursive<'a, M: MemoryAccess, R: Reader<Offset = usize>>(
     let current_location = match code_location {
         Some(val) => val,
         None => {
-            println!("Stopped unwinding call stack, because: Reached end of stack");
-
             return Ok(vec![]);
         }
     };
@@ -405,7 +402,6 @@ fn unwind_call_stack_recursive<'a, M: MemoryAccess, R: Reader<Offset = usize>>(
     let unwind_info = match debug_frame.unwind_info_for_address(base, ctx, current_location, gimli::DebugFrame::cie_from_offset) {
         Ok(val) => val,
         Err(err) => {
-            println!("Stopped unwinding call stack, because: {:?}", err);
             return Ok(vec![]);
         }
     };

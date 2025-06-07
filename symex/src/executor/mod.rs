@@ -774,10 +774,10 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
             Operand::Immediate(_) => panic!(), // Not prohibited change to error later
             Operand::AddressInLocal(local_name, width) => {
                 let address = extract!(Ok(self.get_operand_value(&Operand::Local(local_name.to_owned()), logger)));
-                // let address = match extract!(Ok(self.resolve_address(address.clone(), logger,
-                // true))) {     Some(addr) => self.state.memory.from_u64(addr,
-                // self.state.memory.get_ptr_size()),     None => address,
-                // };
+                let address = match extract!(Ok(self.resolve_address(address.clone(), logger, true))) {
+                    Some(addr) => self.state.memory.from_u64(addr, self.state.memory.get_ptr_size()),
+                    None => address,
+                };
                 // println!("Setting address {address:#x}");
                 extract!(Ok(self.set_memory(value.simplify(), address, *width)));
                 // trace!("Setting address {:?} to {:?}",

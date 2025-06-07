@@ -139,7 +139,6 @@ pub fn evaluate<R: Reader<Offset = usize>, T: MemoryAccess>(
     mem: &mut T,
 ) -> Result<EvaluatorValue<R>> {
     let pieces = evaluate_pieces(dwarf, unit, pc, expr, frame_base, registers, mem)?;
-    println!("Got pieces");
     evaluate_value(dwarf, pieces, type_unit, type_die, registers, mem)
 }
 
@@ -233,7 +232,6 @@ pub fn evaluate_pieces<R: Reader<Offset = usize>, T: MemoryAccess>(
                     result = eval.resume_with_register(convert_to_gimli_value(value))?;
                 }
                 None => {
-                    println!("Could not resolve register {register:?}");
                     return Err(anyhow!("Requires register {}", register.0));
                 }
             },
@@ -337,8 +335,8 @@ pub fn evaluate_pieces<R: Reader<Offset = usize>, T: MemoryAccess>(
                         return Err(anyhow!("{:?}", err));
                     }
                 } {
-                    println!("Attribute name = {:?}", attr.name());
-                    println!("Attribute value = {:?}", attr.value());
+                    // println!("Attribute name = {:?}", attr.name());
+                    // println!("Attribute value = {:?}", attr.value());
                 }
 
                 error!("Unimplemented");
