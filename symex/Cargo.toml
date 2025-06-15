@@ -37,7 +37,7 @@ kd-tree = "0.6.0"
 fst = "0.4.7"
 regex-automata = { version = "0.1.9", features = ["transducer"] }
 dyn-clone = "1.0.18"
-risc-v-disassembler = { git = "https://github.com/simlar-0/RISC-V-disassembler.git", branch = "main" }
+risc-v-disassembler = "0.0.1"
 
 [features]
 default = []
