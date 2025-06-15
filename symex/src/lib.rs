@@ -63,7 +63,7 @@ pub trait Composition: Clone + Debug {
     type SmtFPExpression: SmtFPExpr<Expression = Self::SmtExpression>;
     type Memory: SmtMap<SMT = Self::SMT, Expression = <Self::SMT as SmtSolver>::Expression, ProgramMemory = Self::ProgramMemory, StateContainer = Self::StateContainer>;
 
-    /// If this is not [`NoOverride`](crate::arch::NoOverride) the target
+    /// If this is not [`NoArchitectureOverride`](crate::arch::NoArchitectureOverride) the target
     /// architecture is expected to be the provided architecture.
     type ArchitectureOverride: ArchitectureOverride;
 

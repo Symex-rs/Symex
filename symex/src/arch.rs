@@ -89,7 +89,7 @@ pub enum ParseError {
 }
 
 /// Enumerates all of the registers required to be compatible with the 
-/// [`general_assembly`](crate::general_assembly) crate.
+/// [`general_assembly`] crate.
 /// 
 /// These registers are used to define architecture-specific mappings for 
 /// general assembly instructions and operations.

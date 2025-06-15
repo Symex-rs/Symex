@@ -1,3 +1,13 @@
+//!# RISCV
+//!
+//!## Supported instructions
+//!RISC-V (only RV32I base integer instruction set is currently supported), 
+//!for the [Hippomenes architecture](https://github.com/perlindgren/hippomenes).
+//!
+//!## Cycle counting support
+//!The cycle counts are based on the single-cycle, non-pipelined 
+//![Hippomenes architecture](https://github.com/perlindgren/hippomenes).
+//!
 use std::fmt::Display;
 
 use anyhow::Context;
