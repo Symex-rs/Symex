@@ -1,5 +1,3 @@
-#![allow(warnings)] // Until all the unimplemented!() are implemented
-
 use std::fmt::Display;
 
 use anyhow::Context;
@@ -22,11 +20,22 @@ use crate::{
     trace, Composition, Endianness,
 };
 
-pub mod decoder;
-pub mod decoder_implementations;
-pub mod test;
-pub mod timing;
+mod decoder;
+mod decoder_implementations;
+mod test;
+mod timing;
 
+/** 
+# RISCV
+
+## Supported instructions
+RISC-V (only RV32I base integer instruction set is currently supported), 
+for the [Hippomenes architecture](https://github.com/perlindgren/hippomenes).
+
+## Cycle counting support
+The cycle counts are based on the single-cycle, non-pipelined 
+[Hippomenes architecture](https://github.com/perlindgren/hippomenes).
+*/
 #[derive(Debug, Default, Clone)]
 pub struct RISCV {}
 
@@ -49,6 +58,8 @@ impl<Override: ArchitectureOverride> Architecture<Override> for RISCV {
 
         debug!("PC{:#x} -> Running {:?}", state.memory.get_pc().unwrap().get_constant().unwrap(), instr);
         let instr = instr?;
+        // Hippomenes is a single cycle processor, all intructions are guaranteed to take
+        // 1 cycle. https://riscv-europe.org/summit/2024/media/proceedings/posters/116_poster.pdf
         let timing = Self::cycle_count_hippomenes(&instr);
         let ops: Vec<Operation> = Self::instruction_to_ga_operations(&self, &instr);
 
@@ -79,19 +90,13 @@ impl<Override: ArchitectureOverride> Architecture<Override> for RISCV {
                 * 8;
             let name = state.label_new_symbolic("any");
             if size == 0 {
-                let register_name = state.architecture.get_register_name(InterfaceRegister::ReturnAddress);
-                let ra = state.get_register(register_name.to_owned()).unwrap();
-                state.set_register("PC".to_owned(), ra)?;
+                let ra_register_name = state.architecture.get_register_name(InterfaceRegister::ReturnAddress);
+                let ra = state.get_register(ra_register_name.to_owned()).unwrap();
+                let pc_register_name = state.architecture.get_register_name(InterfaceRegister::ProgramCounter);
+                state.set_register(pc_register_name.to_owned(), ra)?;
                 return Ok(());
             }
             let symb_value = state.memory.unconstrained(&name, size as u32);
-            // We should be able to do this now!
-            // TODO: We need to label this with proper variable names if possible.
-            //state.marked_symbolic.push(Variable {
-            //    name: Some(name),
-            //    value: symb_value.clone(),
-            //    ty: ExpressionType::Integer(size as usize),
-            //});
 
             match state.memory.set(&value_ptr, symb_value) {
                 Ok(_) => {}
@@ -100,7 +105,8 @@ impl<Override: ArchitectureOverride> Architecture<Override> for RISCV {
 
             let register_name = state.architecture.get_register_name(InterfaceRegister::ReturnAddress);
             let ra = state.get_register(register_name.to_owned()).unwrap();
-            state.set_register("PC".to_owned(), ra)?;
+            let pc_register_name = state.architecture.get_register_name(InterfaceRegister::ProgramCounter);
+            state.set_register(pc_register_name.to_owned(), ra)?;
             Ok(())
         };
 
@@ -123,9 +129,9 @@ impl<Override: ArchitectureOverride> Architecture<Override> for RISCV {
         cfg.add_register_write_hook("ZERO".to_owned(), write_zero);
 
         // Symex increments PC BEFORE executing the instruction, which means that any instruction
-        // that reads PC is actually reading PC+4.
+        // that reads PC is actually reading PC + instruction size.
         // To compensate for this, we need to tell our instructions to read from register "PC-" instead of "PC",
-        // and the hook below will then provide (PC+4-4) = PC.
+        // and the hook below will then provide (PC+ instruction size - instruction size) = PC.
 
         let pc_decrementer = |state: &mut GAState<C>| {
             let instruction_length_in_bytes = state.current_instruction.as_ref().unwrap().instruction_size / 8;

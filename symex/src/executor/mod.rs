@@ -294,9 +294,11 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
                 HookOrInstruction::PcHook(hook) => match hook {
                     PCHook::Continue => {
                         debug!("Continuing");
-                        let register_name = self.state.architecture.get_register_name(InterfaceRegister::ReturnAddress);
-                        let ra = self.state.get_register(register_name.to_owned()).unwrap();
-                        self.state.set_register("PC".to_owned(), ra)?;
+                        let ra_name = self.state.architecture.get_register_name(InterfaceRegister::ReturnAddress);
+                        let ra = self.state.get_register(ra_name.to_owned()).unwrap();
+                        let pc_name = self.state.architecture.get_register_name(InterfaceRegister::ProgramCounter);
+                        self.state.set_register(pc_name, ra)?;
+
                         continue;
                     }
                     PCHook::EndSuccess => {
@@ -378,9 +380,11 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
                 HookOrInstruction::PcHook(hook) => match hook {
                     PCHook::Continue => {
                         debug!("Continuing");
-                        let register_name = self.state.architecture.get_register_name(InterfaceRegister::ReturnAddress);
-                        let ra = self.state.get_register(register_name.to_owned()).unwrap();
-                        self.state.set_register("PC".to_owned(), ra)?;
+                        let ra_name = self.state.architecture.get_register_name(InterfaceRegister::ReturnAddress);
+                        let ra = self.state.get_register(ra_name.to_owned()).unwrap();
+                        let pc_name = self.state.architecture.get_register_name(InterfaceRegister::ProgramCounter);
+                        self.state.set_register(pc_name, ra)?;
+
                         continue;
                     }
                     PCHook::EndSuccess => {
@@ -445,9 +449,11 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
                 HookOrInstruction::PcHook(hook) => match hook {
                     PCHook::Continue => {
                         debug!("Continuing");
-                        let register_name = self.state.architecture.get_register_name(InterfaceRegister::ReturnAddress);
-                        let ra = self.state.get_register(register_name.to_owned()).unwrap();
-                        self.state.set_register("PC".to_owned(), ra)?;
+                        let ra_name = self.state.architecture.get_register_name(InterfaceRegister::ReturnAddress);
+                        let ra = self.state.get_register(ra_name.to_owned()).unwrap();
+                        let pc_name = self.state.architecture.get_register_name(InterfaceRegister::ProgramCounter);
+                        self.state.set_register(pc_name, ra)?;
+
                         continue;
                     }
                     PCHook::EndSuccess => {
@@ -739,7 +745,7 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
     pub(crate) fn set_operand_value(&mut self, operand: &Operand, value: C::SmtExpression, logger: &mut C::Logger) -> ResultOrTerminate<()> {
         match operand {
             Operand::Register(v) => {
-                let value = if v == "PC" {
+                let value = if v == &self.state.architecture.get_register_name(InterfaceRegister::ProgramCounter) {
                     extract!(Ok(self.fork_for_all(value, logger)))
                     // return ResultOrTerminate::Result(Ok(()));
                 } else {
@@ -945,15 +951,16 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
     /// Execute a single instruction.
     pub(crate) fn execute_instruction(&mut self, i: &Instruction<C>, logger: &mut C::Logger) -> ResultOrTerminate<bool> {
         // update last pc
-        let old_pc = extract!(Ok(self.state.get_register("PC".to_owned())));
+        let pc_name = self.state.architecture.get_register_name(InterfaceRegister::ProgramCounter);
+        let old_pc = extract!(Ok(self.state.get_register(pc_name.to_owned())));
         self.state.last_pc = old_pc.get_constant().unwrap();
 
         // Always increment pc before executing the operations
         extract!(Ok(self.state.set_register(
-            "PC".to_owned(),
+            pc_name.to_owned(),
             old_pc.add(&self.state.memory.from_u64((i.instruction_size / 8) as u64, self.project.get_ptr_size(),)),
         )));
-        let new_pc = extract!(Ok(self.state.get_register("PC".to_owned())));
+        let new_pc = extract!(Ok(self.state.get_register(pc_name.to_owned())));
 
         // reset has branched before execution of instruction.
         self.state.reset_has_jumped();
@@ -1188,7 +1195,8 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
                         self.state.set_has_jumped();
                         let dest_value = extract!(Ok(self.get_operand_value_resolve(destination, logger)));
                         let destination = extract!(Ok(self.fork_for_all(dest_value, logger)));
-                        extract!(Ok(self.state.set_register("PC".to_owned(), destination)));
+                        let pc_name = self.state.architecture.get_register_name(InterfaceRegister::ProgramCounter);
+                        extract!(Ok(self.state.set_register(pc_name.to_owned(), destination)));
                     }
                     return ResultOrTerminate::Result(Ok(()));
                 }
@@ -1196,7 +1204,8 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
                 let true_possible = extract!(Ok(self.state.constraints.is_sat_with_constraint(&c).map_err(|e| e.into())));
                 let false_possible = extract!(Ok(self.state.constraints.is_sat_with_constraint(&c.not()).map_err(|e| e.into())));
                 trace!("true possible: {} false possible: {}", true_possible, false_possible);
-
+                
+                let pc_name = self.state.architecture.get_register_name(InterfaceRegister::ProgramCounter);
                 let destination: C::SmtExpression = extract!(Ok(match (true_possible, false_possible) {
                     (true, true) => {
                         // if self.current_operation_index <
@@ -1222,12 +1231,12 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
                         let dest_value = extract!(Ok(self.fork_for_all(dest_value, logger)));
                         Ok(dest_value)
                     }
-                    (false, true) => Ok(extract!(Ok(self.state.get_register("PC".to_owned())))), /* safe to assume PC exist */
+                    (false, true) => Ok(extract!(Ok(self.state.get_register(pc_name.to_owned())))), /* safe to assume PC exist */
                     (false, false) => Err(SolverError::Unsat).context("While resolving contional branch"),
                 }
                 .map_err(|e| e.into())));
 
-                extract!(Ok(self.state.set_register("PC".to_owned(), destination)));
+                extract!(Ok(self.state.set_register(pc_name.to_owned(), destination)));
             }
             Operation::ConditionalExecution { conditions } => {
                 //self.state.add_instruction_conditions(conditions);

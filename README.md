@@ -5,7 +5,9 @@ Symbolic execution engine that can operate on:
 - LLVM IR
 - ARMv6-M/ARMv7-M
 - ARMv7-EM machine code
-- RISC-V (only RV32I base integer instruction set is currently supported)
+- RISC-V (only RV32I base integer instruction set is currently supported), for the [Hippomenes architecture](https://github.com/perlindgren/hippomenes).
+
+ 
 
 Main use is to analyze Rust programs but programs written in other languages can potentially be analyzed.
 Because the library used to read LLVM bytecode is large and cumbersome is the LLVM IR part of the tool hidden behind the feature flag `llvm`.
@@ -87,7 +89,7 @@ This is nontrivial as it extensive modeling of the system if it is to be useful.
 
 #### Support for more RISC-V instruction sets
 
-Right now only RV32I base integer instruction set is supported.
+Right now only RV32I base integer instruction set ([Hippomenes architecture](https://github.com/perlindgren/hippomenes)) is supported.
 
 ## LLVM IR
 
