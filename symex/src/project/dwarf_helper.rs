@@ -1,5 +1,7 @@
 //! Helper functions to read dwarf debug data.
 
+pub mod variables;
+
 use std::{borrow::Cow, hash::Hash, io::BufRead, marker::PhantomData};
 
 use disarmv7::arch::register;
@@ -31,7 +33,10 @@ use gimli::{
 use hashbrown::{HashMap, HashSet};
 use object::{Object, ObjectSection};
 use regex::Regex;
-use rust_debug::call_stack::{CallFrame, MemoryAccess, StackFrame};
+use rust_debug::{
+    call_stack::{CallFrame, MemoryAccess, StackFrame},
+    source_information::SourceInformation,
+};
 
 use crate::{
     arch::{Architecture, ArchitectureOverride, SupportedArchitecture},
@@ -43,6 +48,9 @@ use crate::{
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize))]
+
 pub struct SubProgram {
     pub name: String,
     pub bounds: (u64, u64),
@@ -558,6 +566,14 @@ impl<BV: SmtExpr, FP: SmtFPExpr> Either<BV, FP, u64> {
         }
     }
 
+    fn get_a_constant_constrained(&self, constraints: &[BV]) -> Option<u64> {
+        match self {
+            Self::BV(b) => b.get_a_solution(constraints),
+            Self::Const(c) => Some(*c),
+            Self::FP(f) => f.to_bv(RoundingMode::TiesTowardZero, false).ok().map(|el| el.get_constant()).flatten(),
+        }
+    }
+
     fn get_a_constant(&self) -> Option<u64> {
         match self {
             Self::BV(b) => b.get_a_solution(&[]),
@@ -571,6 +587,33 @@ struct CF<C: Composition> {
     pc: u64,
     registers: HashMap<String, Either<C::SmtExpression, C::SmtFPExpression, u64>>,
     base: u64,
+}
+
+impl<C: Composition> CF<C> {
+    fn get_stack_frame(
+        &self,
+        arch: &SupportedArchitecture<C::ArchitectureOverride>,
+        dap: &mut DAP<'_, C::Memory, C::SmtExpression>,
+        constraints: &[C::SmtExpression],
+        dwarf: &Dwarf<EndianSlice<'static, RunTimeEndian>>,
+        debug_frame: &DebugFrame<EndianSlice<'static, RunTimeEndian>>,
+    ) -> Option<StackFrame<EndianSlice<'static, RunTimeEndian>>> {
+        let mut register_map = std::collections::HashMap::new();
+        self.registers.iter().for_each(|(k, v)| {
+            let v = v.get_a_constant_constrained(constraints).expect("Formula to be SAT") as u32;
+            let reg = arch.register_name_to_number(k).expect("Registers to be named") as u16;
+            register_map.insert(reg, v);
+        });
+        let mut registers = rust_debug::registers::Registers::default();
+        registers.registers = register_map;
+        // TODO: Make generic!
+        registers.link_register = arch.register_name_to_number("LR").map(|el| el as usize);
+        registers.program_counter_register = arch.register_name_to_number("PC").map(|el| el as usize);
+        registers.stack_pointer_register = arch.register_name_to_number("SP").map(|el| el as usize);
+
+        let call_trace = rust_debug::call_stack::unwind_call_stack(registers.clone(), dap, debug_frame).expect("Call stack to be traceable");
+        todo!()
+    }
 }
 
 impl DebugData {

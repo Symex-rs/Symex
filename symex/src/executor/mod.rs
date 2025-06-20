@@ -512,14 +512,7 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
         // instruction", constraint, operation);
         let pc = self.state.last_pc;
 
-        println!("Forking {msg} @ {pc:#x}");
-        println!("Forking {msg} @ {pc:#x}");
-        println!("Forking {msg} @ {pc:#x}");
         let line_info = self.state.debug_string_new_pc();
-        println!("Forking {msg} @ {pc:#x};\r\n{line_info}");
-        println!("Forking {msg} @ {pc:#x};\r\n{line_info}");
-        println!("Forking {msg} @ {pc:#x};\r\n{line_info}");
-        println!("Forking {msg} @ {pc:#x};\r\n{line_info}");
 
         let mut forked_state = match operation {
             Continue::This => {

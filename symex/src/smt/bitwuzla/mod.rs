@@ -43,7 +43,9 @@ impl SmtSolver for Bitwuzla {
             .rewrite_level(bitwuzla::option::RewriteLevel::More)
             .model_gen(ModelGen::All)
             .set_abort_callback(abort_callback)
+            .sat_engine(bitwuzla::option::SatEngine::CaDiCaL)
             .incremental(true)
+            .bv_abstractions(true)
             .build();
         Self { ctx: Rc::new(solver) }
     }

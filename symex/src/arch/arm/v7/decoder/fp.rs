@@ -1348,12 +1348,12 @@ impl Decode for VPopF32 {
         let registers: Vec<_> = registers.iter().map(|el| el.local_into()).collect();
         pseudo!([
             let address:u32 = Register("SP&");
-            Register("SP&") = address + imm32;
             for register in registers.into_iter() {
                 let value = LocalAddress(address,32);
                 register:f32 = Cast(value,f32);
                 address += 4.local_into();
             }
+            Register("SP&") = address + imm32;
         ])
     }
 }
@@ -1365,12 +1365,12 @@ impl Decode for VPopF64 {
         let registers: Vec<_> = registers.iter().map(|el| el.local_into()).collect();
         pseudo!([
             let address:u32 = Register("SP&");
-            Register("SP&") = Register("SP&") + imm32;
             for register in registers.into_iter() {
                 let value = LocalAddress(address,64);
                 register:f64 = Cast(value,f64);
                 address += 8.local_into();
             }
+            Register("SP&") = Register("SP&") + imm32;
         ])
     }
 }
@@ -1597,7 +1597,6 @@ impl super::sealed::Into<Operand> for Wrappedu32 {
         let val_ptr: *const u32 = (&self.0) as *const u32;
         let value = unsafe { core::ptr::read(val_ptr as *const f32) } as f64;
 
-        println!("Writing {value}");
         Operand {
             ty: OperandType::Binary32,
             value: OperandStorage::Immediate { value, ty: OperandType::Binary32 },

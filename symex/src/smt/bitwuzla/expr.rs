@@ -281,7 +281,12 @@ impl SmtExpr for BitwuzlaExpr {
     fn get_constant(&self) -> Option<u64> {
         // let str = self.0.as_binary_str().unwrap_or("Could not get value as
         // string!".to_string()); println!("Binary str : {str}");
-        self.0.as_binary_str().as_ref().map(|word| u64::from_str_radix(word, 2).ok())?
+        let sols = self.0.get_solutions(2);
+        if sols.len() != 1 {
+            return None;
+        }
+        let sol = &sols[0];
+        sol.as_u64()
         //match self.0.get_btor().sat() {
         //    SolverResult::Sat => {}
         //    _ => return None,

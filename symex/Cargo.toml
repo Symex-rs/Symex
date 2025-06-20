@@ -28,14 +28,12 @@ general_assembly = { path = "../symex/general_assembly" }
 # SMT-backends
 boolector = { git = "https://github.com/ivajon/boolector-rs.git", features = [
 ],optional=true }
-# bitwuzla = { git = "https://github.com/ivajon/boolector-rs.git", branch = "bitwuzla" }
-bitwuzla = { path = "../../bitwuzla-rs/",optional=true }
+bitwuzla = { git = "https://github.com/ivajon/boolector-rs.git", branch = "bitwuzla",optional=true }
 
 
 # Parsing-backends.
 armv6-m-instruction-parser = "0.3.0-rc1"
-# disarmv7 = { git = "https://github.com/ivajon/disarmv7", branch = "floats" }
-disarmv7 = { path= "../../disarmv7/"}
+disarmv7 = { git = "https://github.com/ivajon/disarmv7", branch = "floats" }
 hashbrown = "0.15.2"
 kd-tree = "0.6.0"
 fst = "0.4.7"
@@ -43,10 +41,9 @@ regex-automata = { version = "0.1.9", features = ["transducer"] }
 dyn-clone = "1.0.18"
 risc-v-disassembler = "0.0.1"
 z3-sys = {version = "0.8.1", optional=true}
+serde = { version = "1.0.219", features = ["derive"], optional = true }
 
 
-[patch."https://github.com/ivajon/bitwuzla-sys.git"]
-bitwuzla = { path = "../../bitwuzla-sys/" }
 
 [features]
 bitwuzla = ["dep:bitwuzla"]
@@ -66,3 +63,5 @@ exact = ["bitwuzla-exact-fp"]
 default = ["bitwuzla","boolector"]
 
 log = []
+
+serde = ["dep:serde"]
