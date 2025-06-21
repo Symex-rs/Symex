@@ -7,9 +7,9 @@
 //! architecture specific hooks.
 
 pub mod arm;
-pub mod risc_v;
 /// Defines discovery behaviour for the architectures.
 pub mod discover;
+pub mod risc_v;
 
 use std::{
     fmt::{Debug, Display},
@@ -17,8 +17,8 @@ use std::{
 };
 
 use arm::{v6::ArmV6M, v7::ArmV7EM};
-use risc_v::RISCV;
 use general_assembly::extension::ieee754::OperandType;
+use risc_v::RISCV;
 use thiserror::Error;
 
 use crate::{
@@ -92,10 +92,10 @@ pub enum ParseError {
     Generic(&'static str),
 }
 
-/// Enumerates all of the registers required to be compatible with the 
+/// Enumerates all of the registers required to be compatible with the
 /// [`general_assembly`] crate.
-/// 
-/// These registers are used to define architecture-specific mappings for 
+///
+/// These registers are used to define architecture-specific mappings for
 /// general assembly instructions and operations.
 #[derive(Debug, Clone)]
 pub enum InterfaceRegister {
@@ -124,7 +124,7 @@ pub trait ArchitectureOverride: Architecture<Self> + Clone + Default {
     /// Checks if the  value is an armv7em override.
     ///
     /// If so, it returns the underlying representation.
-    
+
     fn as_riscv(&mut self) -> Option<&mut RISCV> {
         None
     }
@@ -208,10 +208,12 @@ impl Architecture<Self> for NoArchitectureOverride {
     type ISA = ();
 
     fn new() -> Self
-        where
-            Self: Sized {
+    where
+        Self: Sized,
+    {
         Self
     }
+
     /// Converts a slice of bytes to an [`Instruction`]
     fn translate<C: Composition>(buff: &[u8], state: &mut GAState<C>) -> Result<Instruction<C>, ArchError> {
         unimplemented!("NoArchitectureOverride is not an architecture. Runtime checks failed.");
@@ -243,8 +245,7 @@ impl Architecture<Self> for NoArchitectureOverride {
         unimplemented!("NoArchitectureOverride is not an architecture. Runtime checks failed.");
     }
 
-    fn get_register_name(reg: InterfaceRegister) -> String 
-    {
+    fn get_register_name(reg: InterfaceRegister) -> String {
         unimplemented!("NoArchitectureOverride is not an architecture. Runtime checks failed.");
     }
 
@@ -314,6 +315,7 @@ impl<Override: ArchitectureOverride> SupportedArchitecture<Override> {
         match self {
             Self::Armv6M(a) => <ArmV6M as Architecture<Override>>::register_name_to_number(name),
             Self::Armv7EM(a) => <ArmV7EM as Architecture<Override>>::register_name_to_number(name),
+            Self::RISCV(a) => <RISCV as Architecture<Override>>::register_name_to_number(name),
             Self::Override(o) => Override::register_name_to_number(name),
         }
     }
@@ -324,6 +326,7 @@ impl<Override: ArchitectureOverride> SupportedArchitecture<Override> {
         match self {
             Self::Armv6M(a) => <ArmV6M as Architecture<Override>>::register_number_to_name(idx),
             Self::Armv7EM(a) => <ArmV7EM as Architecture<Override>>::register_number_to_name(idx),
+            Self::RISCV(a) => <RISCV as Architecture<Override>>::register_number_to_name(idx),
             Self::Override(o) => Override::register_number_to_name(idx),
         }
     }
@@ -333,6 +336,7 @@ impl<Override: ArchitectureOverride> SupportedArchitecture<Override> {
         match self {
             Self::Armv6M(a) => <ArmV6M as Architecture<Override>>::nan_encoding(ty),
             Self::Armv7EM(a) => <ArmV7EM as Architecture<Override>>::nan_encoding(ty),
+            Self::RISCV(a) => <RISCV as Architecture<Override>>::nan_encoding(ty),
             Self::Override(o) => Override::nan_encoding(ty),
         }
     }
@@ -342,6 +346,7 @@ impl<Override: ArchitectureOverride> SupportedArchitecture<Override> {
         match self {
             Self::Armv6M(a) => <ArmV6M as Architecture<Override>>::word_size(),
             Self::Armv7EM(a) => <ArmV7EM as Architecture<Override>>::word_size(),
+            Self::RISCV(a) => <RISCV as Architecture<Override>>::word_size(),
             Self::Override(o) => Override::word_size(),
         }
     }
@@ -351,6 +356,7 @@ impl<Override: ArchitectureOverride> SupportedArchitecture<Override> {
         match self {
             Self::Armv6M(a) => <ArmV6M as Architecture<Override>>::ptr_size(),
             Self::Armv7EM(a) => <ArmV7EM as Architecture<Override>>::ptr_size(),
+            Self::RISCV(a) => <RISCV as Architecture<Override>>::ptr_size(),
             Self::Override(o) => Override::ptr_size(),
         }
     }
@@ -367,8 +373,7 @@ impl<Override: ArchitectureOverride> SupportedArchitecture<Override> {
         }
     }
 
-    pub fn get_register_name(&self, reg:InterfaceRegister) -> String
-    {
+    pub fn get_register_name(&self, reg: InterfaceRegister) -> String {
         match self {
             Self::Armv6M(_) => <ArmV6M as Architecture<Override>>::get_register_name(reg),
             Self::Armv7EM(_) => <ArmV7EM as Architecture<Override>>::get_register_name(reg),
@@ -376,7 +381,7 @@ impl<Override: ArchitectureOverride> SupportedArchitecture<Override> {
             Self::Override(_) => Override::get_register_name(reg),
         }
     }
-    
+
     fn as_riscv(&mut self) -> &mut RISCV {
         match self {
             Self::RISCV(riscv) => riscv,

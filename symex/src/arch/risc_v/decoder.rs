@@ -8,10 +8,10 @@ use risc_v_disassembler::{ParsedInstruction32, Register};
 use super::RISCV;
 use crate::executor::instruction::Instruction as GAInstruction;
 
-impl InstructionToGAOperations for RISCV {
+impl RISCV {
     // Make sure to change the shift implementation to 6-bits if you want to support
     // RV64I
-    fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
+    pub fn instruction_to_ga_operations(instr: &ParsedInstruction32) -> Vec<GAOperation> {
         match instr {
             ParsedInstruction32::add(inner) => inner.instruction_to_ga_operations(instr),
             ParsedInstruction32::sub(inner) => inner.instruction_to_ga_operations(instr),

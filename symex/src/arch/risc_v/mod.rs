@@ -54,7 +54,22 @@ pub struct RISCV {}
 impl<Override: ArchitectureOverride> Architecture<Override> for RISCV {
     type ISA = ();
 
-    fn translate<C: Composition>(&self, buff: &[u8], state: &GAState<C>) -> Result<Instruction<C>, ArchError> {
+    fn ptr_size() -> u64 {
+        32
+    }
+
+    fn word_size() -> u64 {
+        32
+    }
+
+    fn nan_encoding(ty: general_assembly::extension::ieee754::OperandType) -> u64 {
+        todo!()
+    }
+
+    fn translate<C>(buff: &[u8], state: &mut GAState<C>) -> Result<Instruction<C>, ArchError>
+    where
+        C: Composition<ArchitectureOverride = Override>,
+    {
         let mut buffer = [0; 4];
         for (source, dest) in buff[0..4].iter().zip(buffer.iter_mut()) {
             *dest = *source;
@@ -73,7 +88,7 @@ impl<Override: ArchitectureOverride> Architecture<Override> for RISCV {
         // Hippomenes is a single cycle processor, all intructions are guaranteed to
         // take 1 cycle. https://riscv-europe.org/summit/2024/media/proceedings/posters/116_poster.pdf
         let timing = Self::cycle_count_hippomenes(&instr);
-        let ops: Vec<Operation> = Self::instruction_to_ga_operations(&self, &instr);
+        let ops: Vec<Operation> = Self::instruction_to_ga_operations(&instr);
 
         let instruction_size = 32; // Need to update the parser to make this automatic and robust
 
@@ -207,7 +222,7 @@ impl From<DisassemblerError> for ParseError {
             DisassemblerError::UnsupportedInstructionLength(_) => ParseError::InsufficientInput,
             DisassemblerError::InvalidFunct3(_) => ParseError::MalfromedInstruction,
             DisassemblerError::InvalidFunct7(_) => ParseError::MalfromedInstruction,
-            DisassemblerError::InvalidOpcode(_) => ParseError::InvalidInstruction,
+            DisassemblerError::InvalidOpcode(v) => ParseError::InvalidInstruction(v.to_string()),
             DisassemblerError::InvalidImmediate(_) => ParseError::MalfromedInstruction,
             DisassemblerError::InvalidRegister(_) => ParseError::InvalidRegister,
             DisassemblerError::BitExtensionError(_) => ParseError::Generic("Bit extension error."),

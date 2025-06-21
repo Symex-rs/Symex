@@ -14,7 +14,8 @@ use crate::{
         smt_boolector::{Boolector, BoolectorExpr},
         SmtSolver,
     },
-    Endianness, WordSize,
+    Endianness,
+    WordSize,
 };
 
 struct TestRegister {
@@ -32,10 +33,7 @@ struct TestData {
 macro_rules! generate_test_data {
     // Three registers
     (
-        $inst:expr,
-            ($reg1_name:expr, $reg1_initial:expr, $reg1_expected:expr),
-            ($reg2_name:expr, $reg2_initial:expr, $reg2_expected:expr),
-            ($reg3_name:expr, $reg3_initial:expr, $reg3_expected:expr)
+        $inst:expr,($reg1_name:expr, $reg1_initial:expr, $reg1_expected:expr),($reg2_name:expr, $reg2_initial:expr, $reg2_expected:expr),($reg3_name:expr, $reg3_initial:expr, $reg3_expected:expr)
     ) => {{
         TestData {
             instruction_bytes: $inst,
@@ -58,11 +56,7 @@ macro_rules! generate_test_data {
     }};
 
     // Two registers
-    (
-        $inst:expr,
-        ($reg1_name:expr, $reg1_initial:expr, $reg1_expected:expr),
-        ($reg2_name:expr, $reg2_initial:expr, $reg2_expected:expr)
-    ) => {{
+    ($inst:expr,($reg1_name:expr, $reg1_initial:expr, $reg1_expected:expr),($reg2_name:expr, $reg2_initial:expr, $reg2_expected:expr)) => {{
         TestData {
             instruction_bytes: $inst,
             register1: TestRegister {
@@ -80,10 +74,7 @@ macro_rules! generate_test_data {
     }};
 
     // One register
-    (
-        $inst:expr,
-        ($reg1_name:expr, $reg1_initial:expr, $reg1_expected:expr)
-    ) => {{
+    ($inst:expr,($reg1_name:expr, $reg1_initial:expr, $reg1_expected:expr)) => {{
         TestData {
             instruction_bytes: $inst,
             register1: TestRegister {
@@ -120,7 +111,7 @@ fn translate_instruction(instruction_bytes: [u8; 4]) -> Instruction<DefaultCompo
     let mut vm = setup_test_vm();
     let mut state = vm.paths.get_path().unwrap().state;
 
-    RISCV {}.translate(&instruction_bytes, &state.clone()).expect("Failed to translate instruction")
+    RISCV::translate(&instruction_bytes, &mut state).expect("Failed to translate instruction")
 }
 
 fn init_executor(vm: &mut VM<DefaultCompositionNoLogger>) -> GAExecutor<'_, DefaultCompositionNoLogger> {
@@ -262,77 +253,79 @@ fn run_test_with_mem(test_data: &TestData, mem_addr: u32, init_value: u32, expec
 
 #[test]
 fn test_add() {
-    let test_data = generate_test_data!(0x00B50533u32.to_le_bytes(), ("A0", 0x01, 0x02), ("A1", 0x01, 0x01));
+    let test_data = generate_test_data!(0x00b50533u32.to_le_bytes(), ("A0", 0x01, 0x02), ("A1", 0x01, 0x01));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_add_wrap() {
     // RISCV ignores overflow and result is wrapped, from ISA:
-    //"Arithmetic overflow is ignored and the result is simply the low XLEN bits of the result."
-    let test_data = generate_test_data!(0x00B50533u32.to_le_bytes(), ("A0", 0xFFFFFFFFu32, 0x0u32), ("A1", 0x1u32, 0x1u32));
+    //"Arithmetic overflow is ignored and the result is simply the low XLEN bits of
+    //"Arithmetic the result."
+    let test_data = generate_test_data!(0x00b50533u32.to_le_bytes(), ("A0", 0xffffffffu32, 0x0u32), ("A1", 0x1u32, 0x1u32));
     run_test_no_mem(&test_data);
 
-    let test_data = generate_test_data!(0x00B50533u32.to_le_bytes(), ("A0", 0x7FFFFFFFu32, 0x80000000u32), ("A1", 0x1u32, 0x1u32));
+    let test_data = generate_test_data!(0x00b50533u32.to_le_bytes(), ("A0", 0x7fffffffu32, 0x80000000u32), ("A1", 0x1u32, 0x1u32));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_sub() {
-    let test_data = generate_test_data!(0x40B50533u32.to_le_bytes(), ("A0", 25, 0x06), ("A1", 19, 19));
+    let test_data = generate_test_data!(0x40b50533u32.to_le_bytes(), ("A0", 25, 0x06), ("A1", 19, 19));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_sub_wrap() {
     // RISCV ignores overflow and result is wrapped, from ISA:
-    //"Arithmetic overflow is ignored and the result is simply the low XLEN bits of the result."
-    let test_data = generate_test_data!(0x40B50533u32.to_le_bytes(), ("A0", 0x80000000u32, 0x7FFFFFFFu32), ("A1", 0x01u32, 0x01u32));
+    //"Arithmetic overflow is ignored and the result is simply the low XLEN bits of
+    //"Arithmetic the result."
+    let test_data = generate_test_data!(0x40b50533u32.to_le_bytes(), ("A0", 0x80000000u32, 0x7fffffffu32), ("A1", 0x01u32, 0x01u32));
     run_test_no_mem(&test_data);
 
-    let test_data = generate_test_data!(0x40B50533u32.to_le_bytes(), ("A0", 0x7FFFFFFFu32, 0x80000000u32), ("A1", 0xFFFFFFFFu32, 0xFFFFFFFFu32));
+    let test_data = generate_test_data!(0x40b50533u32.to_le_bytes(), ("A0", 0x7fffffffu32, 0x80000000u32), ("A1", 0xffffffffu32, 0xffffffffu32));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_slt() {
-    let test_data = generate_test_data!(0x00B52533u32.to_le_bytes(), ("A0", (-25i32) as u32, 1), ("A1", 5, 5));
+    let test_data = generate_test_data!(0x00b52533u32.to_le_bytes(), ("A0", (-25i32) as u32, 1), ("A1", 5, 5));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_sltu() {
-    let test_data = generate_test_data!(0x00B53533u32.to_le_bytes(), ("A0", 3, 1), ("A1", 5, 5));
+    let test_data = generate_test_data!(0x00b53533u32.to_le_bytes(), ("A0", 3, 1), ("A1", 5, 5));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_sltu_signed() {
-    let test_data = generate_test_data!(0x00B53533u32.to_le_bytes(), ("A0", (-25i32) as u32, 0), ("A1", 5, 5));
+    let test_data = generate_test_data!(0x00b53533u32.to_le_bytes(), ("A0", (-25i32) as u32, 0), ("A1", 5, 5));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_xor() {
-    let test_data = generate_test_data!(0x00B54533u32.to_le_bytes(), ("A0", 13, 21), ("A1", 24, 24));
+    let test_data = generate_test_data!(0x00b54533u32.to_le_bytes(), ("A0", 13, 21), ("A1", 24, 24));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_or() {
-    let test_data = generate_test_data!(0x00B56533u32.to_le_bytes(), ("A0", 0b0110111, 0b0111111), ("A1", 0b0001111, 0b0001111));
+    let test_data = generate_test_data!(0x00b56533u32.to_le_bytes(), ("A0", 0b0110111, 0b0111111), ("A1", 0b0001111, 0b0001111));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_and() {
-    let test_data = generate_test_data!(0x00B57533u32.to_le_bytes(), ("A0", 0b0110111, 0b0000111), ("A1", 0b0001111, 0b0001111));
+    let test_data = generate_test_data!(0x00b57533u32.to_le_bytes(), ("A0", 0b0110111, 0b0000111), ("A1", 0b0001111, 0b0001111));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_srl() {
-    let test_data = generate_test_data!(0x00B55533u32.to_le_bytes(), ("A0", 0b01111001, 0b00011110), ("A1", 0x02, 0x02));
+    let test_data = generate_test_data!(0x00b55533u32.to_le_bytes(), ("A0", 0b01111001, 0b00011110), ("A1", 0x02, 0x02));
     run_test_no_mem(&test_data);
 }
 
@@ -340,25 +333,25 @@ fn test_srl() {
 fn test_srl_shift_exceed_max_bits() {
     // This checks that the shift amount does not exceed 5 bits
     // 0xFFFFFFFF should be masked to 0x1F
-    let test_data = generate_test_data!(0x00B55533u32.to_le_bytes(), ("A0", 0x80000000u32, 0x1u32), ("A1", 0xFFFFFFFFu32, 0xFFFFFFFFu32));
+    let test_data = generate_test_data!(0x00b55533u32.to_le_bytes(), ("A0", 0x80000000u32, 0x1u32), ("A1", 0xffffffffu32, 0xffffffffu32));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_sra_leading_0() {
-    let test_data = generate_test_data!(0x40B55533u32.to_le_bytes(), ("A0", 0b01111001, 0b00011110), ("A1", 0x02, 0x02));
+    let test_data = generate_test_data!(0x40b55533u32.to_le_bytes(), ("A0", 0b01111001, 0b00011110), ("A1", 0x02, 0x02));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_sra_leading_1() {
-    let test_data = generate_test_data!(0x40B55533u32.to_le_bytes(), ("A0", 0xf0000000, 0xffffffff), ("A1", 31, 31));
+    let test_data = generate_test_data!(0x40b55533u32.to_le_bytes(), ("A0", 0xf0000000, 0xffffffff), ("A1", 31, 31));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_sll() {
-    let test_data = generate_test_data!(0x00B51533u32.to_le_bytes(), ("A0", 0b01111001, 0x1e400000), ("A1", 22, 22));
+    let test_data = generate_test_data!(0x00b51533u32.to_le_bytes(), ("A0", 0b01111001, 0x1e400000), ("A1", 22, 22));
     run_test_no_mem(&test_data);
 }
 
@@ -366,37 +359,37 @@ fn test_sll() {
 fn test_sll_shift_exceeds_max_bits() {
     // This checks that the shift amount does not exceed 5 bits
     // 0xFFFFFFFF should be masked to 0x1F
-    let test_data = generate_test_data!(0x00B51533u32.to_le_bytes(), ("A0", 0x1u32, 0x80000000u32), ("A1", 0xFFFFFFFFu32, 0xFFFFFFFFu32));
+    let test_data = generate_test_data!(0x00b51533u32.to_le_bytes(), ("A0", 0x1u32, 0x80000000u32), ("A1", 0xffffffffu32, 0xffffffffu32));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_addi() {
-    let test_data = generate_test_data!(0x00A50513u32.to_le_bytes(), ("A0", 0x01, 0x01 + 10));
+    let test_data = generate_test_data!(0x00a50513u32.to_le_bytes(), ("A0", 0x01, 0x01 + 10));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_slti() {
-    let test_data = generate_test_data!(0x00A52513u32.to_le_bytes(), ("A0", (-25i32) as u32, 1));
+    let test_data = generate_test_data!(0x00a52513u32.to_le_bytes(), ("A0", (-25i32) as u32, 1));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_sltiu() {
-    let test_data = generate_test_data!(0x00A53513u32.to_le_bytes(), ("A0", 3, 1));
+    let test_data = generate_test_data!(0x00a53513u32.to_le_bytes(), ("A0", 3, 1));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_sltiu_signed() {
-    let test_data = generate_test_data!(0x00A53513u32.to_le_bytes(), ("A0", (-25i32) as u32, 0));
+    let test_data = generate_test_data!(0x00a53513u32.to_le_bytes(), ("A0", (-25i32) as u32, 0));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_xori() {
-    let test_data = generate_test_data!(0x00A54513u32.to_le_bytes(), ("A0", 0xf12, 0xf18));
+    let test_data = generate_test_data!(0x00a54513u32.to_le_bytes(), ("A0", 0xf12, 0xf18));
     run_test_no_mem(&test_data);
 }
 
@@ -696,6 +689,6 @@ fn test_jalr() {
 
 #[test]
 fn test_write_to_zero() {
-    let test_data = generate_test_data!(0x00B50533u32.to_le_bytes(), ("ZERO", 0x5u32, 0x0u32), ("A1", 0x1u32, 0x1u32));
+    let test_data = generate_test_data!(0x00b50533u32.to_le_bytes(), ("ZERO", 0x5u32, 0x0u32), ("A1", 0x1u32, 0x1u32));
     run_test_no_mem(&test_data);
 }
