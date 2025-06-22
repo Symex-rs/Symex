@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, pin::Pin, rc::Rc};
+use std::{cmp::Ordering, rc::Rc};
 
 use boolector::{
     option::{BtorOption, ModelGen, NumberFormat},
@@ -15,18 +15,13 @@ pub use expr::BoolectorExpr;
 pub mod memory;
 use expr::Pinned;
 use general_assembly::{extension::ieee754::OperandType, shift::Shift};
-use memory::BoolectorMemory;
 pub(super) use solver::BoolectorIncrementalSolver;
 
-use super::{SmtExpr, SmtFPExpr, SmtSolver, Solutions, SolverError};
+use super::{SmtExpr, SmtSolver, Solutions, SolverError};
 
-#[must_use]
 pub type DExpr = BoolectorExpr;
-#[must_use]
 pub type DSolver = BoolectorIncrementalSolver;
-#[must_use]
 pub type DContext = BoolectorSolverContext;
-#[must_use]
 pub type DArray = BoolectorArray;
 
 #[derive(Debug, Clone)]
@@ -35,6 +30,7 @@ pub struct Boolector {
 }
 
 impl Boolector {
+    #[allow(dead_code)]
     fn deep_clone(&self) -> Self {
         Self {
             ctx: Pinned(Rc::pin(self.ctx.0.duplicate())),
@@ -530,7 +526,7 @@ impl SmtExpr for BoolectorExpr {
     }
 
     /// Converts from a floating point value.
-    fn from_fp(fp: &Self::FPExpression, rm: general_assembly::extension::ieee754::RoundingMode, signed: bool) -> crate::Result<Self> {
+    fn from_fp(fp: &Self::FPExpression, _rm: general_assembly::extension::ieee754::RoundingMode, _signed: bool) -> crate::Result<Self> {
         Ok(fp.0.any(fp.1.size()))
     }
 
@@ -768,8 +764,11 @@ impl SmtExpr for BoolectorExpr {
         self.0.as_binary_str().map(|value| u64::from_str_radix(&value, 2).unwrap())
     }
 
-    fn get_a_solution(&self, constraints: &[Self]) -> Option<u64> {
-        self.0.get_a_solution().as_u64()
+    fn get_a_solution(&self, _constraints: &[Self]) -> Option<u64> {
+        self.0.get_btor().0.set_opt(BtorOption::ModelGen(ModelGen::All));
+        let ret = self.0.get_a_solution().as_u64();
+        self.0.get_btor().0.set_opt(BtorOption::ModelGen(boolector::option::ModelGen::Disabled));
+        ret
     }
 
     fn get_constant_bool(&self) -> Option<bool> {
@@ -783,12 +782,12 @@ impl SmtExpr for BoolectorExpr {
             let width = self.len() as usize;
             match self.get_constant() {
                 Some(c) => format!("{:0width$b}", c),
-                None => format!("Non constant"), // {} (Others possible)", self.0.get_a_solution().disambiguate().as_01x_str()),
+                None => "Non constant".to_string(), // {} (Others possible)", self.0.get_a_solution().disambiguate().as_01x_str()),
             }
         } else {
             let upper = self.slice(64, self.len() - 1).to_binary_string();
             let lower = self.slice(0, 63).to_binary_string();
-            format!("{}{}", upper, lower)
+            format!("{upper}{lower}")
         }
     }
 

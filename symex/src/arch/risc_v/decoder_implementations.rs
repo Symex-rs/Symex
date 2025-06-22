@@ -1,25 +1,18 @@
-use risc_v_disassembler::{parsed_instructions, ParsedInstruction32, Register};
-
 use general_assembly::{
-    condition::{Comparison, Condition},
     operand::{DataWord, Operand},
     operation::Operation as GAOperation,
 };
-
+use risc_v_disassembler::{parsed_instructions, ParsedInstruction32};
 use transpiler::pseudo;
 
-use super::{
-    decoder::{sealed::Into, InstructionToGAOperations},
-    RISCV,
-};
-use crate::executor::instruction::Instruction as GAInstruction;
+use super::decoder::{sealed::Into, InstructionToGAOperations};
 
-// "PC-" is a workaround to get the current PC value, which is needed because Symex increments the
-// PC BEFORE executing the instruction.
+// "PC-" is a workaround to get the current PC value, which is needed because
+// Symex increments the PC BEFORE executing the instruction.
 // "PC-" is handled by the hook "pc_decrementer", defined in the risc_v mod.
 
 impl InstructionToGAOperations for parsed_instructions::add {
-    fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
+    fn instruction_to_ga_operations(&self, _instr: &ParsedInstruction32) -> Vec<GAOperation> {
         let rd = self.rd.local_into();
         let rs1 = self.rs1.local_into();
         let rs2 = self.rs2.local_into();
@@ -33,7 +26,7 @@ impl InstructionToGAOperations for parsed_instructions::add {
 }
 
 impl InstructionToGAOperations for parsed_instructions::sub {
-    fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
+    fn instruction_to_ga_operations(&self, _instr: &ParsedInstruction32) -> Vec<GAOperation> {
         let rd = self.rd.local_into();
         let rs1 = self.rs1.local_into();
         let rs2 = self.rs2.local_into();
@@ -47,7 +40,7 @@ impl InstructionToGAOperations for parsed_instructions::sub {
 }
 
 impl InstructionToGAOperations for parsed_instructions::xor {
-    fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
+    fn instruction_to_ga_operations(&self, _instr: &ParsedInstruction32) -> Vec<GAOperation> {
         let rd = self.rd.local_into();
         let rs1 = self.rs1.local_into();
         let rs2 = self.rs2.local_into();
@@ -61,7 +54,7 @@ impl InstructionToGAOperations for parsed_instructions::xor {
 }
 
 impl InstructionToGAOperations for parsed_instructions::or {
-    fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
+    fn instruction_to_ga_operations(&self, _instr: &ParsedInstruction32) -> Vec<GAOperation> {
         let rd = self.rd.local_into();
         let rs1 = self.rs1.local_into();
         let rs2 = self.rs2.local_into();
@@ -75,7 +68,7 @@ impl InstructionToGAOperations for parsed_instructions::or {
 }
 
 impl InstructionToGAOperations for parsed_instructions::and {
-    fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
+    fn instruction_to_ga_operations(&self, _instr: &ParsedInstruction32) -> Vec<GAOperation> {
         let rd = self.rd.local_into();
         let rs1 = self.rs1.local_into();
         let rs2 = self.rs2.local_into();
@@ -89,7 +82,7 @@ impl InstructionToGAOperations for parsed_instructions::and {
 }
 
 impl InstructionToGAOperations for parsed_instructions::sll {
-    fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
+    fn instruction_to_ga_operations(&self, _instr: &ParsedInstruction32) -> Vec<GAOperation> {
         let rd = self.rd.local_into();
         let rs1 = self.rs1.local_into();
         let rs2 = self.rs2.local_into();
@@ -103,7 +96,7 @@ impl InstructionToGAOperations for parsed_instructions::sll {
 }
 
 impl InstructionToGAOperations for parsed_instructions::srl {
-    fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
+    fn instruction_to_ga_operations(&self, _instr: &ParsedInstruction32) -> Vec<GAOperation> {
         let rd = self.rd.local_into();
         let rs1 = self.rs1.local_into();
         let rs2 = self.rs2.local_into();
@@ -117,7 +110,7 @@ impl InstructionToGAOperations for parsed_instructions::srl {
 }
 
 impl InstructionToGAOperations for parsed_instructions::sra {
-    fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
+    fn instruction_to_ga_operations(&self, _instr: &ParsedInstruction32) -> Vec<GAOperation> {
         let rd = self.rd.local_into();
         let rs1 = self.rs1.local_into();
         let rs2 = self.rs2.local_into();
@@ -131,7 +124,7 @@ impl InstructionToGAOperations for parsed_instructions::sra {
 }
 
 impl InstructionToGAOperations for parsed_instructions::slt {
-    fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
+    fn instruction_to_ga_operations(&self, _instr: &ParsedInstruction32) -> Vec<GAOperation> {
         let rd = self.rd.local_into();
         let rs1 = self.rs1.local_into();
         let rs2 = self.rs2.local_into();
@@ -154,7 +147,7 @@ impl InstructionToGAOperations for parsed_instructions::slt {
 }
 
 impl InstructionToGAOperations for parsed_instructions::sltu {
-    fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
+    fn instruction_to_ga_operations(&self, _instr: &ParsedInstruction32) -> Vec<GAOperation> {
         let rd = self.rd.local_into();
         let rs1 = self.rs1.local_into();
         let rs2 = self.rs2.local_into();
@@ -177,7 +170,7 @@ impl InstructionToGAOperations for parsed_instructions::sltu {
 }
 
 impl InstructionToGAOperations for parsed_instructions::addi {
-    fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
+    fn instruction_to_ga_operations(&self, _instr: &ParsedInstruction32) -> Vec<GAOperation> {
         let rd = self.rd.local_into();
         let rs1 = self.rs1.local_into();
         let imm = self.imm.local_into();
@@ -191,7 +184,7 @@ impl InstructionToGAOperations for parsed_instructions::addi {
 }
 
 impl InstructionToGAOperations for parsed_instructions::xori {
-    fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
+    fn instruction_to_ga_operations(&self, _instr: &ParsedInstruction32) -> Vec<GAOperation> {
         let rd = self.rd.local_into();
         let rs1 = self.rs1.local_into();
         let imm = self.imm.local_into();
@@ -205,7 +198,7 @@ impl InstructionToGAOperations for parsed_instructions::xori {
 }
 
 impl InstructionToGAOperations for parsed_instructions::ori {
-    fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
+    fn instruction_to_ga_operations(&self, _instr: &ParsedInstruction32) -> Vec<GAOperation> {
         let rd = self.rd.local_into();
         let rs1 = self.rs1.local_into();
         let imm = self.imm.local_into();
@@ -219,7 +212,7 @@ impl InstructionToGAOperations for parsed_instructions::ori {
 }
 
 impl InstructionToGAOperations for parsed_instructions::andi {
-    fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
+    fn instruction_to_ga_operations(&self, _instr: &ParsedInstruction32) -> Vec<GAOperation> {
         let rd = self.rd.local_into();
         let rs1 = self.rs1.local_into();
         let imm = self.imm.local_into();
@@ -233,7 +226,7 @@ impl InstructionToGAOperations for parsed_instructions::andi {
 }
 
 impl InstructionToGAOperations for parsed_instructions::slli {
-    fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
+    fn instruction_to_ga_operations(&self, _instr: &ParsedInstruction32) -> Vec<GAOperation> {
         let rd = self.rd.local_into();
         let rs1 = self.rs1.local_into();
         let shamt = self.shamt.local_into();
@@ -247,7 +240,7 @@ impl InstructionToGAOperations for parsed_instructions::slli {
 }
 
 impl InstructionToGAOperations for parsed_instructions::srli {
-    fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
+    fn instruction_to_ga_operations(&self, _instr: &ParsedInstruction32) -> Vec<GAOperation> {
         let rd = self.rd.local_into();
         let rs1 = self.rs1.local_into();
         let shamt = self.shamt.local_into();
@@ -260,7 +253,7 @@ impl InstructionToGAOperations for parsed_instructions::srli {
 }
 
 impl InstructionToGAOperations for parsed_instructions::srai {
-    fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
+    fn instruction_to_ga_operations(&self, _instr: &ParsedInstruction32) -> Vec<GAOperation> {
         let rd = self.rd.local_into();
         let rs1 = self.rs1.local_into();
         let shamt = self.shamt.local_into();
@@ -274,7 +267,7 @@ impl InstructionToGAOperations for parsed_instructions::srai {
 }
 
 impl InstructionToGAOperations for parsed_instructions::slti {
-    fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
+    fn instruction_to_ga_operations(&self, _instr: &ParsedInstruction32) -> Vec<GAOperation> {
         let rd = self.rd.local_into();
         let rs1 = self.rs1.local_into();
         let imm = self.imm.local_into();
@@ -298,7 +291,7 @@ impl InstructionToGAOperations for parsed_instructions::slti {
 }
 
 impl InstructionToGAOperations for parsed_instructions::sltiu {
-    fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
+    fn instruction_to_ga_operations(&self, _instr: &ParsedInstruction32) -> Vec<GAOperation> {
         let rd = self.rd.local_into();
         let rs1 = self.rs1.local_into();
         let imm = self.imm.local_into();
@@ -321,7 +314,7 @@ impl InstructionToGAOperations for parsed_instructions::sltiu {
 }
 
 impl InstructionToGAOperations for parsed_instructions::lb {
-    fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
+    fn instruction_to_ga_operations(&self, _instr: &ParsedInstruction32) -> Vec<GAOperation> {
         let rd = self.rd.local_into();
         let rs1 = self.rs1.local_into();
         let imm = self.imm.local_into();
@@ -335,7 +328,7 @@ impl InstructionToGAOperations for parsed_instructions::lb {
 }
 
 impl InstructionToGAOperations for parsed_instructions::lh {
-    fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
+    fn instruction_to_ga_operations(&self, _instr: &ParsedInstruction32) -> Vec<GAOperation> {
         let rd = self.rd.local_into();
         let rs1 = self.rs1.local_into();
         let imm = self.imm.local_into();
@@ -349,7 +342,7 @@ impl InstructionToGAOperations for parsed_instructions::lh {
 }
 
 impl InstructionToGAOperations for parsed_instructions::lw {
-    fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
+    fn instruction_to_ga_operations(&self, _instr: &ParsedInstruction32) -> Vec<GAOperation> {
         let rd = self.rd.local_into();
         let rs1 = self.rs1.local_into();
         let imm = self.imm.local_into();
@@ -362,7 +355,7 @@ impl InstructionToGAOperations for parsed_instructions::lw {
 }
 
 impl InstructionToGAOperations for parsed_instructions::lbu {
-    fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
+    fn instruction_to_ga_operations(&self, _instr: &ParsedInstruction32) -> Vec<GAOperation> {
         let rd = self.rd.local_into();
         let rs1 = self.rs1.local_into();
         let imm = self.imm.local_into();
@@ -376,7 +369,7 @@ impl InstructionToGAOperations for parsed_instructions::lbu {
 }
 
 impl InstructionToGAOperations for parsed_instructions::lhu {
-    fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
+    fn instruction_to_ga_operations(&self, _instr: &ParsedInstruction32) -> Vec<GAOperation> {
         let rd = self.rd.local_into();
         let rs1 = self.rs1.local_into();
         let imm = self.imm.local_into();
@@ -390,7 +383,7 @@ impl InstructionToGAOperations for parsed_instructions::lhu {
 }
 
 impl InstructionToGAOperations for parsed_instructions::sb {
-    fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
+    fn instruction_to_ga_operations(&self, _instr: &ParsedInstruction32) -> Vec<GAOperation> {
         let rs1 = self.rs1.local_into();
         let rs2 = self.rs2.local_into();
         let imm = self.imm.local_into();
@@ -405,7 +398,7 @@ impl InstructionToGAOperations for parsed_instructions::sb {
 }
 
 impl InstructionToGAOperations for parsed_instructions::sh {
-    fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
+    fn instruction_to_ga_operations(&self, _instr: &ParsedInstruction32) -> Vec<GAOperation> {
         let rs1 = self.rs1.local_into();
         let rs2 = self.rs2.local_into();
         let imm = self.imm.local_into();
@@ -420,7 +413,7 @@ impl InstructionToGAOperations for parsed_instructions::sh {
 }
 
 impl InstructionToGAOperations for parsed_instructions::sw {
-    fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
+    fn instruction_to_ga_operations(&self, _instr: &ParsedInstruction32) -> Vec<GAOperation> {
         let rs1 = self.rs1.local_into();
         let rs2 = self.rs2.local_into();
         let imm = self.imm.local_into();
@@ -433,7 +426,7 @@ impl InstructionToGAOperations for parsed_instructions::sw {
 }
 
 impl InstructionToGAOperations for parsed_instructions::beq {
-    fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
+    fn instruction_to_ga_operations(&self, _instr: &ParsedInstruction32) -> Vec<GAOperation> {
         let rs1 = self.rs1.local_into();
         let rs2 = self.rs2.local_into();
         let imm = self.imm.local_into();
@@ -457,7 +450,7 @@ impl InstructionToGAOperations for parsed_instructions::beq {
 }
 
 impl InstructionToGAOperations for parsed_instructions::bne {
-    fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
+    fn instruction_to_ga_operations(&self, _instr: &ParsedInstruction32) -> Vec<GAOperation> {
         let rs1 = self.rs1.local_into();
         let rs2 = self.rs2.local_into();
         let imm = self.imm.local_into();
@@ -481,7 +474,7 @@ impl InstructionToGAOperations for parsed_instructions::bne {
 }
 
 impl InstructionToGAOperations for parsed_instructions::blt {
-    fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
+    fn instruction_to_ga_operations(&self, _instr: &ParsedInstruction32) -> Vec<GAOperation> {
         let rs1 = self.rs1.local_into();
         let rs2 = self.rs2.local_into();
         let imm = self.imm.local_into();
@@ -505,7 +498,7 @@ impl InstructionToGAOperations for parsed_instructions::blt {
 }
 
 impl InstructionToGAOperations for parsed_instructions::bge {
-    fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
+    fn instruction_to_ga_operations(&self, _instr: &ParsedInstruction32) -> Vec<GAOperation> {
         let rs1 = self.rs1.local_into();
         let rs2 = self.rs2.local_into();
         let imm = self.imm.local_into();
@@ -529,7 +522,7 @@ impl InstructionToGAOperations for parsed_instructions::bge {
 }
 
 impl InstructionToGAOperations for parsed_instructions::bltu {
-    fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
+    fn instruction_to_ga_operations(&self, _instr: &ParsedInstruction32) -> Vec<GAOperation> {
         let rs1 = self.rs1.local_into();
         let rs2 = self.rs2.local_into();
         let imm = self.imm.local_into();
@@ -553,7 +546,7 @@ impl InstructionToGAOperations for parsed_instructions::bltu {
 }
 
 impl InstructionToGAOperations for parsed_instructions::bgeu {
-    fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
+    fn instruction_to_ga_operations(&self, _instr: &ParsedInstruction32) -> Vec<GAOperation> {
         let rs1 = self.rs1.local_into();
         let rs2 = self.rs2.local_into();
         let imm = self.imm.local_into();
@@ -577,7 +570,7 @@ impl InstructionToGAOperations for parsed_instructions::bgeu {
 }
 
 impl InstructionToGAOperations for parsed_instructions::jal {
-    fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
+    fn instruction_to_ga_operations(&self, _instr: &ParsedInstruction32) -> Vec<GAOperation> {
         let rd = self.rd.local_into();
         let imm = self.imm.local_into();
         let pc = Operand::Register("PC-".to_owned());
@@ -594,7 +587,7 @@ impl InstructionToGAOperations for parsed_instructions::jal {
 }
 
 impl InstructionToGAOperations for parsed_instructions::jalr {
-    fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
+    fn instruction_to_ga_operations(&self, _instr: &ParsedInstruction32) -> Vec<GAOperation> {
         let rd = self.rd.local_into();
         let imm = self.imm.local_into();
         let rs1 = self.rs1.local_into();
@@ -614,7 +607,7 @@ impl InstructionToGAOperations for parsed_instructions::jalr {
 }
 
 impl InstructionToGAOperations for parsed_instructions::lui {
-    fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
+    fn instruction_to_ga_operations(&self, _instr: &ParsedInstruction32) -> Vec<GAOperation> {
         let rd = self.rd.local_into();
         let imm = self.imm.local_into();
 
@@ -627,7 +620,7 @@ impl InstructionToGAOperations for parsed_instructions::lui {
 }
 
 impl InstructionToGAOperations for parsed_instructions::auipc {
-    fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
+    fn instruction_to_ga_operations(&self, _instr: &ParsedInstruction32) -> Vec<GAOperation> {
         let rd = self.rd.local_into();
         let imm = self.imm.local_into();
         let pc = Operand::Register("PC-".to_owned());
@@ -641,7 +634,7 @@ impl InstructionToGAOperations for parsed_instructions::auipc {
 }
 
 impl InstructionToGAOperations for parsed_instructions::ecall {
-    fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
+    fn instruction_to_ga_operations(&self, _instr: &ParsedInstruction32) -> Vec<GAOperation> {
         vec![GAOperation::Abort {
             error: "ecall requires external system modelling".to_string(),
         }]
@@ -649,7 +642,7 @@ impl InstructionToGAOperations for parsed_instructions::ecall {
 }
 
 impl InstructionToGAOperations for parsed_instructions::ebreak {
-    fn instruction_to_ga_operations(&self, instr: &ParsedInstruction32) -> Vec<GAOperation> {
+    fn instruction_to_ga_operations(&self, _instr: &ParsedInstruction32) -> Vec<GAOperation> {
         vec![GAOperation::Abort {
             error: "ebreak requires external system modelling".to_string(),
         }]

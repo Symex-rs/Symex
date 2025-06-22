@@ -205,8 +205,7 @@ impl Parse for FieldExtract {
                 let _: Token![:] = input.parse()?;
 
                 let start: LitInt = input.parse()?;
-                let start = start.base10_parse::<u32>()?;
-                start
+                start.base10_parse::<u32>()?
             }
             false => end,
         };

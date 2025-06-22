@@ -4,8 +4,6 @@ use std::collections::VecDeque;
 
 use anyhow::Context as _;
 use general_assembly::prelude::Condition;
-use gimli::{EndianSlice, RunTimeEndian};
-use hashbrown::HashMap;
 
 use super::{
     extension::ieee754::FpState,
@@ -14,7 +12,7 @@ use super::{
     ResultOrTerminate,
 };
 use crate::{
-    arch::{SupportedArchitecture, TryAsMut, InterfaceRegister},
+    arch::{InterfaceRegister, SupportedArchitecture, TryAsMut},
     debug,
     extract,
     logging::Logger,
@@ -27,7 +25,6 @@ use crate::{
     trace,
     Composition,
     GAError,
-    InternalError,
     Result,
 };
 
@@ -66,6 +63,8 @@ pub struct GAState<C: Composition> {
 }
 
 impl<C: Composition> GAState<C> {
+    #[inline]
+    #[allow(clippy::too_many_arguments)]
     /// Create a new state.
     pub fn new(
         ctx: C::SMT,
@@ -91,16 +90,16 @@ impl<C: Composition> GAState<C> {
         debug!("Found stack start at addr: {:#X}.", sp_reg);
 
         let endianness = project.get_endianness();
-        let initial_sp = ctx.from_u64(sp_reg, ptr_size as u32);
+        let initial_sp = ctx.from_u64(sp_reg, ptr_size);
         let mut memory = C::Memory::new(ctx.clone(), project, endianness, initial_sp, &state, &architecture)?;
-        let pc_expr = ctx.from_u64(pc_reg, ptr_size as u32);
+        let pc_expr = ctx.from_u64(pc_reg, ptr_size);
         memory.set_register("PC", pc_expr)?;
 
-        let sp_expr = ctx.from_u64(sp_reg, ptr_size as u32);
+        let sp_expr = ctx.from_u64(sp_reg, ptr_size);
         memory.set_register("SP", sp_expr)?;
 
         // Set the link register to max value to detect when returning from a function.
-        let end_pc_expr = ctx.from_u64(end_address, ptr_size as u32);
+        let end_pc_expr = ctx.from_u64(end_address, ptr_size);
         let register_name = architecture.get_register_name(InterfaceRegister::ReturnAddress);
         memory.set_register(&register_name.to_owned(), end_pc_expr)?;
         let mut ret = Self {
@@ -223,6 +222,9 @@ impl<C: Composition> GAState<C> {
     }
 
     /// Create a state used for testing.
+    #[cfg(test)]
+    #[inline]
+    #[allow(clippy::too_many_arguments)]
     pub fn create_test_state(
         project: <C::Memory as SmtMap>::ProgramMemory,
         ctx: C::SMT,
@@ -415,10 +417,8 @@ impl<C: Composition> GAState<C> {
                 ResultOrHook::Result(pc) => pc,
                 _ => todo!("Handle out of bounds reads for program memory reads"),
             }
-            .clone()
         };
         ResultOrTerminate::Result(Ok(HookOrInstruction::Instruction({
-            let pc = pc.clone();
             //println!("PC {pc:#x}");
             extract!(Ok(ResultOrTerminate::Result(
                 match self.instruction_from_array_ptr(&extract!(Ok(ResultOrTerminate::Result(match self.memory.get_from_instruction_memory(pc.into()) {
@@ -522,6 +522,7 @@ impl<C: Composition> GAState<C> {
                     mem: &mut self.memory,
                     constraints,
                 },
+                self.last_pc,
                 &self.architecture,
             )
         });

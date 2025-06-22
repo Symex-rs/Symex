@@ -2,13 +2,12 @@ use object::{File, Object};
 
 use super::{
     arm::{arm_isa, v6::ArmV6M, v7::ArmV7EM, ArmIsa},
-    RISCV,
     ArchError,
     Architecture,
     NoArchitectureOverride,
     SupportedArchitecture,
+    RISCV,
 };
-use crate::initiation::NoArchOverride;
 
 impl SupportedArchitecture<NoArchitectureOverride> {
     /// Discovers all supported binary formats from the binary file.
@@ -21,9 +20,7 @@ impl SupportedArchitecture<NoArchitectureOverride> {
         #[allow(clippy::single_match)]
         match architecture {
             object::Architecture::Arm => return discover_arm(obj_file),
-            object::Architecture::Riscv32 => return Ok(SupportedArchitecture::RISCV(
-                <RISCV as Architecture<NoArchitectureOverride>>::new(),
-            )),
+            object::Architecture::Riscv32 => return Ok(SupportedArchitecture::RISCV(<RISCV as Architecture<NoArchitectureOverride>>::new())),
             _ => {}
         }
         Err(ArchError::UnsupportedArchitechture)

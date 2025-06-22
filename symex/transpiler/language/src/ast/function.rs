@@ -40,6 +40,7 @@ pub struct FunctionCall {
 ///
 /// These are ways of calling [`general_assembly`]
 /// instructions that are not arithmetic operations
+#[allow(clippy::large_enum_variant)]
 pub enum Intrinsic {
     /// Zero extends the operand with zeros from the
     /// bit specified and onward.

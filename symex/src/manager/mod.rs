@@ -28,7 +28,10 @@ pub struct SymexArbiter<C: Composition> {
 }
 
 impl<C: Composition> SymexArbiter<C> {
-    pub(crate) fn new(
+    #[must_use]
+    #[inline]
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) const fn new(
         logger: C::Logger,
         project: <C::Memory as SmtMap>::ProgramMemory,
         ctx: C::SMT,
@@ -96,12 +99,7 @@ impl<C: Composition> SymexArbiter<C> {
         intermediate_hooks.add_language_hooks(&self.symbol_lookup, language);
         let allowed = ranges
             .iter()
-            .map(|(low, high)| {
-                (
-                    self.ctx.from_u64(*low, self.project.get_ptr_size() as u32),
-                    self.ctx.from_u64(*high, self.project.get_ptr_size() as u32),
-                )
-            })
+            .map(|(low, high)| (self.ctx.from_u64(*low, self.project.get_ptr_size()), self.ctx.from_u64(*high, self.project.get_ptr_size())))
             .collect::<Vec<_>>();
 
         intermediate_hooks.allow_access(allowed);
@@ -165,16 +163,7 @@ impl<C: Composition> SymexArbiter<C> {
             None,
         )?;
 
-        let vm = VM::new_from_state(
-            self.project.clone(),
-            &self.ctx,
-            state,
-            0xfffffffe,
-            self.state_container.clone(),
-            self.hooks.clone(),
-            self.architecture.clone(),
-            self.logger.clone(),
-        )?;
+        let vm = VM::new_from_state(self.project.clone(), state, self.logger.clone())?;
         Ok(Runner { vm, path_idx: 0 })
     }
 
@@ -198,16 +187,7 @@ impl<C: Composition> SymexArbiter<C> {
             None,
         )?;
 
-        let vm = VM::new_from_state(
-            self.project.clone(),
-            &self.ctx,
-            state,
-            0xfffffffe,
-            self.state_container.clone(),
-            self.hooks.clone(),
-            self.architecture.clone(),
-            self.logger.clone(),
-        )?;
+        let vm = VM::new_from_state(self.project.clone(), state, self.logger.clone())?;
         Ok(Runner { vm, path_idx: 0 })
     }
 

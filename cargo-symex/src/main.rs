@@ -1,4 +1,4 @@
-use std::fmt::Display;
+#![deny(warnings, clippy::all)]
 
 use anyhow::{anyhow, Result};
 use clap::Parser;
@@ -74,9 +74,8 @@ fn run() -> Result<()> {
 }
 fn run_elf<C>(path: String, function_name: String, language: LangagueHooks) -> Result<()>
 where
-    C::Logger: Display,
-    C::Memory: symex::smt::SmtMap<ProgramMemory = &'static symex::project::Project>,
     C: symex::Composition<Logger = SimplePathLogger, StateContainer = (), ArchitectureOverride = NoArchitectureOverride>,
+    C::Memory: symex::smt::SmtMap<ProgramMemory = &'static symex::project::Project>,
 {
     let mut executor: SymexArbiter<C> = symex::initiation::SymexConstructor::new(&path)
         .load_binary()

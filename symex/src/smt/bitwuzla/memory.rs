@@ -1,21 +1,12 @@
-use std::{
-    fmt::Display,
-    marker::{PhantomData, PhantomPinned},
-    rc::Rc,
-};
+use std::{fmt::Display, marker::PhantomData, rc::Rc};
 
 use anyhow::Context as _;
 use bitwuzla::{Array, Btor, BV};
-use general_assembly::{
-    extension::ieee754::{OperandType, RoundingMode},
-    prelude::DataWord,
-};
+use general_assembly::extension::ieee754::{OperandType, RoundingMode};
 use hashbrown::HashMap;
-use tracing_subscriber::registry::Data;
 
 use super::{expr::BitwuzlaExpr, fpexpr::FpExpr, Bitwuzla};
 use crate::{
-    arch::Architecture,
     executor::ResultOrTerminate,
     memory::{MemoryError, BITS_IN_BYTE},
     project::Project,
@@ -147,6 +138,7 @@ impl Context for ArrayMemory {
 }
 
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "exact", allow(dead_code))]
 pub struct BitwuzlaMemory<State: UserStateContainer> {
     pub(crate) ram: ArrayMemory,
     register_file: HashMap<String, BitwuzlaExpr>,
@@ -159,7 +151,6 @@ pub struct BitwuzlaMemory<State: UserStateContainer> {
     pc: u64,
     initial_sp: BitwuzlaExpr,
     static_writes: HashMap<u64, BitwuzlaExpr>,
-    privelege_map: Vec<(u64, u64)>,
     cycles: u64,
     _0: PhantomData<State>,
 }
@@ -179,7 +170,7 @@ impl<State: UserStateContainer> SmtMap for BitwuzlaMemory<State> {
         arch: &crate::arch::SupportedArchitecture<O>,
     ) -> Result<Self, crate::GAError> {
         let ram = {
-            let memory = Array::new(smt.ctx.clone(), arch.word_size() as u64, BITS_IN_BYTE as u64, Some("memory"));
+            let memory = Array::new(smt.ctx.clone(), arch.word_size(), BITS_IN_BYTE as u64, Some("memory"));
 
             ArrayMemory {
                 ctx: smt.ctx,
@@ -200,7 +191,6 @@ impl<State: UserStateContainer> SmtMap for BitwuzlaMemory<State> {
             pc: 0,
             initial_sp,
             static_writes: HashMap::new(),
-            privelege_map: Vec::new(),
             cycles: 0,
             _0: PhantomData,
         })
@@ -212,14 +202,14 @@ impl<State: UserStateContainer> SmtMap for BitwuzlaMemory<State> {
                 trace!("Got deterministic address ({address:#x}) from ram");
                 return ResultOrTerminate::Result(
                     self.ram
-                        .read(idx, size as u32)
+                        .read(idx, size)
                         .context("While reading from a non constant address pointing in to the symbols memory"),
                 );
             }
             trace!("Got deterministic address ({address:#x}) from project");
             return ResultOrTerminate::Result(
                 self.program_memory
-                    .get(address, size as u32, &self.static_writes, &self.ram)
+                    .get(address, size, &self.static_writes, &self.ram)
                     .context("While reading from progam memory"),
             );
             /* DataWord::Word8(value) => self.from_u64(value.into(), 8),
@@ -229,18 +219,14 @@ impl<State: UserStateContainer> SmtMap for BitwuzlaMemory<State> {
              * DataWord::Bit(value) => self.from_u64(value.into(), 1), */
         }
         trace!("Got NON deterministic address {idx:?} from ram");
-        ResultOrTerminate::Result(
-            self.ram
-                .read(idx, size as u32)
-                .context("While reading from a non constant address pointing to symbolic memory"),
-        )
+        ResultOrTerminate::Result(self.ram.read(idx, size).context("While reading from a non constant address pointing to symbolic memory"))
     }
 
     fn set(&mut self, idx: &Self::Expression, value: Self::Expression) -> Result<(), crate::smt::MemoryError> {
         if let Some(address) = idx.get_constant() {
             if self.program_memory.address_in_range(address) {
                 assert!(value.size() % 8 == 0, "Value must be a multiple of 8 bits to be written to program memory");
-                self.program_memory.set(
+                let _ = self.program_memory.set(
                     address,
                     value,
                     // match value.len() / 8 {
@@ -304,7 +290,7 @@ impl<State: UserStateContainer> SmtMap for BitwuzlaMemory<State> {
     }
 
     #[cfg(not(feature = "bitwuzla-exact-fp"))]
-    fn set_fp_register(&mut self, idx: &str, value: <Self::SMT as SmtSolver>::FpExpression, rm: RoundingMode, signed: bool) -> Result<(), crate::smt::MemoryError> {
+    fn set_fp_register(&mut self, idx: &str, value: <Self::SMT as SmtSolver>::FpExpression, _rm: RoundingMode, _signed: bool) -> Result<(), crate::smt::MemoryError> {
         self.fp_registers.insert(idx.to_string(), value);
         Ok(())
     }
@@ -334,9 +320,9 @@ impl<State: UserStateContainer> SmtMap for BitwuzlaMemory<State> {
         &mut self,
         idx: &str,
         source_ty: OperandType,
-        dest_ty: OperandType,
-        rm: RoundingMode,
-        signed: bool,
+        _dest_ty: OperandType,
+        _rm: RoundingMode,
+        _signed: bool,
     ) -> Result<<Self::SMT as SmtSolver>::FpExpression, crate::smt::MemoryError> {
         let ret = match self.fp_registers.get(idx) {
             Some(val) => val.clone(),
@@ -372,20 +358,20 @@ impl<State: UserStateContainer> SmtMap for BitwuzlaMemory<State> {
         let value = match ty {
             OperandType::Binary16 => {
                 todo!("No support in the rust compiler for binary16");
-                // let value = (value as f16).to_bits() as u64;
+                // let value = (value as f16).to_bits() ;
                 // self.from_u64(value, size)
             }
             OperandType::Binary32 => {
-                let value = (value as f32).to_bits() as u64;
+                let value = u64::from((value as f32).to_bits());
                 self.from_u64(value, size)
             }
             OperandType::Binary64 => {
-                let value = (value as f64).to_bits() as u64;
+                let value = (value).to_bits();
                 self.from_u64(value, size)
             }
             OperandType::Binary128 => {
                 todo!("TODO! Represent 128 bit numbers");
-                // let value = (value as f64).to_bits() as u64;
+                // let value = (value as f64).to_bits() ;
                 // self.from_u64(value, size)
             }
             OperandType::Integral { size: _, signed: _ } => panic!("Cannot create fp expression from binary"),
@@ -406,7 +392,7 @@ impl<State: UserStateContainer> SmtMap for BitwuzlaMemory<State> {
         assert!(size != 0, "Tried to create a 0 width unconstrained value");
         let ret = BV::new(self.ram.ctx.clone(), size as u64, Some(name));
         let ret = BitwuzlaExpr(ret);
-        ret.resize_unsigned(size as u32);
+        let ret = ret.resize_unsigned(size);
         if !self.variables.contains_key(name) {
             trace!("Added a named variabled");
             self.variables.insert(name.to_string(), ret.clone());
@@ -419,13 +405,12 @@ impl<State: UserStateContainer> SmtMap for BitwuzlaMemory<State> {
         assert!(size != 0, "Tried to create a 0 width unconstrained value");
         let ret = BV::new(self.ram.ctx.clone(), size as u64, None);
         let ret = BitwuzlaExpr(ret);
-        ret.resize_unsigned(size as u32);
+        let _ = ret.resize_unsigned(size);
         ret
     }
 
     fn unconstrained_fp_unnamed(&mut self, ty: general_assembly::extension::ieee754::OperandType) -> <Self::SMT as crate::smt::SmtSolver>::FpExpression {
-        let expr = FpExpr::unconstrained(self.ram.ctx.clone(), &ty, None);
-        expr
+        FpExpr::unconstrained(self.ram.ctx.clone(), &ty, None)
     }
 
     fn unconstrained_fp(&mut self, ty: general_assembly::extension::ieee754::OperandType, name: &str) -> <Self::SMT as crate::smt::SmtSolver>::FpExpression {

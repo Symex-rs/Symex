@@ -82,7 +82,7 @@ pub trait Logger: Clone + core::fmt::Debug {
     fn register_region(&mut self, region: Self::RegionIdentifier);
 
     /// Adds a new region to the logger.
-    fn update_delimiter<T: Into<Self::RegionDelimiter>, C: Composition>(&mut self, _region: T, state: &mut GAState<C>) {}
+    fn update_delimiter<T: Into<Self::RegionDelimiter>, C: Composition>(&mut self, _region: T, _state: &mut GAState<C>) {}
 
     fn new<C: Composition>(state: &SymexArbiter<C>) -> Self;
 
@@ -115,13 +115,13 @@ impl Logger for NoLogger {
 
     fn record_path_result<C: Composition>(&mut self, _path_result: PathResult<C>) {}
 
-    fn update_delimiter<T: Into<Self::RegionDelimiter>, C: Composition>(&mut self, _region: T, state: &mut GAState<C>) {}
+    fn update_delimiter<T: Into<Self::RegionDelimiter>, C: Composition>(&mut self, _region: T, _state: &mut GAState<C>) {}
 
     fn new<C: Composition>(_state: &SymexArbiter<C>) -> Self {
         Self
     }
 
-    fn record_backtrace(&mut self, bt: Option<CallStack>) {}
+    fn record_backtrace(&mut self, _bt: Option<CallStack>) {}
 }
 
 impl From<RegionMetaData> for NoLogger {

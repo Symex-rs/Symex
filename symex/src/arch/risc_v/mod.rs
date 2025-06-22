@@ -13,11 +13,10 @@
 use std::fmt::Display;
 
 use anyhow::Context;
-use disarmv7::Parse;
-use risc_v_disassembler::{DisassemblerError, ParsedInstruction32, Register};
+use risc_v_disassembler::DisassemblerError;
 
 use crate::{
-    arch::{risc_v::decoder::InstructionToGAOperations, ArchError, Architecture, ArchitectureOverride, InterfaceRegister, ParseError, SupportedArchitecture},
+    arch::{ArchError, Architecture, ArchitectureOverride, InterfaceRegister, ParseError, SupportedArchitecture},
     debug,
     executor::{
         hooks::{HookContainer, PCHook},
@@ -25,7 +24,6 @@ use crate::{
         state::GAState,
     },
     general_assembly::operation::Operation,
-    memory,
     project::dwarf_helper::SubProgramMap,
     smt::{ProgramMemory, SmtExpr, SmtMap},
     trace,
@@ -62,7 +60,7 @@ impl<Override: ArchitectureOverride> Architecture<Override> for RISCV {
         32
     }
 
-    fn nan_encoding(ty: general_assembly::extension::ieee754::OperandType) -> u64 {
+    fn nan_encoding(_ty: general_assembly::extension::ieee754::OperandType) -> u64 {
         todo!()
     }
 
@@ -81,7 +79,7 @@ impl<Override: ArchitectureOverride> Architecture<Override> for RISCV {
             Endianness::Little => false,
         };
         let use_abi_register_names = true;
-        let instr = risc_v_disassembler::parse(&buff, is_big_endian, use_abi_register_names).map_err(|e| ArchError::ParsingError(e.into(), buffer));
+        let instr = risc_v_disassembler::parse(buff, is_big_endian, use_abi_register_names).map_err(|e| ArchError::ParsingError(e.into(), buffer));
 
         debug!("PC{:#x} -> Running {:?}", state.memory.get_pc().unwrap().get_constant().unwrap(), instr);
         let instr = instr?;
@@ -137,19 +135,19 @@ impl<Override: ArchitectureOverride> Architecture<Override> for RISCV {
             Ok(())
         };
 
-        if let Err(_) = cfg.add_pc_hook_regex(map, r"^symbolic_size$", PCHook::Intrinsic(symbolic_sized)) {
+        if cfg.add_pc_hook_regex(map, r"^symbolic_size$", PCHook::Intrinsic(symbolic_sized)).is_err() {
             debug!("Could not add symoblic hook, must not contain any calls to `symbolic_size`");
         }
-        if let Err(_) = cfg.add_pc_hook_regex(map, r"^symbolic_size<.+>$", PCHook::Intrinsic(symbolic_sized)) {
+        if cfg.add_pc_hook_regex(map, r"^symbolic_size<.+>$", PCHook::Intrinsic(symbolic_sized)).is_err() {
             debug!("Could not add symoblic hook, must not contain any calls to `symbolic_size<.+>`");
         }
 
-        if let Err(_) = cfg.add_pc_hook_regex(map, r"^HardFault.*$", PCHook::EndFailure("Hardfault")) {
+        if cfg.add_pc_hook_regex(map, r"^HardFault.*$", PCHook::EndFailure("Hardfault")).is_err() {
             trace!("Could not add hardfault hook");
         }
 
         // Writing to zero register should not change the state.
-        let write_zero = |state: &mut GAState<C>, _value: C::SmtExpression| {
+        let write_zero = |_state: &mut GAState<C>, _value: C::SmtExpression| {
             trace!("Writing to zero register, no effect");
             Ok(())
         };
@@ -174,13 +172,13 @@ impl<Override: ArchitectureOverride> Architecture<Override> for RISCV {
         cfg.add_register_read_hook("PC-".to_string(), pc_decrementer);
     }
 
-    fn pre_instruction_loading_hook<C>(state: &mut GAState<C>)
+    fn pre_instruction_loading_hook<C>(_state: &mut GAState<C>)
     where
         C: Composition<ArchitectureOverride = Override>,
     {
     }
 
-    fn post_instruction_execution_hook<C>(state: &mut GAState<C>)
+    fn post_instruction_execution_hook<C>(_state: &mut GAState<C>)
     where
         C: Composition<ArchitectureOverride = Override>,
     {
@@ -191,7 +189,7 @@ impl<Override: ArchitectureOverride> Architecture<Override> for RISCV {
         C: Composition<ArchitectureOverride = Override>,
     {
         trace!("Setting ZERO register to zero");
-        state.memory.set_register("ZERO", state.memory.from_u64(0, 32));
+        let _ = state.memory.set_register("ZERO", state.memory.from_u64(0, 32));
     }
 
     fn get_register_name(reg: InterfaceRegister) -> String {

@@ -6,15 +6,13 @@
 //! Moreover the architecture may define a few
 //! architecture specific hooks.
 
+#![allow(clippy::unnecessary_cast)]
 pub mod arm;
 /// Defines discovery behaviour for the architectures.
 pub mod discover;
 pub mod risc_v;
 
-use std::{
-    fmt::{Debug, Display},
-    sync::Arc,
-};
+use std::fmt::{Debug, Display};
 
 use arm::{v6::ArmV6M, v7::ArmV7EM};
 use general_assembly::extension::ieee754::OperandType;
@@ -23,7 +21,6 @@ use thiserror::Error;
 
 use crate::{
     executor::{hooks::HookContainer, instruction::Instruction, state::GAState},
-    initiation::NoArchOverride,
     project::dwarf_helper::SubProgramMap,
     Composition,
 };
@@ -121,16 +118,23 @@ pub enum SupportedArchitecture<Override: ArchitectureOverride> {
 
 /// This trait allows an architecture to be used as an architecture override.
 pub trait ArchitectureOverride: Architecture<Self> + Clone + Default {
-    /// Checks if the  value is an armv7em override.
+    /// Checks if the  value is an RISC-V override.
     ///
     /// If so, it returns the underlying representation.
-
     fn as_riscv(&mut self) -> Option<&mut RISCV> {
         None
     }
+
+    /// Checks if the  value is an ArmV7-EM override.
+    ///
+    /// If so, it returns the underlying representation.
     fn as_arm_v7(&mut self) -> Option<&mut ArmV7EM> {
         None
     }
+
+    /// Checks if the  value is an ArmV6-M override.
+    ///
+    /// If so, it returns the underlying representation.
     fn as_arm_v6(&mut self) -> Option<&mut ArmV6M> {
         None
     }
@@ -181,12 +185,12 @@ pub trait Architecture<Override: ArchitectureOverride>: Debug + Display + Into<S
         Self: Sized;
 
     /// Translates a named register to the register number in the core.
-    fn register_name_to_number(name: &str) -> Option<u64> {
+    fn register_name_to_number(_name: &str) -> Option<u64> {
         None
     }
 
     /// Translates a register number to the register name.
-    fn register_number_to_name(idx: u64) -> Option<String> {
+    fn register_number_to_name(_idx: u64) -> Option<String> {
         None
     }
 
@@ -215,48 +219,50 @@ impl Architecture<Self> for NoArchitectureOverride {
     }
 
     /// Converts a slice of bytes to an [`Instruction`]
-    fn translate<C: Composition>(buff: &[u8], state: &mut GAState<C>) -> Result<Instruction<C>, ArchError> {
+    fn translate<C: Composition>(_buff: &[u8], _state: &mut GAState<C>) -> Result<Instruction<C>, ArchError> {
         unimplemented!("NoArchitectureOverride is not an architecture. Runtime checks failed.");
     }
 
     /// Adds the architecture specific hooks to the [`HookContainer`]
-    fn add_hooks<C: Composition>(&self, hooks: &mut HookContainer<C>, sub_program_lookup: &mut SubProgramMap) {
+    fn add_hooks<C: Composition>(&self, _hooks: &mut HookContainer<C>, _sub_program_lookup: &mut SubProgramMap) {
         unimplemented!("NoArchitectureOverride is not an architecture. Runtime checks failed.");
     }
 
-    fn pre_instruction_loading_hook<C>(state: &mut GAState<C>)
+    fn pre_instruction_loading_hook<C>(_state: &mut GAState<C>)
     where
         C: Composition<ArchitectureOverride = Self>,
     {
         unimplemented!("NoArchitectureOverride is not an architecture. Runtime checks failed.");
     }
 
-    fn post_instruction_execution_hook<C>(state: &mut GAState<C>)
+    fn post_instruction_execution_hook<C>(_state: &mut GAState<C>)
     where
         C: Composition<ArchitectureOverride = Self>,
     {
         unimplemented!("NoArchitectureOverride is not an architecture. Runtime checks failed.");
     }
 
-    fn initiate_state<C>(state: &mut GAState<C>)
+    fn initiate_state<C>(_state: &mut GAState<C>)
     where
         C: Composition<ArchitectureOverride = Self>,
     {
         unimplemented!("NoArchitectureOverride is not an architecture. Runtime checks failed.");
     }
 
-    fn get_register_name(reg: InterfaceRegister) -> String {
+    fn get_register_name(_reg: InterfaceRegister) -> String {
         unimplemented!("NoArchitectureOverride is not an architecture. Runtime checks failed.");
     }
 
-    fn nan_encoding(ty: OperandType) -> u64 {
+    fn nan_encoding(_ty: OperandType) -> u64 {
         unimplemented!("NoArchitectureOverride is not an architecture. Runtime checks failed.");
     }
 }
 
+/// A simple hook used to translate a set of bytes in to an [`Instruction`]
+pub type Translator<C> = fn(&[u8], &mut GAState<C>) -> Result<Instruction<C>, ArchError>;
 impl<Override: ArchitectureOverride> SupportedArchitecture<Override> {
     /// Converts a slice of bytes to an [`Instruction`]
-    pub fn translate<C>(&self) -> fn(&[u8], &mut GAState<C>) -> Result<Instruction<C>, ArchError>
+    pub fn translate<C>(&self) -> Translator<C>
     where
         C: Composition<ArchitectureOverride = Override>,
     {
@@ -313,10 +319,10 @@ impl<Override: ArchitectureOverride> SupportedArchitecture<Override> {
     /// instruction is executed.
     pub fn register_name_to_number(&self, name: &str) -> Option<u64> {
         match self {
-            Self::Armv6M(a) => <ArmV6M as Architecture<Override>>::register_name_to_number(name),
-            Self::Armv7EM(a) => <ArmV7EM as Architecture<Override>>::register_name_to_number(name),
-            Self::RISCV(a) => <RISCV as Architecture<Override>>::register_name_to_number(name),
-            Self::Override(o) => Override::register_name_to_number(name),
+            Self::Armv6M(_a) => <ArmV6M as Architecture<Override>>::register_name_to_number(name),
+            Self::Armv7EM(_a) => <ArmV7EM as Architecture<Override>>::register_name_to_number(name),
+            Self::RISCV(_a) => <RISCV as Architecture<Override>>::register_name_to_number(name),
+            Self::Override(_o) => Override::register_name_to_number(name),
         }
     }
 
@@ -324,40 +330,40 @@ impl<Override: ArchitectureOverride> SupportedArchitecture<Override> {
     /// instruction is executed.
     pub fn register_number_to_name(&self, idx: u64) -> Option<String> {
         match self {
-            Self::Armv6M(a) => <ArmV6M as Architecture<Override>>::register_number_to_name(idx),
-            Self::Armv7EM(a) => <ArmV7EM as Architecture<Override>>::register_number_to_name(idx),
-            Self::RISCV(a) => <RISCV as Architecture<Override>>::register_number_to_name(idx),
-            Self::Override(o) => Override::register_number_to_name(idx),
+            Self::Armv6M(_a) => <ArmV6M as Architecture<Override>>::register_number_to_name(idx),
+            Self::Armv7EM(_a) => <ArmV7EM as Architecture<Override>>::register_number_to_name(idx),
+            Self::RISCV(_a) => <RISCV as Architecture<Override>>::register_number_to_name(idx),
+            Self::Override(_o) => Override::register_number_to_name(idx),
         }
     }
 
     /// Determine the encoding for a particular floating point representation.
     pub fn nan_encoding(&self, ty: OperandType) -> u64 {
         match self {
-            Self::Armv6M(a) => <ArmV6M as Architecture<Override>>::nan_encoding(ty),
-            Self::Armv7EM(a) => <ArmV7EM as Architecture<Override>>::nan_encoding(ty),
-            Self::RISCV(a) => <RISCV as Architecture<Override>>::nan_encoding(ty),
-            Self::Override(o) => Override::nan_encoding(ty),
+            Self::Armv6M(_a) => <ArmV6M as Architecture<Override>>::nan_encoding(ty),
+            Self::Armv7EM(_a) => <ArmV7EM as Architecture<Override>>::nan_encoding(ty),
+            Self::RISCV(_a) => <RISCV as Architecture<Override>>::nan_encoding(ty),
+            Self::Override(_o) => Override::nan_encoding(ty),
         }
     }
 
     /// Returns the word size for the target architecture.
     pub fn word_size(&self) -> u64 {
         match self {
-            Self::Armv6M(a) => <ArmV6M as Architecture<Override>>::word_size(),
-            Self::Armv7EM(a) => <ArmV7EM as Architecture<Override>>::word_size(),
-            Self::RISCV(a) => <RISCV as Architecture<Override>>::word_size(),
-            Self::Override(o) => Override::word_size(),
+            Self::Armv6M(_a) => <ArmV6M as Architecture<Override>>::word_size(),
+            Self::Armv7EM(_a) => <ArmV7EM as Architecture<Override>>::word_size(),
+            Self::RISCV(_a) => <RISCV as Architecture<Override>>::word_size(),
+            Self::Override(_o) => Override::word_size(),
         }
     }
 
     /// Returns the pointer size for the target architecture.
     pub fn ptr_size(&self) -> u64 {
         match self {
-            Self::Armv6M(a) => <ArmV6M as Architecture<Override>>::ptr_size(),
-            Self::Armv7EM(a) => <ArmV7EM as Architecture<Override>>::ptr_size(),
-            Self::RISCV(a) => <RISCV as Architecture<Override>>::ptr_size(),
-            Self::Override(o) => Override::ptr_size(),
+            Self::Armv6M(_a) => <ArmV6M as Architecture<Override>>::ptr_size(),
+            Self::Armv7EM(_a) => <ArmV7EM as Architecture<Override>>::ptr_size(),
+            Self::RISCV(_a) => <RISCV as Architecture<Override>>::ptr_size(),
+            Self::Override(_o) => Override::ptr_size(),
         }
     }
 
@@ -382,6 +388,7 @@ impl<Override: ArchitectureOverride> SupportedArchitecture<Override> {
         }
     }
 
+    #[allow(unused)]
     fn as_riscv(&mut self) -> &mut RISCV {
         match self {
             Self::RISCV(riscv) => riscv,
@@ -398,6 +405,7 @@ impl<Override: ArchitectureOverride> SupportedArchitecture<Override> {
         }
     }
 
+    #[allow(unused)]
     fn as_v6(&mut self) -> &mut ArmV6M {
         match self {
             Self::Armv6M(v6) => v6,

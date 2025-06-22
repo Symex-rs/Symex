@@ -13,7 +13,6 @@
 use std::{fmt::Display, marker::PhantomData};
 
 use anyhow::Context as _;
-use general_assembly::prelude::DataWord;
 use hashbrown::HashMap;
 
 use crate::{
@@ -28,7 +27,6 @@ use crate::{
         SmtMap,
     },
     trace,
-    Composition,
     Endianness,
     UserStateContainer,
 };
@@ -58,12 +56,7 @@ impl Context for &'static DContext {
 
 impl ArrayMemory {
     #[tracing::instrument(skip(self))]
-    pub fn resolve_addresses(&self, addr: &DExpr, _upper_bound: u32) -> Result<Vec<DExpr>, MemoryError> {
-        Ok(vec![addr.clone()])
-    }
-
-    #[tracing::instrument(skip(self))]
-    pub fn read(&self, addr: &DExpr, bits: u32) -> Result<DExpr, MemoryError> {
+    fn read(&self, addr: &DExpr, bits: u32) -> Result<DExpr, MemoryError> {
         assert_eq!(addr.len(), self.ptr_size, "passed wrong sized address");
 
         let value = self.internal_read(addr, bits, self.ptr_size);
@@ -72,15 +65,16 @@ impl ArrayMemory {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn write(&mut self, addr: &DExpr, value: DExpr) -> Result<(), MemoryError> {
+    fn write(&mut self, addr: &DExpr, value: DExpr) -> Result<(), MemoryError> {
         assert_eq!(addr.len(), self.ptr_size, "passed wrong sized address");
         self.internal_write(addr, value, self.ptr_size);
         Ok(())
     }
 
     #[must_use]
+    #[cfg(test)]
     /// Creates a new memory containing only uninitialized memory.
-    pub fn new(ctx: &'static DContext, ptr_size: u32, endianness: Endianness) -> Self {
+    fn new(ctx: &'static DContext, ptr_size: u32, endianness: Endianness) -> Self {
         let memory = DArray::new(ctx, ptr_size, BITS_IN_BYTE, "memory");
 
         Self {
@@ -133,7 +127,7 @@ impl ArrayMemory {
         value
     }
 
-    fn internal_write(&mut self, addr: &DExpr, value: DExpr, ptr_size: u32) -> () {
+    fn internal_write(&mut self, addr: &DExpr, value: DExpr, ptr_size: u32) {
         // Check if we should zero extend the value (if it less than 8-bits).
         let value = if value.len() < BITS_IN_BYTE { value.zero_ext(BITS_IN_BYTE) } else { value };
 
@@ -168,7 +162,6 @@ pub struct BoolectorMemory<State: UserStateContainer> {
     initial_sp: DExpr,
     un_named_counter: usize,
     static_writes: HashMap<u64, DExpr>,
-    privelege_map: Vec<(u64, u64)>,
     cycles: u64,
     _0: PhantomData<State>,
 }
@@ -215,7 +208,6 @@ impl<State: UserStateContainer> SmtMap for BoolectorMemory<State> {
             initial_sp,
             un_named_counter: 0,
             static_writes: HashMap::new(),
-            privelege_map: Vec::new(),
             cycles: 0,
             _0: PhantomData,
         })
@@ -247,7 +239,7 @@ impl<State: UserStateContainer> SmtMap for BoolectorMemory<State> {
         if let Some(address) = idx.get_constant() {
             if self.program_memory.address_in_range(address) {
                 assert!(value.size() % 8 == 0, "Value must be a multiple of 8 bits to be written to program memory");
-                self.program_memory.set(
+                let _ = self.program_memory.set(
                     address,
                     value,
                     // match value.len() / 8 {
@@ -388,7 +380,7 @@ impl<State: UserStateContainer> SmtMap for BoolectorMemory<State> {
     }
 
     fn set_cycle_count(&mut self, value: u64) {
-        self.cycles = value
+        self.cycles = value;
     }
 
     fn unconstrained_fp_unnamed(&mut self, ty: general_assembly::extension::ieee754::OperandType) -> <Self::SMT as crate::smt::SmtSolver>::FpExpression {
@@ -430,13 +422,6 @@ impl<State: UserStateContainer> Display for BoolectorMemory<State> {
         }
         Ok(())
     }
-}
-
-fn strip(s: String) -> String {
-    if 50 < s.len() {
-        return "Large symbolic expression".to_string();
-    }
-    s
 }
 
 #[cfg(test)]

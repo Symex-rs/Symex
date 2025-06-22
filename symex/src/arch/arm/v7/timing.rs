@@ -1,5 +1,5 @@
 use disarmv7::{
-    operation::{VLdmF32, VLdmF64, VPopF32, VPopF64, VPushF32, VPushF64, VStmF32, VStmF64, VdivF32, VmoveDoubleF32, VmoveF32, VmulF32, VsqrtF64},
+    operation::{VLdmF32, VLdmF64, VPopF32, VPopF64, VPushF32, VPushF64, VStmF32, VStmF64},
     prelude::{Condition, Operation as V7Operation, Register},
 };
 
@@ -161,6 +161,7 @@ impl super::ArmV7EM {
     // based on https://developer.arm.com/documentation/100166/0001/Programmers-Model/Instruction-set-summary/Table-of-processor-instructions?lang=en
     pub fn cycle_count_m4_core<C: crate::Composition>(instr: &V7Operation) -> CycleCount<C> {
         let p = 3;
+        #[allow(clippy::match_single_binding)]
         let pipeline = |state: &mut GAState<C>| match state.get_last_instruction() {
             Some(instr) => match instr.memory_access {
                 _ => 2, /* true => 1,
@@ -245,6 +246,7 @@ impl super::ArmV7EM {
             V7Operation::Isb(_) => todo!("This requires a model of barriers"),
             // TODO! Add detection for whether this is folded or not, if it is the value here is 0
             V7Operation::It(_) => {
+                #[allow(clippy::match_single_binding)]
                 let counter = |state: &mut GAState<C>| match state.get_last_instruction() {
                     Some(instr) => match instr.instruction_size {
                         // 16 => 0,
@@ -506,6 +508,7 @@ impl super::ArmV7EM {
             V7Operation::VmoveF32(_) => CycleCount::Value(1),
             V7Operation::VmoveF64(_) => CycleCount::Value(2),
             V7Operation::VmoveDoubleF32(_) => CycleCount::Value(2),
+            V7Operation::VmovRegisterF32(_) => CycleCount::Value(1),
             V7Operation::VmovRegisterF64(_) => CycleCount::Value(2),
             V7Operation::VmovImmediateF32(_) => CycleCount::Value(1),
             V7Operation::VmovImmediateF64(_) => CycleCount::Value(1),
@@ -538,10 +541,8 @@ impl super::ArmV7EM {
             V7Operation::VStrF32(_) => CycleCount::Value(2),
             V7Operation::VsubF32(_) => CycleCount::Value(1),
 
-            V7Operation::VmlF32(_) | V7Operation::VmlF64(_) => CycleCount::Value(3),
+            V7Operation::VmlF64(_) => CycleCount::Value(3),
             V7Operation::VfmxF32(_) | V7Operation::VfmxF64(_) => CycleCount::Value(3),
-            V7Operation::VPushF32(VPushF32 { imm32: _, registers }) => CycleCount::Value(1 + registers.len()),
-            V7Operation::VPushF64(VPushF64 { imm32: _, registers }) => CycleCount::Value(1 + registers.len() * 2),
 
             V7Operation::Stc(_)
             | V7Operation::Mcr(_)
@@ -553,51 +554,24 @@ impl super::ArmV7EM {
             | V7Operation::LdcLiteral(_)
             | V7Operation::VselF32(_)
             | V7Operation::VselF64(_)
-            | V7Operation::VnmlF32(_)
             | V7Operation::VnmlF64(_)
             | V7Operation::VnmulF32(_)
             | V7Operation::VnmulF64(_)
-            | V7Operation::VmulF32(_)
             | V7Operation::VmulF64(_)
-            | V7Operation::VaddF32(_)
-            | V7Operation::VaddF64(_)
-            | V7Operation::VsubF32(_)
             | V7Operation::VsubF64(_)
             | V7Operation::VmaxF32(_)
             | V7Operation::VmaxF64(_)
             | V7Operation::VminF32(_)
             | V7Operation::VminF64(_)
-            | V7Operation::VmovImmediateF32(_)
-            | V7Operation::VmovImmediateF64(_)
-            | V7Operation::VmovRegisterF32(_)
-            | V7Operation::VmovRegisterF64(_)
-            | V7Operation::VabsF32(_)
-            | V7Operation::VabsF64(_)
-            | V7Operation::VnegF32(_)
             | V7Operation::VnegF64(_)
-            | V7Operation::VsqrtF32(_)
             | V7Operation::VsqrtF64(_)
             | V7Operation::VrintF32(_)
             | V7Operation::VrintF64(_)
             | V7Operation::VrintCustomRoundingF32(_)
-            | V7Operation::VrintCustomRoundingF64(_)
-            | V7Operation::VcvtCustomRoundingIntF32(_)
-            | V7Operation::VcvtCustomRoundingIntF64(_)
-            | V7Operation::VStmF32(_)
-            | V7Operation::VStmF64(_)
-            | V7Operation::VStrF32(_)
-            | V7Operation::VStrF64(_)
-            | V7Operation::VLdrF32(_)
-            | V7Operation::VLdrF64(_)
-            | V7Operation::VPopF32(_)
-            | V7Operation::VPopF64(_)
-            | V7Operation::VLdmF32(_)
-            | V7Operation::VLdmF64(_)
-            | V7Operation::VmoveHalfWord(_)
-            | V7Operation::Vmsr(_)
-            | V7Operation::Vmrs(_)
-            | V7Operation::VmoveDoubleF32(_)
-            | V7Operation::VmoveF64(_) => CycleCount::Value(1),
+            | V7Operation::VrintCustomRoundingF64(_) => {
+                eprintln!("Missing cycle count for {instr:?}");
+                todo!("COMPLETE Cycle counting");
+            }
         }
     }
 }

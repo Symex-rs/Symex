@@ -1,5 +1,3 @@
-use std::u8;
-
 use disarmv7::operation::{Sel, Uadd16, Uadd8, Uasx, Uhadd16, Uhadd8, Uhasx, Uhsax, Uhsub16, Uhsub8, Umaal, Uxtb16, Uxth};
 use transpiler::pseudo;
 
@@ -44,14 +42,14 @@ impl Decode for Uhsub8 {
             let lhs = resize(rn<7:0>,u32);
             let rhs = resize(rm<7:0>,u32);
             let diff1 = lhs - rhs;
-            let lhs = resize(rn<15:8>,u32);
-            let rhs = resize(rm<15:8>,u32);
+            lhs = resize(rn<15:8>,u32);
+            rhs = resize(rm<15:8>,u32);
             let diff2 = lhs - rhs;
-            let lhs = resize(rn<23:16>,u32);
-            let rhs = resize(rm<23:16>,u32);
+            lhs = resize(rn<23:16>,u32);
+            rhs = resize(rm<23:16>,u32);
             let diff3 = lhs - rhs;
-            let lhs = resize(rn<31:24>,u32);
-            let rhs = resize(rm<31:24>,u32);
+            lhs = resize(rn<31:24>,u32);
+            rhs = resize(rm<31:24>,u32);
             let diff4 = lhs - rhs;
             rd = Resize(diff1<8:1>,u32);
             let intermediate = diff2<8:1> << 8.local_into();
@@ -296,9 +294,9 @@ impl Decode for Uxtb16 {
 }
 
 impl Decode for Sel {
-    fn decode(&self, in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
+    fn decode(&self, _in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
         let Self { rd, rn, rm } = self;
-        let rd = rd.local_into();
+        let rd = rd.unwrap_or(*rn).local_into();
         let rn = rn.local_into();
         let rm = rm.local_into();
         let remove_0_mask = (!(u8::MAX as u32)).local_into();
@@ -311,28 +309,31 @@ impl Decode for Sel {
             let result = rm;
             let cond:u1 = ge<0>;
 
+            let new_result = 0u32;
+            let intermediate = 0u32;
             Ite(cond == true,{
-                let new_result = result & remove_0_mask;
+                new_result = result & remove_0_mask;
                 result = new_result | Resize(rn<7:0>,u32);
             },{});
             cond:u1 = ge<1>;
             Ite(cond == true,{
-                let new_result = result & remove_1_mask;
-                let intermediate  = Resize(rn<15:8>,u32) << 8u32;
+                new_result = result & remove_1_mask;
+                intermediate  = Resize(rn<15:8>,u32) << 8u32;
                 result = new_result | intermediate;
             },{});
             cond:u1 = ge<2>;
             Ite(cond == true,{
-                let new_result = result & remove_2_mask;
-                let intermediate  = Resize(rn<23:16>,u32) << 16u32;
+                new_result = result & remove_2_mask;
+                intermediate  = Resize(rn<23:16>,u32) << 16u32;
                 result = new_result | intermediate;
             },{});
             cond:u1 = ge<3>;
             Ite(cond == true,{
-                let new_result = result & remove_2_mask;
-                let intermediate  = Resize(rn<31:24>,u32) << 23u32;
+                new_result = result & remove_3_mask;
+                intermediate  = Resize(rn<31:24>,u32) << 23u32;
                 result = new_result | intermediate;
             },{});
+            rd = result;
         ])
     }
 }

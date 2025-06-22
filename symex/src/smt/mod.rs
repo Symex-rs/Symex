@@ -1,29 +1,18 @@
-use std::{
-    collections::VecDeque,
-    fmt::{Debug, Display},
-};
+use std::fmt::{Debug, Display};
 
 use general_assembly::{
     extension::ieee754::{OperandType, RoundingMode},
-    prelude::DataWord,
     shift::Shift,
 };
 use hashbrown::HashMap;
 use sealed::Context;
 
 use crate::{
-    arch::{Architecture, ArchitectureOverride, SupportedArchitecture},
-    executor::{
-        hooks::{HookContainer, TemporalHook},
-        instruction::CycleCount,
-        state::{GAState, HookOrInstruction},
-        ResultOrTerminate,
-    },
+    arch::{ArchitectureOverride, SupportedArchitecture},
+    executor::ResultOrTerminate,
     memory::MemoryError as MemoryFileError,
-    project::dwarf_helper::{SubProgram, SubProgramMap},
-    Composition,
+    project::dwarf_helper::SubProgramMap,
     Endianness,
-    GAError,
     UserStateContainer,
 };
 
@@ -148,7 +137,6 @@ pub trait SmtMap: Debug + Clone + Display {
     ///
     /// If the target flag does not exist the memory map is expected to
     /// introduce a new symbolic value for this register.
-
     fn get_flag(&mut self, idx: &str) -> Result<Self::Expression, MemoryError>;
 
     /// Sets the value of the given flag.
@@ -378,7 +366,7 @@ where
         self.1.clone()
     }
 
-    fn convert_from_bv(bv: Self::Expression, rm: RoundingMode, source_ty: OperandType, dest_ty: OperandType, signed: bool) -> crate::Result<Self> {
+    fn convert_from_bv(bv: Self::Expression, _rm: RoundingMode, _source_ty: OperandType, dest_ty: OperandType, _signed: bool) -> crate::Result<Self> {
         let size = dest_ty.size();
         Ok((bv.any(size), dest_ty))
     }
@@ -662,12 +650,11 @@ pub trait SmtExpr: Debug + Clone {
     /// largest and smallest value allowed by the bit-width.
     #[must_use]
     fn ssubs(&self, other: &Self) -> Self;
-    /// Pushes a constraint to the queue.
 
+    /// Pushes a constraint to the queue.
     fn push(&self);
 
     /// Removes the latest requirement from the queue.
-
     fn pop(&self);
 }
 

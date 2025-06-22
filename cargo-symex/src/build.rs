@@ -1,19 +1,7 @@
-use std::env;
-#[cfg(feature = "llvm")]
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    process::Command,
-};
-#[cfg(not(feature = "llvm"))]
-use std::{path::PathBuf, process::Command};
+use std::{env, path::PathBuf, process::Command};
 
 use anyhow::{anyhow, Result};
 use cargo_project::{Artifact, Profile, Project};
-#[cfg(feature = "llvm")]
-use log::debug;
-#[cfg(feature = "llvm")]
-use regex::Regex;
 
 /// Build settings.
 pub struct Settings {
@@ -71,26 +59,6 @@ impl Settings {
         let name = name.replace('-', "_");
         Ok(name)
     }
-
-    /// Returns the name of the module.
-    #[cfg(feature = "llvm")]
-    pub fn get_module_name(&self) -> Result<String> {
-        match &self.target {
-            Target::Bin(_) | Target::Lib => {
-                let cwd = env::current_dir()?;
-                let project = Project::query(cwd).map_err(|err| anyhow!(err.to_string()))?;
-
-                Ok(project.name().to_string())
-            }
-            Target::Example(name) => match name.chars().next() {
-                Some(ch) if ch.is_digit(10) => {
-                    // If the module name starts with a number, an underscore is put as prefix
-                    Ok(format!("_{name}"))
-                }
-                _ => Ok(name.clone()),
-            },
-        }
-    }
 }
 
 pub enum Target {
@@ -129,104 +97,4 @@ pub fn generate_binary_build_command(opts: &Settings) -> Command {
     }
 
     cargo
-}
-
-#[cfg(feature = "llvm")]
-pub fn generate_build_command(opts: &Settings) -> Command {
-    let mut cargo = Command::new("cargo");
-    cargo.args(&["rustc", "--verbose", "--color=always"]);
-
-    if opts.embed_bitcode {
-        cargo.env("RUSTFLAGS", "-C embed-bitcode=yes");
-    }
-
-    match &opts.features {
-        Features::None => {}
-        Features::Some(features) => {
-            cargo.args(&["--features", &features.join(",")]);
-        }
-        Features::All => {
-            cargo.arg("--all-features");
-        }
-    };
-
-    match &opts.target {
-        Target::Bin(name) => cargo.args(&["--bin", name]),
-        Target::Example(name) => cargo.args(&["--example", name]),
-        Target::Lib => cargo.arg("--lib"),
-    };
-
-    if opts.release {
-        cargo.arg("--release");
-    }
-
-    // Commands to pass to rustc.
-    cargo.args(&[
-        "--",
-        "--emit=llvm-bc",
-        "--emit=llvm-ir",
-        "-C",
-        "link-dead-code=yes",
-        "-C",
-        "panic=abort",
-        "-C",
-        "codegen-units=1",
-    ]);
-
-    if opts.embed_bitcode {
-        cargo.args(&["-C", "linker=true", "-C", "lto"]);
-    }
-    debug!("Running cargo command: {cargo:?}");
-    cargo
-}
-
-/// Retrieves the hash appended to the build output from the compilation step.
-#[cfg(feature = "llvm")]
-pub fn get_extra_filename(output: &str) -> Result<Option<String>> {
-    fn get_filename(re: Regex, output: &str) -> Option<String> {
-        let captures = re.captures_iter(output).last()?;
-        let extra_filename = captures.get(0)?;
-        let extra_filename = extra_filename.as_str();
-
-        let start_capture = extra_filename.find('=')?;
-        let extra_filename: String = extra_filename.chars().skip(start_capture + 1).collect();
-        Some(extra_filename)
-    }
-    let re = Regex::new(r#"-C extra-filename=(-\S+)"#)?;
-    Ok(get_filename(re, output))
-}
-
-#[cfg(feature = "llvm")]
-pub fn get_latest_bc(dir: impl AsRef<Path>, file_prefix: &str) -> Result<Option<PathBuf>> {
-    let mut result = None;
-    let mut last_modified = None;
-
-    for entry in fs::read_dir(dir)? {
-        let path = entry?.path();
-
-        // Skip if file does not end with .bc
-        let ends_in_bc = path.extension().map(|ext| ext == "bc").unwrap_or(false);
-        if !ends_in_bc {
-            continue;
-        }
-
-        // Skip if file does not start with prefix.
-        let starts_with = match path.file_stem() {
-            None => false,
-            Some(stem) => stem.to_str().map(|stem| stem.starts_with(file_prefix)).unwrap_or(false),
-        };
-        if !starts_with {
-            continue;
-        }
-
-        let modified = path.metadata()?.modified()?;
-        let update_result = last_modified.map(|last_modified| modified > last_modified).unwrap_or(true);
-
-        if update_result {
-            result = Some(path);
-            last_modified = Some(modified);
-        }
-    }
-
-    Ok(result)
 }

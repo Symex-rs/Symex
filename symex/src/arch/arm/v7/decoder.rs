@@ -1,7 +1,7 @@
 #![allow(clippy::unnecessary_cast)]
 use disarmv7::prelude::{arch::set_flags::LocalUnwrap, Condition as ARMCondition, Operation as V7Operation, Register, Shift};
 use general_assembly::{
-    condition::{Comparison, Condition},
+    condition::Condition,
     operand::{DataWord, Operand},
     operation::Operation,
     shift::Shift as GAShift,
@@ -9,7 +9,7 @@ use general_assembly::{
 use paste::paste;
 use transpiler::pseudo;
 
-use crate::{executor::vm, warn};
+use crate::warn;
 
 trait Decode {
     fn decode(&self, in_it_block: bool) -> Vec<Operation>;
@@ -1896,6 +1896,7 @@ impl Convert for (usize, V7Operation) {
                         to_pop.push(reg.local_into());
                     }
                 }
+
                 let ret = pseudo!([
                     let address = Register("SP");
 
@@ -1954,7 +1955,7 @@ impl Convert for (usize, V7Operation) {
                     rm:u32;
                     let result = 0u32;
                     let source = rm;
-                    for _ignored in (0..32u32) {
+                    for _ignored in 0..32u32 {
                         let val = source<0>;
                         source >>= 1u32;
                         result <<= 1u32;

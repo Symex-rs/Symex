@@ -5,7 +5,7 @@ use std::fmt::Display;
 use armv6_m_instruction_parser::Error;
 
 use crate::{
-    arch::{ArchError, Architecture, ArchitectureOverride, ParseError, SupportedArchitecture, InterfaceRegister},
+    arch::{ArchError, Architecture, ArchitectureOverride, InterfaceRegister, ParseError, SupportedArchitecture},
     executor::{hooks::PCHook, state::GAState},
     smt::{SmtExpr, SmtMap},
     trace,
@@ -23,29 +23,30 @@ pub struct ArmV6M {}
 impl<Override: ArchitectureOverride> Architecture<Override> for ArmV6M {
     type ISA = armv6_m_instruction_parser::instructons::Operation;
 
-    fn initiate_state<C>(state: &mut GAState<C>)
+    fn initiate_state<C>(_state: &mut GAState<C>)
     where
         C: crate::Composition<ArchitectureOverride = Override>,
     {
     }
 
-    fn pre_instruction_loading_hook<C>(state: &mut GAState<C>)
+    fn pre_instruction_loading_hook<C>(_state: &mut GAState<C>)
     where
         C: Composition<ArchitectureOverride = Override>,
     {
     }
 
-    fn post_instruction_execution_hook<C>(state: &mut GAState<C>)
+    fn post_instruction_execution_hook<C>(_state: &mut GAState<C>)
     where
         C: Composition<ArchitectureOverride = Override>,
     {
     }
 
-    fn get_register_name(reg:InterfaceRegister) -> String {
+    fn get_register_name(reg: InterfaceRegister) -> String {
         match reg {
             InterfaceRegister::ProgramCounter => "PC",
-            InterfaceRegister::ReturnAddress => "LR"
-        }.to_string()
+            InterfaceRegister::ReturnAddress => "LR",
+        }
+        .to_string()
     }
 
     #[allow(clippy::cast_possible_truncation)]
@@ -126,7 +127,7 @@ impl<Override: ArchitectureOverride> Architecture<Override> for ArmV6M {
         Self {}
     }
 
-    fn nan_encoding(ty: general_assembly::extension::ieee754::OperandType) -> u64 {
+    fn nan_encoding(_ty: general_assembly::extension::ieee754::OperandType) -> u64 {
         unimplemented!("No support for floating point arithmetic")
     }
 }

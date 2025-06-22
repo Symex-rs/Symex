@@ -1,7 +1,6 @@
 #![allow(dead_code, missing_docs)]
-use std::{fmt::Display, io::Read, os::fd::AsFd, path::PathBuf};
+use std::{fmt::Display, path::PathBuf};
 
-use anyhow::Context;
 use gimli::{DebugAbbrev, DebugInfo, DebugLine, DebugStr};
 use hashbrown::HashMap;
 use object::{Object, ObjectSection, ObjectSymbol};
@@ -63,7 +62,7 @@ impl Clone for BinaryLoaded<'static> {
         let data = &(*file.leak());
         let obj_file = match object::File::parse(data) {
             Ok(x) => x,
-            Err(e) => {
+            Err(_e) => {
                 error!("Could not parse file that had already been parsed");
                 unreachable!("Could not parse file that had already been parsed");
             }

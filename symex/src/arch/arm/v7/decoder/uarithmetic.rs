@@ -1,12 +1,11 @@
 use disarmv7::{
     arch::{set_flags::LocalUnwrap, Register},
-    operation::{SubImmediate, SubRegister, SubSpMinusImmediate, SubSpMinusRegister, Ubfx, Udiv, Uxth},
+    operation::{SubImmediate, SubRegister, SubSpMinusImmediate, SubSpMinusRegister, Ubfx, Udiv},
 };
 use general_assembly::prelude::Operand;
 use transpiler::pseudo;
 
 use super::{sealed::Into, Decode};
-use crate::arch::arm::v7::compare::LocalInto;
 
 impl Decode for Udiv {
     fn decode(&self, _in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {

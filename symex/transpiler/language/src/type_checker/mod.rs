@@ -392,7 +392,7 @@ impl TypeCheck for IRExpr {
                     (None, Some(lhs), Some(rhs)) if lhs == rhs => (lhs, rhs),
                     (None, Some(lhs), Some(rhs)) if !op.is_shift() => {
                         return Err(TypeError::UnsuportedOperation(
-                            format!("Cannot perform {:?} {:?} {:?}", lhs, op, rhs),
+                            format!("Cannot perform {lhs:?} {op:?} {rhs:?}"),
                             {
                                 let mut span = dest.span();
                                 span = span
@@ -411,7 +411,7 @@ impl TypeCheck for IRExpr {
                         let lhs_operand = lhs_operand.clone();
                         let rhs_operand = rhs_operand.clone();
                         return Err(TypeError::TypeMustBeKnown(
-                            format!("Cannot inffer type of {:?}", self),
+                            format!("Cannot inffer type of {self:?}"),
                             {
                                 let mut span = dest.span();
                                 span = span
@@ -432,7 +432,7 @@ impl TypeCheck for IRExpr {
 
                 if lhs != rhs && !op.is_shift() {
                     return Err(TypeError::UnsuportedOperation(
-                        format!("Cannot apply binary operation to operands of differing types. {:?} != {:?}",lhs,rhs),
+                        format!("Cannot apply binary operation to operands of differing types. {lhs:?} != {rhs:?}"),
                                 {
                                     let mut span = lhs_operand.span();
                                     span = span
@@ -455,21 +455,23 @@ impl TypeCheck for IRExpr {
                     (BinaryOperation::BitwiseAnd, Type::U(_) | Type::I(_)) => lhs,
                     (BinaryOperation::BitwiseXor, Type::U(_) | Type::I(_)) => lhs,
                     (BinaryOperation::AddWithCarry, Type::U(_) | Type::I(_)) => lhs,
-                    (BinaryOperation::LogicalLeftShift, Type::U(size) | Type::I(size))
-                    | (BinaryOperation::LogicalRightShift, Type::U(size) | Type::I(size))
-                    | (BinaryOperation::ArithmeticRightShift, Type::U(size) | Type::I(size)) => {
+                    (BinaryOperation::LogicalLeftShift, Type::U(_size) | Type::I(_size))
+                    | (BinaryOperation::LogicalRightShift, Type::U(_size) | Type::I(_size))
+                    | (BinaryOperation::ArithmeticRightShift, Type::U(_size) | Type::I(_size)) => {
                          match rhs {
                             Type::F16 | Type::F32 | Type::F64 | Type::F128 => return Err(TypeError::UnsuportedOperation(
-                            format!("Cannot shift using a floating point variable as the shifting amount"),rhs_operand.span()
+                            "Cannot shift using a floating point variable as the shifting amount.".to_string(),rhs_operand.span()
                             )),
 
-                            Type::I(size2) | Type::U(size2) if size == size => {
+                            #[allow(unused)]
+                            Type::I(size2) | Type::U(size2) if size2 != 0 => {
+
                                 lhs
                             },
                             Type::Unit => return Err(TypeError::UnsuportedOperation(
-                        format!("Cannot shift using unit type as shift amount."),rhs_operand.span())),
+                        "Cannot shift using unit type as shift amount.".to_string(),rhs_operand.span())),
                             _ => {return Err(TypeError::UnsuportedOperation(
-                        format!("Shift amount must be the same size as the operand"),lhs_operand.span().join(rhs_operand.span()).expect("Same file")))
+                        "Shift amount must be the same size as the operand".to_string(),lhs_operand.span().join(rhs_operand.span()).expect("Same file")))
 
                             }
                         }
@@ -522,7 +524,7 @@ impl TypeCheck for IRExpr {
                             ty
                         } else {
                             return Err(TypeError::TypeMustBeKnown(
-                                format!("Cannot assign a type of unknown type, while assigning {:?} to {:?}",rhs,dest),
+                                format!("Cannot assign a type of unknown type, while assigning {rhs:?} to {dest:?}"),
                                 rhs.span()
 
                             ));

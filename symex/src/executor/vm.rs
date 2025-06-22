@@ -3,7 +3,7 @@
 use super::{hooks::HookContainer, state::GAState, GAExecutor, PathResult};
 use crate::{
     arch::SupportedArchitecture,
-    path_selection::{DFSPathSelection, Path, PathSelector},
+    path_selection::{Path, PathSelector},
     project::dwarf_helper::{DebugData, LineMap, SubProgram},
     smt::{SmtMap, SmtSolver},
     trace,
@@ -18,6 +18,9 @@ pub struct VM<C: Composition> {
 }
 
 impl<C: Composition> VM<C> {
+    #[inline]
+    #[allow(clippy::too_many_arguments)]
+    /// Creates a new virtual machine.
     pub fn new(
         project: <C::Memory as SmtMap>::ProgramMemory,
         ctx: &C::SMT,
@@ -55,16 +58,7 @@ impl<C: Composition> VM<C> {
         Ok(vm)
     }
 
-    pub fn new_from_state(
-        project: <C::Memory as SmtMap>::ProgramMemory,
-        ctx: &C::SMT,
-        state: GAState<C>,
-        end_pc: u64,
-        state_container: C::StateContainer,
-        hooks: HookContainer<C>,
-        architecture: SupportedArchitecture<C::ArchitectureOverride>,
-        logger: C::Logger,
-    ) -> Result<Self> {
+    pub fn new_from_state(project: <C::Memory as SmtMap>::ProgramMemory, state: GAState<C>, logger: C::Logger) -> Result<Self> {
         let mut vm = Self {
             project: project.clone(),
             paths: C::PathSelector::new(),
@@ -75,7 +69,7 @@ impl<C: Composition> VM<C> {
         Ok(vm)
     }
 
-    //#[cfg(test)]
+    #[cfg(test)]
     pub(crate) fn new_test_vm(project: <C::Memory as SmtMap>::ProgramMemory, state: GAState<C>, logger: C::Logger) -> Result<Self> {
         let mut vm = Self {
             project: project.clone(),
@@ -130,7 +124,7 @@ impl<C: Composition> VM<C> {
                 executor.state.constraints.assert(&constraint);
             }
 
-            let result = executor.resume_execution_stepper(&mut path.logger)?;
+            let _result = executor.resume_execution_stepper(&mut path.logger)?;
             return Ok(Some(SymexStepper { executor, project, path }));
         }
         trace!("No more paths!");

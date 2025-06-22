@@ -1,4 +1,3 @@
-use armv6_m_instruction_parser::registers;
 use disarmv7::{
     arch::{register::IEEE754RoundingMode, Condition, Register},
     operation::{
@@ -47,11 +46,9 @@ use disarmv7::{
         VmovImmediateF64,
         VmovRegisterF32,
         VmovRegisterF64,
-        VmovRegisterF64Builder,
         VmoveDoubleF32,
         VmoveF32,
         VmoveF64,
-        VmoveHalfWord,
         Vmrs,
         Vmsr,
         VmulF32,
@@ -74,23 +71,10 @@ use disarmv7::{
         VsubF64,
     },
 };
-use general_assembly::{
-    extension::ieee754::{self, ComparisonMode, Operand, OperandStorage, OperandType, RoundingMode},
-    prelude::{DataWord, Operation},
-};
-use hashbrown::HashMap;
+use general_assembly::extension::ieee754::{ComparisonMode, Operand, OperandStorage, OperandType, RoundingMode};
 use transpiler::pseudo;
 
 use super::{sealed::Into, Decode};
-use crate::{
-    arch::Architecture,
-    executor::{hooks::HookContainer, state::GAState, vm::VM, GAExecutor},
-    logging::NoLogger,
-    project::Project,
-    smt::{SmtExpr, SmtSolver},
-    Endianness,
-    WordSize,
-};
 
 impl Decode for VabsF32 {
     fn decode(&self, _in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {

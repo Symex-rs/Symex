@@ -22,8 +22,6 @@ tracing-subscriber = "0.3"
 
 
 [features]
-# Defines a feature named `llvm` that enables symbolic execution at LLVM-IR level
-llvm = []
 logging=["symex/log"]
 bitwuzla=["symex/bitwuzla"]
 boolector=["symex/boolector"]

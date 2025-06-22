@@ -328,7 +328,7 @@ pub fn evaluate_pieces<R: Reader<Offset = usize>, T: MemoryAccess>(
             RequiresBaseType(unit_offset) => {
                 let die = unit.entry(unit_offset)?;
                 let mut attrs = die.attrs();
-                while let Some(attr) = match attrs.next() {
+                while let Some(_attr) = match attrs.next() {
                     Ok(val) => val,
                     Err(err) => {
                         error!("{:?}", err);

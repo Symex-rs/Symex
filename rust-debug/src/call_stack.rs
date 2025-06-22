@@ -8,8 +8,7 @@ use gimli::{
     Dwarf,
     EntriesTreeNode,
     Reader,
-    ReaderOffset,
-    RegisterRule::{self, *},
+    RegisterRule::*,
     Unit,
     UnitOffset,
     UnitSectionOffset,
@@ -401,7 +400,7 @@ fn unwind_call_stack_recursive<'a, M: MemoryAccess, R: Reader<Offset = usize>>(
 
     let unwind_info = match debug_frame.unwind_info_for_address(base, ctx, current_location, gimli::DebugFrame::cie_from_offset) {
         Ok(val) => val,
-        Err(err) => {
+        Err(_err) => {
             return Ok(vec![]);
         }
     };

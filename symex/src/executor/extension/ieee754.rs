@@ -1,6 +1,5 @@
 use anyhow::Context;
 use general_assembly::extension::ieee754::{Operand, OperandStorage, OperandType, Operations, RoundingMode};
-use hashbrown::HashMap;
 
 use crate::{
     executor::{hooks::ResultOrHook, GAExecutor, ResultOrTerminate},

@@ -1,4 +1,4 @@
-use disarmv7::operation::{Sxth, Tb};
+use disarmv7::operation::Tb;
 use transpiler::pseudo;
 
 use super::{sealed::Into, Decode, REMOVE_LAST_BIT_MASK};

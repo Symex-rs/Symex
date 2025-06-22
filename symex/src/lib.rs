@@ -1,12 +1,12 @@
-#![deny(warnings)]
 #![deny(
     clippy::all,
     clippy::perf,
-    clippy::pedantic,
+    // clippy::pedantic,
     // clippy::nursery,
     rustdoc::all,
-    // rust_2024_compatibility,
-    rust_2018_idioms
+    rust_2024_compatibility,
+    rust_2018_idioms,
+    warnings
 )]
 // Add exceptions for things that are not error prone.
 #![allow(
@@ -20,11 +20,14 @@
     clippy::single_match_else,
     // TODO: Add comments for these.
     clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
     clippy::cast_lossless,
     // TODO: Remove this and add crate level docs.
     rustdoc::missing_crate_level_docs,
     tail_expr_drop_order,
-    unused
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::match_like_matches_macro
 )]
 // #![feature(non_null_from_ref)]
 
@@ -35,7 +38,6 @@ use logging::Logger;
 use memory::MemoryError;
 use path_selection::PathSelector;
 use project::ProjectError;
-use rust_debug::call_stack::MemoryAccess;
 use smt::{ProgramMemory, SmtExpr, SmtFPExpr, SmtMap, SmtSolver, SolverError};
 
 pub mod arch;
@@ -85,7 +87,6 @@ pub trait Mask {
 }
 
 impl Mask for u32 {
-    #[must_use]
     #[allow(clippy::cast_possible_truncation)]
     fn mask<const START: usize, const END: usize>(&self) -> Self {
         let intermediate = self >> START;
@@ -98,7 +99,6 @@ impl Mask for u32 {
 }
 
 impl Mask for u64 {
-    #[must_use]
     fn mask<const START: usize, const END: usize>(&self) -> Self {
         let intermediate = self >> START;
         let mask = ((1u64 << (END - START + 1usize) as Self) as Self) - 1u64;

@@ -7,7 +7,6 @@ pub mod fpexpr;
 pub mod memory;
 
 use expr::BitwuzlaExpr;
-use memory::BitwuzlaMemory;
 
 // Re-exports.
 use super::{SmtExpr, SmtSolver, Solutions, SolverError};
@@ -19,7 +18,7 @@ pub struct Bitwuzla {
 }
 
 unsafe extern "C" fn abort_callback(data: *const std::os::raw::c_char) {
-    let data = CStr::from_ptr(data);
+    let data = unsafe { CStr::from_ptr(data) };
     match data.to_str() {
         Ok(val) => eprintln!("Bitwuzla failed internally with message {}", val),
         Err(_) => eprintln!("Bitwuzla failed internally with invalid cstring message"),
@@ -40,12 +39,12 @@ impl SmtSolver for Bitwuzla {
             // .logging(bitwuzla::option::LogLevel::Debug)
             // .verbosity(bitwuzla::option::Verbosity::Level3)
             .n_threads(24)
-            .rewrite_level(bitwuzla::option::RewriteLevel::More)
-            .model_gen(ModelGen::All)
+            // .rewrite_level(bitwuzla::option::RewriteLevel::TermLevel)
+            .model_gen(ModelGen::Asserted)
             .set_abort_callback(abort_callback)
-            .sat_engine(bitwuzla::option::SatEngine::CaDiCaL)
+            // .sat_engine(bitwuzla::option::SatEngine::CaDiCaL)
             .incremental(true)
-            .bv_abstractions(true)
+            // .bv_abstractions(true)
             .build();
         Self { ctx: Rc::new(solver) }
     }
@@ -607,7 +606,6 @@ mod test {
             vm::VM,
             GAExecutor,
         },
-        initiation::NoArchOverride,
         logging::NoLogger,
         path_selection::PathSelector,
         project::Project,

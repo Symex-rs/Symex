@@ -60,8 +60,8 @@ pub fn count_leading_zeroes<C: Composition>(input: &C::SmtExpression, ctx: &GASt
 /// hardware adder.
 pub fn add_with_carry<E: SmtExpr>(op1: &E, op2: &E, carry_in: &E, word_size: u32) -> AddWithCarryResult<E> {
     let carry_in = carry_in.resize_unsigned(1);
-    let c1 = op2.uaddo(&carry_in.zero_ext(word_size as u32));
-    let op2 = op2.add(&carry_in.zero_ext(word_size as u32));
+    let c1 = op2.uaddo(&carry_in.zero_ext(word_size));
+    let op2 = op2.add(&carry_in.zero_ext(word_size));
     let result = op1.add(&op2);
     let carry = op1.uaddo(&op2).or(&c1);
     let overflow = op1.saddo(&op2);

@@ -1,19 +1,18 @@
-use std::{collections::VecDeque, fmt::Debug};
+use std::fmt::Debug;
 
 use anyhow::Context;
 use general_assembly::extension::ieee754::{OperandType, RoundingMode};
 use hashbrown::HashMap;
 
-use super::{instruction::Instruction, state::GAState, ResultOrTerminate};
+use super::{state::GAState, ResultOrTerminate};
 use crate::{
+    arch::InterfaceRegister,
     debug,
-    extract,
-    project::dwarf_helper::{SubProgram, SubProgramMap},
+    project::dwarf_helper::SubProgramMap,
     smt::{MemoryError, ProgramMemory, SmtExpr, SmtMap, SmtSolver},
     trace,
     Composition,
     Result,
-    arch::InterfaceRegister,
 };
 
 #[derive(Debug, Clone)]
@@ -722,10 +721,6 @@ impl<C: Composition> PrioriHookContainer<C> {
         Ok(())
     }
 
-    fn is_privileged(&self, pc: u64) -> bool {
-        self.privelege_map.iter().any(|(low, high)| (*low..=*high).contains(&pc))
-    }
-
     pub fn is_strict(&self) -> bool {
         self.strict
     }
@@ -833,20 +828,14 @@ pub enum ResultOrHook<A: Sized, B: Sized> {
 }
 
 impl<'a, C: Composition> Reader<'a, C> {
+    #[allow(clippy::if_same_then_else)]
     pub fn read_memory(&mut self, addr: C::SmtExpression, size: u32) -> ResultOrHook<anyhow::Result<C::SmtExpression>, MemoryReadHook<C>> {
         if self.container.strict {
             let (stack_start, stack_end) = self.memory.get_stack();
             let lower = addr.ult(&stack_end);
             let upper = addr.ugt(&stack_start);
             let total = lower.or(&upper);
-            let mut total = total;
-            let on_stack = total.clone();
-            let subpogram_map = self.memory.program_memory().borrow_symtab();
-            let pc = match self.memory.get_pc() {
-                Ok(val) => val,
-                Err(e) => return ResultOrHook::Result(Err(e.into())),
-            };
-            let program = pc.get_constant().map(|pc| subpogram_map.get_by_address(&pc));
+            let total = total;
 
             let mut cond = self.container.could_possibly_be_invalid_read(total.clone(), addr.clone());
             let not_stack = cond.get_constant_bool().unwrap_or(true);
@@ -922,7 +911,7 @@ impl<'a, C: Composition> Reader<'a, C> {
             return ResultOrHook::Hook(*hook);
         }
 
-        ResultOrHook::Result(self.memory.get_register(id).into())
+        ResultOrHook::Result(self.memory.get_register(id))
     }
 
     pub fn read_fp_register(
@@ -1052,7 +1041,7 @@ impl<C: Composition> HookContainer<C> {
         kind: OperandType,
         id: &String,
         registers: &HashMap<String, <C::SMT as SmtSolver>::FpExpression>,
-        rm: RoundingMode,
+        _rm: RoundingMode,
         memory: &mut C::Memory,
     ) -> ResultOrHook<<C::SMT as SmtSolver>::FpExpression, FpRegisterReadHook<C>> {
         if let Some(hook) = self.fp_register_read_hook.get(id) {
@@ -1106,9 +1095,9 @@ impl<C: Composition> HookContainer<C> {
     }
 
     pub fn add_rust_hooks(&mut self, map: &SubProgramMap) {
-        self.add_pc_hook_regex(map, r"^panic.*", PCHook::EndFailure("panic")).unwrap();
-        self.add_pc_hook_regex(map, r"^panic_cold_explicit$", PCHook::EndFailure("explicit panic"));
-        self.add_pc_hook_regex(
+        let _ = self.add_pc_hook_regex(map, r"^panic.*", PCHook::EndFailure("panic"));
+        let _ = self.add_pc_hook_regex(map, r"^panic_cold_explicit$", PCHook::EndFailure("explicit panic"));
+        let _ = self.add_pc_hook_regex(
             map,
             r"^unwrap_failed$",
             PCHook::EndFailure(
@@ -1116,8 +1105,8 @@ impl<C: Composition> HookContainer<C> {
         failed",
             ),
         );
-        self.add_pc_hook_regex(map, r"^panic_bounds_check$", PCHook::EndFailure("(panic) bounds check failed"));
-        self.add_pc_hook_regex(
+        let _ = self.add_pc_hook_regex(map, r"^panic_bounds_check$", PCHook::EndFailure("(panic) bounds check failed"));
+        let _ = self.add_pc_hook_regex(
             map,
             r"^unreachable_unchecked$",
             PCHook::EndFailure("reached a unreachable unchecked call, undefined behavior"),
@@ -1151,9 +1140,9 @@ impl<C: Composition> HookContainer<C> {
             Ok(())
         };
 
-        ret.add_pc_hook_regex(map, r"^suppress_path$", PCHook::Suppress);
-        ret.add_pc_hook_regex(map, r"^start_cyclecount$", PCHook::Intrinsic(start_cyclecount));
-        ret.add_pc_hook_regex(map, r"^end_cyclecount$", PCHook::Intrinsic(end_cyclecount));
+        let _ = ret.add_pc_hook_regex(map, r"^suppress_path$", PCHook::Suppress);
+        let _ = ret.add_pc_hook_regex(map, r"^start_cyclecount$", PCHook::Intrinsic(start_cyclecount));
+        let _ = ret.add_pc_hook_regex(map, r"^end_cyclecount$", PCHook::Intrinsic(end_cyclecount));
 
         ret.add_pc_hook(0xfffffffe, PCHook::EndSuccess);
         Ok(ret)

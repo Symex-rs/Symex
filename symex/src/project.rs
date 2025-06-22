@@ -9,8 +9,7 @@ use segments::Segments;
 use crate::{
     arch::ArchError,
     memory::MemoryError,
-    smt::{sealed::Context, ProgramMemory, SmtExpr, SmtMap, SmtSolver},
-    Composition,
+    smt::{sealed::Context, ProgramMemory, SmtExpr, SmtMap},
     Endianness,
     WordSize,
 };
@@ -187,11 +186,11 @@ impl ProgramMemory for &'static Project {
     }
 
     fn get<Expr: SmtExpr, Ctx: Context<Expr = Expr>>(&self, address: u64, bits: u32, writes: &HashMap<u64, Expr>, ctx: &Ctx) -> std::result::Result<Expr, crate::smt::MemoryError> {
-        let word_size = self.get_word_size() as u32;
+        let word_size = self.get_word_size();
         let bytes = bits as u64 / 8;
         assert!(bits % 8 == 0);
         let mut written = false;
-        for idx in (address..(address + bytes)) {
+        for idx in address..(address + bytes) {
             if writes.contains_key(&idx) {
                 written = true;
                 break;
@@ -201,7 +200,7 @@ impl ProgramMemory for &'static Project {
         if written {
             let mut ret = ctx.new_from_u64(0, bits);
             let shift = ctx.new_from_u64(8, bits);
-            for idx in (address..(address + bytes)) {
+            for idx in address..(address + bytes) {
                 let inner = ctx.new_from_u64(self.segments.read_raw_bytes(idx, 1).expect("Regions to contain the data")[0] as u64, 8);
                 let read = writes.get(&idx).unwrap_or(&inner);
                 ret = ret.shift(&shift, general_assembly::shift::Shift::Lsl);

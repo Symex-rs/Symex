@@ -1,12 +1,10 @@
 use general_assembly::{
-    condition::{Comparison, Condition},
     operand::{DataWord, Operand},
     operation::Operation as GAOperation,
 };
-use risc_v_disassembler::{ParsedInstruction32, Register};
+use risc_v_disassembler::ParsedInstruction32;
 
 use super::RISCV;
-use crate::executor::instruction::Instruction as GAInstruction;
 
 impl RISCV {
     // Make sure to change the shift implementation to 6-bits if you want to support

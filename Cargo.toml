@@ -2,7 +2,6 @@
 resolver = "2"
 members = [
     "cargo-symex",
-    "crates/llvm-ir",
     "crates/symex_lib",
     "crates/valid_derive",
     # "armv6-m-examples", # <- has its own profiles, so not proper member

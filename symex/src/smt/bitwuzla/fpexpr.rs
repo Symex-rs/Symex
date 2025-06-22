@@ -1,4 +1,4 @@
-use std::{borrow::Borrow, fmt::write, rc::Rc};
+use std::{borrow::Borrow, rc::Rc};
 
 use anyhow::Context;
 use bitwuzla::{fp::Formats, Bitwuzla, Btor, RoundingMode as RM, BV, FP};
@@ -6,7 +6,7 @@ use general_assembly::extension::ieee754::{ComparisonMode, NonComputational, Ope
 
 use super::expr::BitwuzlaExpr;
 use crate::{
-    smt::{SmtExpr, SmtFPExpr, SolverError},
+    smt::{SmtFPExpr, SolverError},
     InternalError,
 };
 
@@ -172,7 +172,7 @@ impl SmtFPExpr for FpExpr {
         Ok(ctx.sqrt(conv_rm(&rm)).conv(self.ty()))
     }
 
-    fn to_bv(&self, rm: RoundingMode, signed: bool) -> crate::Result<Self::Expression> {
+    fn to_bv(&self, rm: RoundingMode, _signed: bool) -> crate::Result<Self::Expression> {
         match &self.ctx {
             FpOrBv::Bv(bv) => Ok(super::expr::BitwuzlaExpr(bv.clone())),
             FpOrBv::Fp(fp) => {
@@ -181,7 +181,7 @@ impl SmtFPExpr for FpExpr {
                         let tm = fp.to_sbv(conv_rm(&rm), size as u64);
                         return Ok(BitwuzlaExpr(tm));
                     }
-                    OperandType::Integral { size, signed } => {
+                    OperandType::Integral { size, signed: _ } => {
                         let tm = fp.to_ubv(conv_rm(&rm), size as u64);
                         return Ok(BitwuzlaExpr(tm));
                     }

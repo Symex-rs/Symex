@@ -28,7 +28,8 @@ general_assembly = { path = "../symex/general_assembly" }
 # SMT-backends
 boolector = { git = "https://github.com/ivajon/boolector-rs.git", optional=true }
 
-bitwuzla = { git = "https://github.com/ivajon/boolector-rs.git", branch = "mac",optional=true }
+# bitwuzla = { git = "https://github.com/ivajon/boolector-rs.git", branch = "mac",optional=true }
+bitwuzla = { path ="../../bitwuzla-rs/",optional=true }
 
 
 # Parsing-backends.

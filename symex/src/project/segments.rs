@@ -1,11 +1,8 @@
 //! A loader that can load all segments from a elf file properly.
 
-use object::{read::elf::ProgramHeader, File, Object, ObjectSection};
+use object::{read::elf::ProgramHeader, File, Object};
 
-use crate::{
-    smt::{SmtExpr, SmtMap},
-    warn,
-};
+use crate::smt::{SmtExpr, SmtMap};
 pub struct Segment {
     data: Vec<u8>,
     start_address: u64,
@@ -67,7 +64,7 @@ impl Segments {
         Segments(ret)
     }
 
-    pub fn read_raw_bytes(&self, mut address: u64, mut bytes: usize) -> Option<Vec<u8>> {
+    pub fn read_raw_bytes(&self, mut address: u64, bytes: usize) -> Option<Vec<u8>> {
         let initial_bytes = bytes;
         let mut segments = self.0.iter();
         while let Some(segment) = segments.next() {
@@ -80,8 +77,8 @@ impl Segments {
                     let bytes = bytes - remaining_bytes as usize;
                     let in_this_segment = &segment.data[offset..(offset + bytes)];
                     buffer.extend(in_this_segment);
-                    address = address + bytes as u64;
-                    self.contninue_reading_bytes(&mut buffer, segments, address, bytes);
+                    address += bytes as u64;
+                    Self::continue_reading_bytes(&mut buffer, segments, address, bytes);
                     if buffer.len() != initial_bytes {
                         return None;
                     }
@@ -96,7 +93,7 @@ impl Segments {
         None
     }
 
-    pub fn contninue_reading_bytes<'borrow, I: Iterator<Item = &'borrow Segment>>(&self, read: &mut Vec<u8>, mut segments: I, mut address: u64, mut bytes: usize) {
+    pub fn continue_reading_bytes<'borrow, I: Iterator<Item = &'borrow Segment>>(read: &mut Vec<u8>, mut segments: I, mut address: u64, mut bytes: usize) {
         if bytes == 0 {
             return;
         }
@@ -109,7 +106,7 @@ impl Segments {
                 address += contained_bytes as u64;
                 bytes = remaining_bytes as usize;
                 read.extend(data_slice);
-                self.contninue_reading_bytes(read, segments, address, bytes);
+                Self::continue_reading_bytes(read, segments, address, bytes);
                 return;
             }
         }

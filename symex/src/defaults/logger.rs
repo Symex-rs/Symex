@@ -1,4 +1,4 @@
-use std::fmt::{write, Display};
+use std::fmt::Display;
 
 use colored::Colorize;
 
@@ -102,7 +102,7 @@ impl<'a> PathLogger<'a> {
         self.path.execution_time = time;
     }
 
-    fn visit<C: Composition>(&mut self, func: String, state: &mut GAState<C>) {
+    fn visit<C: Composition>(&mut self, func: String, _state: &mut GAState<C>) {
         if Some(&func) != self.path.visited.last() {
             // let bt = state.get_back_trace(&[]);
             self.path.visited.push(func);
@@ -120,13 +120,13 @@ impl<'a> PathLogger<'a> {
             .final_frame
             .variables
             .iter()
-            .map(|var| (var.name.clone().unwrap_or("NO NAME".to_string()), format!("{}", var.value)))
+            .map(|var| (var.name.clone().unwrap_or("NO NAME".to_string()), var.value.to_string()))
             .collect();
         self.path.function_arguments = bt
             .final_frame
             .arguments
             .iter()
-            .map(|var| (var.name.clone().unwrap_or("NO NAME".to_string()), format!("{}", var.value)))
+            .map(|var| (var.name.clone().unwrap_or("NO NAME".to_string()), var.value.to_string()))
             .collect();
     }
 }
@@ -165,17 +165,17 @@ impl Logger for SimplePathLogger {
     fn warn<T: ToString>(&mut self, warning: T) {
         let subprogram = self.regions.in_bounds(self.pc);
         debug!("Matching subprograms {subprogram:?}");
-        let subprogram = subprogram.get(0).cloned();
+        let subprogram = subprogram.first().cloned();
         // println!("Logging in {subprogram:?}");
         self.statements.push((subprogram, format!("[{}]: {}", "WARN".yellow(), warning.to_string())));
     }
 
     fn error<T: ToString>(&mut self, warning: T) {
-        let subprogram = self.regions.in_bounds(self.pc).get(0).cloned();
+        let subprogram = self.regions.in_bounds(self.pc).first().cloned();
         self.statements.push((subprogram, format!("[{}]: {}", "ERROR".red(), warning.to_string())));
     }
 
-    fn update_delimiter<T: Into<Self::RegionDelimiter>, C: Composition>(&mut self, region: T, state: &mut GAState<C>) {
+    fn update_delimiter<T: Into<Self::RegionDelimiter>, C: Composition>(&mut self, region: T, _state: &mut GAState<C>) {
         self.pc = region.into();
         let region = self.regions.get_by_address(&self.pc).cloned();
 
@@ -197,7 +197,7 @@ impl Logger for SimplePathLogger {
             //     }
             // } else {
             let region = unsafe { region.as_ref().unwrap_unchecked() };
-            self.visited.push(format!("{}", region.name.clone()));
+            self.visited.push(region.name.to_string());
             // }
         }
         self.current_region = region;
@@ -221,7 +221,7 @@ impl Logger for SimplePathLogger {
     fn assume<T: ToString>(&mut self, assumption: T) {
         let subprogram = self.regions.in_bounds(self.pc);
         debug!("Matching subprograms {subprogram:?}");
-        let subprogram = subprogram.get(0).cloned();
+        let subprogram = subprogram.first().cloned();
         self.statements.push((subprogram, format!("[{}]: {}", "ASSUME".blue(), assumption.to_string())));
     }
 
@@ -273,13 +273,13 @@ impl Logger for SimplePathLogger {
             .final_frame
             .variables
             .iter()
-            .map(|var| (var.name.clone().unwrap_or("NO NAME".to_string()), format!("{}", var.value)))
+            .map(|var| (var.name.clone().unwrap_or("NO NAME".to_string()), var.value.to_string()))
             .collect();
         self.function_arguments = bt
             .final_frame
             .arguments
             .iter()
-            .map(|var| (var.name.clone().unwrap_or("NO NAME".to_string()), format!("{}", var.value)))
+            .map(|var| (var.name.clone().unwrap_or("NO NAME".to_string()), var.value.to_string()))
             .collect();
     }
 }
@@ -308,7 +308,7 @@ impl Logger for SimpleLogger {
     fn record_path_result<C: crate::Composition>(&mut self, path_result: crate::executor::PathResult<C>) {
         let res = format!("Result: {}", match path_result {
             PathResult::Suppress => "Path suppressed".yellow(),
-            PathResult::Success(Some(expression)) => format!("Success ({:?})", expression).green(),
+            PathResult::Success(Some(expression)) => format!("Success ({expression:?})").green(),
             PathResult::Success(None) => "Success".green(),
             PathResult::Failure(cause) => format!("Failure {cause}",).red(),
             PathResult::AssumptionUnsat => "Unsatisfiable".red(),
@@ -447,7 +447,7 @@ impl Display for SimplePathLogger {
             regions: _regions,
             current_region: _,
             pc: _,
-            backtrace,
+            backtrace: _,
             function_arguments,
         } = self;
 

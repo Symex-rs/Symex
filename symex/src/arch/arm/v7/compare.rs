@@ -2,9 +2,9 @@
 use armv6_m_instruction_parser::{
     conditions::Condition as V6Condition,
     instructons::{Instruction as V6Instruction, Operation as V6Operation},
-    registers::{Register as V6Register, SpecialRegister as V6SpecialRegister},
+    registers::Register as V6Register,
 };
-use disarmv7::prelude::{arch::set_flags::LocalUnwrap, Condition as V7Condition, ImmShift, Operation as V7Operation, Register as V7Register, Shift as V7Shift};
+use disarmv7::prelude::{Condition as V7Condition, Operation as V7Operation, Register as V7Register};
 
 pub(crate) trait LocalEq<T: Sized> {
     fn equal(&self, other: &T) -> bool;
@@ -168,7 +168,7 @@ fn eq_trampoline(lhs: &V6Instruction, rhs: &(usize, V7Operation)) -> bool {
         (V6Operation::CMNReg { m, n }, V7Operation::CmnRegister(cmn)) => m.equal(&cmn.rm) && n.equal(&cmn.rn) && cmn.shift.is_none(),
         (V6Operation::CMPImm { n, imm }, V7Operation::CmpImmediate(cmp)) => n.equal(&cmp.rn) && (*imm == cmp.imm),
         (V6Operation::CMPReg { m, n }, V7Operation::CmpRegister(cmp)) => m.equal(&cmp.rm) && n.equal(&cmp.rn) && cmp.shift.is_none(),
-        (V6Operation::CPS { im }, V7Operation::Cps(cps)) => {
+        (V6Operation::CPS { im: _ }, V7Operation::Cps(_cps)) => {
             todo!();
         }
         (V6Operation::CPY, _) => unimplemented!("Deprecated"),

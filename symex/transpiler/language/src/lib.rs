@@ -4,6 +4,7 @@
 #![deny(clippy::all)]
 #![deny(missing_docs)]
 #![deny(rustdoc::all)]
+#![allow(clippy::match_like_matches_macro)]
 
 pub mod ast;
 pub mod ga_backend;
@@ -44,8 +45,8 @@ impl Error {
     /// Returns this as a compile error.
     pub fn compile_error(&self) -> TokenStream {
         let str = match self {
-            Self::UnusedDeclartion(id) => format!("Unused declaration: {}", id),
-            _ => format!("Self {:?}", self),
+            Self::UnusedDeclartion(id) => format!("Unused declaration: {id}"),
+            _ => format!("Self {self:?}"),
         };
         quote_spanned! {self.span() => compile_error!(#str)}
     }
@@ -93,15 +94,15 @@ impl TypeError {
     pub fn compile_error(&self) -> TokenStream {
         match self {
             Self::UnsupportedType(s, span) => {
-                let str = format!("Unsupported type, {}", s);
+                let str = format!("Unsupported type, {s}");
                 quote_spanned! {*span => compile_error!(#str)}
             }
             Self::UnsuportedOperation(s, span) => {
-                let str = format!("Unsupported operation, {}", s);
+                let str = format!("Unsupported operation, {s}");
                 quote_spanned! {*span => compile_error!(#str)}
             }
             Self::TypeMustBeKnown(s, span) => {
-                let str = format!("Type must be known, {}", s);
+                let str = format!("Type must be known, {s}");
                 quote_spanned! {*span => compile_error!(#str)}
             }
             Self::InvalidType {
@@ -109,9 +110,9 @@ impl TypeError {
                 got,
                 span,
             } => {
-                let got = format!("{:?}", got);
-                let expected = format!("{:?}", expected);
-                let str = format!("Invalid type, expected {} but got {}", expected, got);
+                let got = format!("{got:?}");
+                let expected = format!("{expected:?}");
+                let str = format!("Invalid type, expected {expected} but got {got}");
                 quote_spanned! {*span => compile_error!(#str)}
             }
         }

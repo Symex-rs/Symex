@@ -2,16 +2,11 @@
 
 pub mod variables;
 
-use std::{borrow::Cow, hash::Hash, io::BufRead, marker::PhantomData};
+use std::hash::Hash;
 
-use disarmv7::arch::register;
-use general_assembly::extension::ieee754::RoundingMode;
 use gimli::{
     read::DebugFrame,
     AttributeValue,
-    BaseAddresses,
-    CfaRule,
-    CompleteLineProgram,
     DW_AT_decl_file,
     DW_AT_decl_line,
     DW_AT_high_pc,
@@ -23,34 +18,24 @@ use gimli::{
     DebugStr,
     Dwarf,
     EndianSlice,
-    LineSequence,
     Reader,
-    RegisterRule,
     RunTimeEndian,
-    UnwindContext,
-    UnwindSection,
 };
 use hashbrown::{HashMap, HashSet};
 use object::{Object, ObjectSection};
 use regex::Regex;
-use rust_debug::{
-    call_stack::{CallFrame, MemoryAccess, StackFrame},
-    source_information::SourceInformation,
-};
+use rust_debug::call_stack::{CallFrame, MemoryAccess, StackFrame};
 
 use crate::{
-    arch::{Architecture, ArchitectureOverride, SupportedArchitecture},
+    arch::{ArchitectureOverride, SupportedArchitecture},
     debug,
-    executor::state::GAState,
-    smt::{SmtExpr, SmtFPExpr, SmtMap},
+    smt::{SmtExpr, SmtMap},
     trace,
-    Composition,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize))]
-
 pub struct SubProgram {
     pub name: String,
     pub bounds: (u64, u64),
@@ -215,7 +200,7 @@ impl SubProgramMap {
     //     None
     // }
 
-    pub fn new<R: Reader>(debug_info: &DebugInfo<R>, debug_abbrev: &DebugAbbrev<R>, debug_str: &DebugStr<R>, lines: &DebugLine<R>) -> SubProgramMap {
+    pub fn new<R: Reader>(debug_info: &DebugInfo<R>, debug_abbrev: &DebugAbbrev<R>, debug_str: &DebugStr<R>, _lines: &DebugLine<R>) -> SubProgramMap {
         let mut ret: SubProgramMap = SubProgramMap::_new();
         let mut units = debug_info.units();
         while let Some(unit) = units.next().unwrap() {
@@ -290,7 +275,6 @@ impl SubProgramMap {
 pub struct LineInfo {
     file: String,
     line: u64,
-    col: u64,
     text: Option<String>,
 }
 
@@ -349,7 +333,8 @@ pub(crate) fn line_program(object: &object::File<'_>, endian: gimli::RunTimeEndi
 
         // Get the line program for the compilation unit.
         if let Some(program) = unit.line_program.clone() {
-            let comp_dir = if let Some(ref dir) = unit.comp_dir {
+            // NOTE: Omitted due to size for now.
+            let comp_dir = if let Some(_dir) = unit.comp_dir {
                 // std::path::PathBuf::from(dir.to_string_lossy().into_owned())
                 std::path::PathBuf::new()
             } else {
@@ -384,15 +369,10 @@ pub(crate) fn line_program(object: &object::File<'_>, endian: gimli::RunTimeEndi
                         Some(line) => line.get(),
                         None => 0,
                     };
-                    let column = match row.column() {
-                        gimli::ColumnType::LeftEdge => 0,
-                        gimli::ColumnType::Column(column) => column.get(),
-                    };
-                    let mut meta = LineInfo {
+                    let meta = LineInfo {
                         text: None,
                         file: path.display().to_string(),
                         line,
-                        col: column,
                     };
                     // 'text: {
                     //     // The output is wrapped in a Result to allow matching on errors.
@@ -434,7 +414,6 @@ pub struct DAP<'a, M: SmtMap, E: SmtExpr> {
 
 #[derive(Clone, Debug)]
 pub struct DebugData {
-    data: &'static object::File<'static>,
     dwarf: &'static Dwarf<EndianSlice<'static, RunTimeEndian>>,
     debug_frame: &'static DebugFrame<EndianSlice<'static, RunTimeEndian>>,
 }
@@ -444,177 +423,186 @@ pub struct CallStack {
     pub stack_trace: Vec<(CallFrame, Vec<(String, String)>)>,
 }
 
-#[derive(Clone)]
-enum Either<A, B, C> {
-    Const(C),
-    FP(B),
-    BV(A),
-}
-
-pub struct CallStackBuilder<'ctx, C: Composition> {
-    addr: BaseAddresses,
-    ctx: UnwindContext<usize>,
-    state: &'ctx mut GAState<C>,
-    debug_data: &'ctx DebugData,
-    pc: u64,
-    arch: &'ctx SupportedArchitecture<C::ArchitectureOverride>,
-    registers: HashMap<String, Either<C::SmtExpression, C::SmtFPExpression, u64>>,
-    frames: Vec<CF<C>>,
-}
-
-impl<'ctx, C: Composition> CallStackBuilder<'ctx, C> {
-    fn build(state: &'ctx mut GAState<C>, debug_data: &'ctx DebugData, arch: &'ctx SupportedArchitecture<C::ArchitectureOverride>) {
-        let addr = gimli::BaseAddresses::default();
-        let ctx = gimli::UnwindContext::new();
-
-        let mut b = Self {
-            addr,
-            ctx,
-            pc: state.last_pc.clone(),
-            state,
-            debug_data,
-            arch,
-            registers: HashMap::new(),
-            frames: Vec::new(),
-        };
-        b.build_recursive(1);
-    }
-
-    fn build_recursive(&mut self, mut depth: usize) {
-        if depth == 0 {
-            return;
-        }
-        depth -= 1;
-        let pc = self.pc;
-        let unwind_info = match self
-            .debug_data
-            .debug_frame
-            .unwind_info_for_address(&mut self.addr, &mut self.ctx, pc, gimli::DebugFrame::cie_from_offset)
-        {
-            Ok(v) => v,
-            Err(e) => {
-                return;
-            }
-        };
-
-        let base = match unwind_info.cfa() {
-            CfaRule::RegisterAndOffset { register, offset } => {
-                let register = register.0;
-                let reg_name = self.arch.register_number_to_name(register as u64).expect("TODO, must return None here");
-                self.state
-                    .get_register(reg_name)
-                    .expect("Register to exist in lookup")
-                    .get_constant()
-                    .expect("Offset registers to be of known value.") as i64
-                    + offset
-            }
-            CfaRule::Expression(expr) => {
-                unimplemented!()
-            }
-        } as u64;
-        for (register, ref rule) in unwind_info.registers() {
-            let name = self.arch.register_number_to_name(register.0 as u64).expect("Register name to exist");
-            let val: Either<C::SmtExpression, C::SmtFPExpression, u64> = match rule {
-                RegisterRule::Undefined => {
-                    if name == "PC" {
-                        Either::Const(self.pc)
-                    } else if name == "SP" {
-                        Either::Const(base)
-                    } else {
-                        continue;
-                    }
-                }
-                RegisterRule::SameValue => self
-                    .registers
-                    .get(&name)
-                    .cloned()
-                    .unwrap_or(Either::BV(self.state.get_register(&name).expect("Register to be availiable"))),
-                RegisterRule::Offset(o) => {
-                    let addr = self.state.memory.from_u64((base as i64 + o) as u64, self.arch.word_size() as u32);
-                    Either::BV(self.state.memory.get(&addr, self.arch.word_size() as u32).expect("Reading to be possible"))
-                }
-                RegisterRule::ValOffset(o) => Either::Const((o + base as i64) as u64),
-                RegisterRule::Register(r) => {
-                    let name = self.arch.register_number_to_name(r.0 as u64).expect("Register name to exist");
-                    self.registers
-                        .get(&name)
-                        .cloned()
-                        .unwrap_or(Either::BV(self.state.get_register(&name).expect("Register to be availiable")))
-                }
-                RegisterRule::Constant(c) => Either::Const(*c),
-                _ => unimplemented!("Return None here instead"),
-            };
-            self.registers.insert(name, val);
-        }
-        let frame = CF {
-            pc,
-            base,
-            registers: self.registers.clone(),
-        };
-        self.frames.push(frame);
-        self.pc = self.registers.get("LR").map(|el| el.get_constant()).flatten().expect("LR to be constant");
-
-        self.build_recursive(depth);
-    }
-}
-impl<BV: SmtExpr, FP: SmtFPExpr> Either<BV, FP, u64> {
-    fn get_constant(&self) -> Option<u64> {
-        match self {
-            Self::BV(b) => b.get_constant(),
-            Self::Const(c) => Some(*c),
-            Self::FP(f) => f.to_bv(RoundingMode::TiesTowardZero, false).ok().map(|el| el.get_constant()).flatten(),
-        }
-    }
-
-    fn get_a_constant_constrained(&self, constraints: &[BV]) -> Option<u64> {
-        match self {
-            Self::BV(b) => b.get_a_solution(constraints),
-            Self::Const(c) => Some(*c),
-            Self::FP(f) => f.to_bv(RoundingMode::TiesTowardZero, false).ok().map(|el| el.get_constant()).flatten(),
-        }
-    }
-
-    fn get_a_constant(&self) -> Option<u64> {
-        match self {
-            Self::BV(b) => b.get_a_solution(&[]),
-            Self::Const(c) => Some(*c),
-            Self::FP(f) => f.to_bv(RoundingMode::TiesTowardZero, false).ok().map(|el| el.get_constant()).flatten(),
-        }
-    }
-}
-
-struct CF<C: Composition> {
-    pc: u64,
-    registers: HashMap<String, Either<C::SmtExpression, C::SmtFPExpression, u64>>,
-    base: u64,
-}
-
-impl<C: Composition> CF<C> {
-    fn get_stack_frame(
-        &self,
-        arch: &SupportedArchitecture<C::ArchitectureOverride>,
-        dap: &mut DAP<'_, C::Memory, C::SmtExpression>,
-        constraints: &[C::SmtExpression],
-        dwarf: &Dwarf<EndianSlice<'static, RunTimeEndian>>,
-        debug_frame: &DebugFrame<EndianSlice<'static, RunTimeEndian>>,
-    ) -> Option<StackFrame<EndianSlice<'static, RunTimeEndian>>> {
-        let mut register_map = std::collections::HashMap::new();
-        self.registers.iter().for_each(|(k, v)| {
-            let v = v.get_a_constant_constrained(constraints).expect("Formula to be SAT") as u32;
-            let reg = arch.register_name_to_number(k).expect("Registers to be named") as u16;
-            register_map.insert(reg, v);
-        });
-        let mut registers = rust_debug::registers::Registers::default();
-        registers.registers = register_map;
-        // TODO: Make generic!
-        registers.link_register = arch.register_name_to_number("LR").map(|el| el as usize);
-        registers.program_counter_register = arch.register_name_to_number("PC").map(|el| el as usize);
-        registers.stack_pointer_register = arch.register_name_to_number("SP").map(|el| el as usize);
-
-        let call_trace = rust_debug::call_stack::unwind_call_stack(registers.clone(), dap, debug_frame).expect("Call stack to be traceable");
-        todo!()
-    }
-}
+// #[derive(Clone)]
+// enum Either<A, B, C> {
+//     Const(C),
+//     FP(B),
+//     BV(A),
+// }
+//
+// pub struct CallStackBuilder<'ctx, C: Composition> {
+//     addr: BaseAddresses,
+//     ctx: UnwindContext<usize>,
+//     state: &'ctx mut GAState<C>,
+//     debug_data: &'ctx DebugData,
+//     pc: u64,
+//     arch: &'ctx SupportedArchitecture<C::ArchitectureOverride>,
+//     registers: HashMap<String, Either<C::SmtExpression, C::SmtFPExpression,
+// u64>>,     frames: Vec<CF<C>>,
+// }
+//
+// impl<'ctx, C: Composition> CallStackBuilder<'ctx, C> {
+//     fn build(state: &'ctx mut GAState<C>, debug_data: &'ctx DebugData, arch:
+// &'ctx SupportedArchitecture<C::ArchitectureOverride>) {         let addr =
+// gimli::BaseAddresses::default();         let ctx =
+// gimli::UnwindContext::new();
+//
+//         let mut b = Self {
+//             addr,
+//             ctx,
+//             pc: state.last_pc.clone(),
+//             state,
+//             debug_data,
+//             arch,
+//             registers: HashMap::new(),
+//             frames: Vec::new(),
+//         };
+//         b.build_recursive(1);
+//     }
+//
+//     fn build_recursive(&mut self, mut depth: usize) {
+//         if depth == 0 {
+//             return;
+//         }
+//         depth -= 1;
+//         let pc = self.pc;
+//         let unwind_info = match self
+//             .debug_data
+//             .debug_frame
+//             .unwind_info_for_address(&mut self.addr, &mut self.ctx, pc,
+// gimli::DebugFrame::cie_from_offset)         {
+//             Ok(v) => v,
+//             Err(e) => {
+//                 return;
+//             }
+//         };
+//
+//         let base = match unwind_info.cfa() {
+//             CfaRule::RegisterAndOffset { register, offset } => {
+//                 let register = register.0;
+//                 let reg_name = self.arch.register_number_to_name(register as
+// u64).expect("TODO, must return None here");                 self.state
+//                     .get_register(reg_name)
+//                     .expect("Register to exist in lookup")
+//                     .get_constant()
+//                     .expect("Offset registers to be of known value.") as i64
+//                     + offset
+//             }
+//             CfaRule::Expression(expr) => {
+//                 unimplemented!()
+//             }
+//         } as u64;
+//         for (register, ref rule) in unwind_info.registers() {
+//             let name = self.arch.register_number_to_name(register.0 as
+// u64).expect("Register name to exist");             let val:
+// Either<C::SmtExpression, C::SmtFPExpression, u64> = match rule {
+// RegisterRule::Undefined => {                     if name == "PC" {
+//                         Either::Const(self.pc)
+//                     } else if name == "SP" {
+//                         Either::Const(base)
+//                     } else {
+//                         continue;
+//                     }
+//                 }
+//                 RegisterRule::SameValue => self
+//                     .registers
+//                     .get(&name)
+//                     .cloned()
+//
+// .unwrap_or(Either::BV(self.state.get_register(&name).expect("Register to be
+// availiable"))),                 RegisterRule::Offset(o) => {
+//                     let addr = self.state.memory.from_u64((base as i64 + o)
+// as u64, self.arch.word_size() as u32);
+// Either::BV(self.state.memory.get(&addr, self.arch.word_size() as
+// u32).expect("Reading to be possible"))                 }
+//                 RegisterRule::ValOffset(o) => Either::Const((o + base as i64)
+// as u64),                 RegisterRule::Register(r) => {
+//                     let name = self.arch.register_number_to_name(r.0 as
+// u64).expect("Register name to exist");                     self.registers
+//                         .get(&name)
+//                         .cloned()
+//
+// .unwrap_or(Either::BV(self.state.get_register(&name).expect("Register to be
+// availiable")))                 }
+//                 RegisterRule::Constant(c) => Either::Const(*c),
+//                 _ => unimplemented!("Return None here instead"),
+//             };
+//             self.registers.insert(name, val);
+//         }
+//         let frame = CF {
+//             pc,
+//             base,
+//             registers: self.registers.clone(),
+//         };
+//         self.frames.push(frame);
+//         self.pc = self.registers.get("LR").map(|el|
+// el.get_constant()).flatten().expect("LR to be constant");
+//
+//         self.build_recursive(depth);
+//     }
+// }
+// impl<BV: SmtExpr, FP: SmtFPExpr> Either<BV, FP, u64> {
+//     fn get_constant(&self) -> Option<u64> {
+//         match self {
+//             Self::BV(b) => b.get_constant(),
+//             Self::Const(c) => Some(*c),
+//             Self::FP(f) => f.to_bv(RoundingMode::TiesTowardZero,
+// false).ok().map(|el| el.get_constant()).flatten(),         }
+//     }
+//
+//     fn get_a_constant_constrained(&self, constraints: &[BV]) -> Option<u64> {
+//         match self {
+//             Self::BV(b) => b.get_a_solution(constraints),
+//             Self::Const(c) => Some(*c),
+//             Self::FP(f) => f.to_bv(RoundingMode::TiesTowardZero,
+// false).ok().map(|el| el.get_constant()).flatten(),         }
+//     }
+//
+//     fn get_a_constant(&self) -> Option<u64> {
+//         match self {
+//             Self::BV(b) => b.get_a_solution(&[]),
+//             Self::Const(c) => Some(*c),
+//             Self::FP(f) => f.to_bv(RoundingMode::TiesTowardZero,
+// false).ok().map(|el| el.get_constant()).flatten(),         }
+//     }
+// }
+//
+// struct CF<C: Composition> {
+//     pc: u64,
+//     registers: HashMap<String, Either<C::SmtExpression, C::SmtFPExpression,
+// u64>>,     base: u64,
+// }
+//
+// impl<C: Composition> CF<C> {
+//     fn get_stack_frame(
+//         &self,
+//         arch: &SupportedArchitecture<C::ArchitectureOverride>,
+//         dap: &mut DAP<'_, C::Memory, C::SmtExpression>,
+//         constraints: &[C::SmtExpression],
+//         dwarf: &Dwarf<EndianSlice<'static, RunTimeEndian>>,
+//         debug_frame: &DebugFrame<EndianSlice<'static, RunTimeEndian>>,
+//     ) -> Option<StackFrame<EndianSlice<'static, RunTimeEndian>>> {
+//         let mut register_map = std::collections::HashMap::new();
+//         self.registers.iter().for_each(|(k, v)| {
+//             let v = v.get_a_constant_constrained(constraints).expect("Formula
+// to be SAT") as u32;             let reg =
+// arch.register_name_to_number(k).expect("Registers to be named") as u16;
+//             register_map.insert(reg, v);
+//         });
+//         let mut registers = rust_debug::registers::Registers::default();
+//         registers.registers = register_map;
+//         // TODO: Make generic!
+//         registers.link_register = arch.register_name_to_number("LR").map(|el|
+// el as usize);         registers.program_counter_register =
+// arch.register_name_to_number("PC").map(|el| el as usize);         registers.
+// stack_pointer_register = arch.register_name_to_number("SP").map(|el| el as
+// usize);
+//
+//         let call_trace =
+// rust_debug::call_stack::unwind_call_stack(registers.clone(), dap,
+// debug_frame).expect("Call stack to be traceable");         todo!()
+//     }
+// }
 
 impl DebugData {
     // fn unwind_symbolic_rec(&self, base_address: gimli::BaseAddresses, ctx: &mut
@@ -639,11 +627,6 @@ impl DebugData {
 
         // Create `EndianSlice`s for all of the sections.
         let dwarf = dwarf_sections.borrow(borrow_section);
-        let mut iter = dwarf.units();
-        let unit = iter.next()?.expect("Atleast one CU");
-
-        let unit = dwarf.unit(unit)?;
-        let unit = unit.unit_ref(&dwarf);
 
         let sec = object
             .section_by_name(".debug_frame")
@@ -653,28 +636,29 @@ impl DebugData {
         let frame = DebugFrame::new(Box::leak(Box::new(sec)), endian);
 
         Ok(Self {
-            data: object,
             dwarf: Box::leak(Box::new(dwarf)),
             debug_frame: Box::leak(Box::new(frame)),
         })
     }
 
-    pub fn produce_backtrace<M: SmtMap<Expression = E>, O: ArchitectureOverride, E: SmtExpr>(&self, dap: &mut DAP<'_, M, E>, arch: &SupportedArchitecture<O>) -> Option<CallStack> {
+    pub fn produce_backtrace<M: SmtMap<Expression = E>, O: ArchitectureOverride, E: SmtExpr>(
+        &self,
+        dap: &mut DAP<'_, M, E>,
+        last_pc: u64,
+        arch: &SupportedArchitecture<O>,
+    ) -> Option<CallStack> {
         let mut register_map = std::collections::HashMap::new();
-        let mut registers = dap.mem.get_registers();
-        let pc = dap.mem.get_pc().expect("Valid pc");
-        registers.insert("PC".to_string(), pc);
+        let registers = dap.mem.get_registers();
         registers.iter().for_each(|(reg, value)| {
             let _ = register_map.insert(
                 arch.register_name_to_number(reg).expect("Register to be named") as u16,
                 value.get_a_solution(dap.constraints).expect("State to be sat") as u32,
             );
         });
+        register_map.insert(arch.register_name_to_number("PC").expect("PC to be named") as u16, last_pc as u32);
 
         for idx in 0..16 {
-            if !register_map.contains_key(&idx) {
-                register_map.insert(idx, 0);
-            }
+            let _ = register_map.entry(idx).or_insert(0);
         }
         let mut registers = rust_debug::registers::Registers::default();
         registers.registers = register_map;
@@ -684,13 +668,13 @@ impl DebugData {
         registers.program_counter_register = arch.register_name_to_number("PC").map(|el| el as usize);
         registers.stack_pointer_register = arch.register_name_to_number("SP").map(|el| el as usize);
 
-        let call_trace = rust_debug::call_stack::unwind_call_stack(registers.clone(), dap, &self.debug_frame).expect("Call stack to be traceable");
+        let call_trace = rust_debug::call_stack::unwind_call_stack(registers.clone(), dap, self.debug_frame).expect("Call stack to be traceable");
 
-        if call_trace.len() == 0 {
+        if call_trace.is_empty() {
             return None;
         }
         let val = &call_trace[0];
-        let current_frame = rust_debug::call_stack::create_stack_frame(&self.dwarf, val.clone(), &registers, dap, "").expect("Stack trace being createable");
+        let current_frame = rust_debug::call_stack::create_stack_frame(self.dwarf, val.clone(), &registers, dap, "").expect("Stack trace being createable");
         let stack_trace = call_trace
             .iter()
             .map(|el| {
@@ -707,7 +691,7 @@ impl DebugData {
                 registers.program_counter_register = arch.register_name_to_number("PC").map(|el| el as usize);
                 registers.stack_pointer_register = arch.register_name_to_number("SP").map(|el| el as usize);
 
-                let frame = rust_debug::call_stack::create_stack_frame(&self.dwarf, val.clone(), &registers, dap, "").expect("Stack trace being createable");
+                let frame = rust_debug::call_stack::create_stack_frame(self.dwarf, val.clone(), &registers, dap, "").expect("Stack trace being createable");
 
                 let args = frame
                     .arguments
@@ -737,14 +721,13 @@ where
         let mut address = *address as u64;
 
         let mut buffer = Vec::with_capacity(num_bytes);
-        for el in 0..num_bytes {
+        for _el in 0..num_bytes {
             buffer.push(
                 self.mem
                     .get(&self.mem.from_u64(address, self.mem.get_ptr_size()), 1)
                     .ok()
                     // NOTE: Approximate!
-                    .map(|el| el.get_a_solution(self.constraints))
-                    .flatten()? as u8,
+                    .and_then(|el| el.get_a_solution(self.constraints))? as u8,
             );
             address += 1;
         }

@@ -10,10 +10,7 @@ use crate::{
     logging::NoLogger,
     path_selection::PathSelector,
     project::{dwarf_helper::SubProgramMap, Project},
-    smt::{
-        smt_boolector::{Boolector, BoolectorExpr},
-        SmtSolver,
-    },
+    smt::{smt_boolector::Boolector, SmtSolver},
     Endianness,
     WordSize,
 };
@@ -117,12 +114,12 @@ fn translate_instruction(instruction_bytes: [u8; 4]) -> Instruction<DefaultCompo
 fn init_executor(vm: &mut VM<DefaultCompositionNoLogger>) -> GAExecutor<'_, DefaultCompositionNoLogger> {
     let project = vm.project;
 
-    let mut state = vm.paths.get_path().unwrap().state;
+    let state = vm.paths.get_path().unwrap().state;
 
     GAExecutor::from_state(state, vm, project)
 }
 
-fn init_registers<'a>(executor: &'a mut GAExecutor<'_, DefaultCompositionNoLogger>, instruction: Instruction<DefaultCompositionNoLogger>, test_data: &'a TestData) {
+fn init_registers<'a>(executor: &'a mut GAExecutor<'_, DefaultCompositionNoLogger>, _instruction: Instruction<DefaultCompositionNoLogger>, test_data: &'a TestData) {
     init_test_register(executor, test_data.register1.name, test_data.register1.initial_value);
     if let Some(register2) = &test_data.register2 {
         init_test_register(executor, register2.name, register2.initial_value);
@@ -143,7 +140,7 @@ fn init_test_register(executor: &mut GAExecutor<'_, DefaultCompositionNoLogger>,
 }
 
 fn assert_registers(test_data: &TestData, executor: &mut GAExecutor<'_, DefaultCompositionNoLogger>) {
-    let mut final_state = &mut executor.state;
+    let final_state = &mut executor.state;
 
     let reg1_value = final_state.get_register(test_data.register1.name).expect("Register not found");
     assert_eq!(
@@ -676,7 +673,7 @@ fn test_jalr() {
 
     let start_pc: i32 = 32;
     let xs1: i32 = 8;
-    let address: i32 = ((xs1 + offset) & !1); // `& !1` clears the least significant bit
+    let address: i32 = (xs1 + offset) & !1; // `& !1` clears the least significant bit
 
     let test_data = generate_test_data!(
         0xfe758567u32.to_le_bytes(),

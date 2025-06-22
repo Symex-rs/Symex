@@ -20,6 +20,7 @@ armv6-m-examples/target
 /perf
 /dbg
 /misc
+**/.neoconf.json
 
 
 # typos

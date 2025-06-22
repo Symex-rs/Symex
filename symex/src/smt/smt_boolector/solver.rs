@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use boolector::{
     option::{BtorOption, ModelGen},
     Btor,

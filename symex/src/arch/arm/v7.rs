@@ -6,24 +6,21 @@ use disarmv7::prelude::{Operation as V7Operation, *};
 use general_assembly::{extension::ieee754::RoundingMode, operation::Operation, shift::Shift};
 
 use crate::{
-    arch::{ArchError, Architecture, ArchitectureOverride, ParseError, SupportedArchitecture, InterfaceRegister},
+    arch::{ArchError, Architecture, ArchitectureOverride, InterfaceRegister, ParseError, SupportedArchitecture},
     debug,
     executor::{
         hooks::{HookContainer, PCHook},
         instruction::Instruction,
         state::GAState,
-        ResultOrTerminate,
     },
-    extract,
     project::dwarf_helper::SubProgramMap,
-    smt::{SmtExpr, SmtMap, SmtSolver},
+    smt::{SmtExpr, SmtMap},
     trace,
     GAError,
     Mask,
 };
 
 //#[rustfmt::skip]
-pub mod compare;
 pub mod decoder;
 #[cfg(test)]
 pub mod test;
@@ -42,7 +39,7 @@ impl ArmV7EM {
             let value = value.resize_unsigned(1);
             trace!("Setting APSR.N to {value:?}{:?}", value.get_constant());
             let reg = state.memory.get_register("XPSR")?.replace_part(31, value);
-            state.memory.set_register("XPSR", reg);
+            let _ = state.memory.set_register("XPSR", reg);
             Ok(())
         };
         let read_apsr_n = |state: &mut GAState<C>| {
@@ -57,8 +54,8 @@ impl ArmV7EM {
 
             let reg = state.memory.get_register("XPSR")?;
 
-            let ret = reg.replace_part(16, lower).replace_part(27, upper);
-            state.memory.set_register("XPSR", reg);
+            let reg = reg.replace_part(16, lower).replace_part(27, upper);
+            let _ = state.memory.set_register("XPSR", reg);
 
             Ok(())
         };
@@ -139,7 +136,7 @@ impl ArmV7EM {
             let value = value.resize_unsigned(1);
             trace!("Setting APSR.Q to {value:?} {:?}", value.get_constant());
             let reg = state.memory.get_register("XPSR")?;
-            reg.replace_part(27, value);
+            let reg = reg.replace_part(27, value);
             trace!("WRITE APSR.Q, {:?}", reg);
             state.memory.set_register("XPSR", reg)?;
             Ok(())
@@ -171,6 +168,8 @@ impl ArmV7EM {
         cfg.add_register_read_hook("APSR.GE".to_string(), read_apsr_ge);
     }
 
+    // TODO: Write to the EXTRA register for control, faultmask, primask and basepri
+
     fn add_itstate_hooks<C: crate::Composition>(&self, cfg: &mut HookContainer<C>, _map: &mut SubProgramMap) {
         let it_read = |state: &mut GAState<C>| {
             let reg = state.memory.get_register("XPSR")?;
@@ -184,16 +183,11 @@ impl ArmV7EM {
             let val_7_2 = value.slice(2, 7);
             let val_1_0 = value.slice(0, 1);
 
-            let value = value.get_constant().expect("It state must be deterministic");
-            // let val_1_0 = state.memory.from_u64(value.mask::<0, 1>(),
-            // 32).resize_unsigned(2); let val_7_2 =
-            // state.memory.from_u64(value.mask::<2, 7>(), 32).resize_unsigned(7);
-
             let reg = state.memory.get_register("XPSR")?;
             let reg = reg.replace_part(25, val_1_0);
             let reg = reg.replace_part(10, val_7_2);
 
-            state.memory.set_register("XPSR", reg);
+            let _ = state.memory.set_register("XPSR", reg);
 
             Ok(())
         };
@@ -321,7 +315,7 @@ impl ArmV7EM {
             return;
         }
         trace!("Running IT advance");
-        let (cond, it) = Self::current_cond(state);
+        let (_cond, it) = Self::current_cond(state);
         if let Some(it) = it {
             trace!("IT STATE WAS ZERO in last 4 bits");
             if it.mask::<0, 3>() == 0 {
@@ -337,12 +331,12 @@ impl ArmV7EM {
         }
 
         if let Some(1) = pure_zeros {
-            state.set_register("ITSTATE.IT".to_string(), state.memory.from_u64(0, 32));
+            let _ = state.set_register("ITSTATE.IT".to_string(), state.memory.from_u64(0, 32));
             return;
         }
         let it_4_0 = it.slice(0, 4).shift(&state.memory.from_u64(1, 5), Shift::Lsl);
         let it = it.replace_part(0, it_4_0);
-        state.set_register("ITSTATE.IT".to_string(), it);
+        let _ = state.set_register("ITSTATE.IT".to_string(), it);
     }
 }
 
@@ -354,11 +348,11 @@ impl<Override: ArchitectureOverride> Architecture<Override> for ArmV7EM {
         C: crate::Composition<ArchitectureOverride = Override>,
     {
         trace!("Setting XPSR to zeros");
-        state.set_register("XPSR".to_string(), state.memory.from_u64(0, 32));
+        let _ = state.set_register("XPSR".to_string(), state.memory.from_u64(0, 32));
 
         let rm = state.get_register("FPSCR.RM").expect("RM read to be valid");
         let rm = rm.get_constant().unwrap_or(0b11);
-        state.set_register("FPSCR.RM", state.memory.from_u64(rm, 32));
+        let _ = state.set_register("FPSCR.RM", state.memory.from_u64(rm, 32));
     }
 
     fn pre_instruction_loading_hook<C>(state: &mut GAState<C>)
@@ -367,7 +361,7 @@ impl<Override: ArchitectureOverride> Architecture<Override> for ArmV7EM {
     {
         let rm = state.get_register("FPSCR.RM").expect("RM read to be valid");
         let rm = rm.get_constant().unwrap_or(0b11);
-        state.set_register("FPSCR.RM", state.memory.from_u64(rm, 32));
+        let _ = state.set_register("FPSCR.RM", state.memory.from_u64(rm, 32));
 
         state.architecture.as_v7().in_it_block = false;
         let (cond, it) = Self::current_cond(state);
@@ -399,11 +393,12 @@ impl<Override: ArchitectureOverride> Architecture<Override> for ArmV7EM {
         Self::it_advance(state);
     }
 
-    fn get_register_name(reg:InterfaceRegister) -> String {
+    fn get_register_name(reg: InterfaceRegister) -> String {
         match reg {
             InterfaceRegister::ProgramCounter => "PC",
-            InterfaceRegister::ReturnAddress => "LR"
-        }.to_string()
+            InterfaceRegister::ReturnAddress => "LR",
+        }
+        .to_string()
     }
 
     #[allow(clippy::cast_possible_truncation)]
@@ -447,14 +442,14 @@ impl<Override: ArchitectureOverride> Architecture<Override> for ArmV7EM {
             Ok(())
         };
 
-        if let Err(_) = cfg.add_pc_hook_regex(map, r"^symbolic_size$", PCHook::Intrinsic(symbolic_sized)) {
+        if cfg.add_pc_hook_regex(map, r"^symbolic_size$", PCHook::Intrinsic(symbolic_sized)).is_err() {
             debug!("Could not add symoblic hook, must not contain any calls to `symbolic_size`");
         }
-        if let Err(_) = cfg.add_pc_hook_regex(map, r"^symbolic_size<.+>$", PCHook::Intrinsic(symbolic_sized)) {
+        if cfg.add_pc_hook_regex(map, r"^symbolic_size<.+>$", PCHook::Intrinsic(symbolic_sized)).is_err() {
             debug!("Could not add symoblic hook, must not contain any calls to `symbolic_size<.+>`");
         }
 
-        if let Err(_) = cfg.add_pc_hook_regex(map, r"^HardFault.*$", PCHook::EndFailure("Hardfault")) {
+        if cfg.add_pc_hook_regex(map, r"^HardFault.*$", PCHook::EndFailure("Hardfault")).is_err() {
             trace!("Could not add hardfault hook");
         }
         // §B1.4 Specifies that R[15] => Addr(Current instruction) + 4
@@ -562,7 +557,8 @@ impl<Override: ArchitectureOverride> Architecture<Override> for ArmV7EM {
         debug!("PC{:#x} -> Running {:?}", state.memory.get_pc().unwrap().get_constant().unwrap(), instr);
         let instr = instr?;
         let timing = Self::cycle_count_m4_core(&instr.1);
-        let ops: Vec<Operation> = instr.clone().convert(state.get_in_conditional_block());
+        let it = state.get_in_conditional_block();
+        let ops: Vec<Operation> = instr.clone().convert(it);
 
         Ok(Instruction {
             instruction_size: instr.0 as u32,
@@ -617,11 +613,7 @@ impl<Override: ArchitectureOverride> Architecture<Override> for ArmV7EM {
             14 => "LR".to_string(),
             15 => "PC".to_string(),
             0b1_0000 => "XPSR".to_string(),
-            16 => "IPSR".to_string(),
-            0b10100 => "FAULTMASK".to_string(),
-            0b10100 => "PRIMASK".to_string(),
-            0b10100 => "BASEPRI".to_string(),
-            0b10100 => "CONTROL".to_string(),
+            0b10100 => "EXTRA".to_string(),
             33 => "FPSCR".to_string(),
             idx if (64..(64 + 16)).contains(&idx) => format!("S{}", idx - 64),
             _ => return None,
@@ -654,7 +646,7 @@ impl<Override: ArchitectureOverride> Architecture<Override> for ArmV7EM {
             "CONTROL" => 0b10100,
             "FPSCR" => 33,
             _ if name.starts_with("S") => {
-                let num: u64 = name.strip_prefix("S").map(|el| el.parse().ok()).flatten()?;
+                let num: u64 = name.strip_prefix("S").and_then(|el| el.parse().ok())?;
                 64 + num
             }
             _ if name.starts_with("D") => {
@@ -664,6 +656,7 @@ impl<Override: ArchitectureOverride> Architecture<Override> for ArmV7EM {
         })
     }
 
+    #[allow(clippy::identity_op)]
     fn nan_encoding(ty: general_assembly::extension::ieee754::OperandType) -> u64 {
         match ty {
             general_assembly::extension::ieee754::OperandType::Binary16 => (((0 << 5) | (0x1f)) << 10) | 1 << 9,

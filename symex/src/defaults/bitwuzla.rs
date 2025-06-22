@@ -1,7 +1,5 @@
 use std::marker::PhantomData;
 
-use general_assembly::extension::ieee754::OperandType;
-
 use super::logger::SimplePathLogger;
 use crate::{
     arch::NoArchitectureOverride,

@@ -1,8 +1,4 @@
-use disarmv7::{
-    arch::Register,
-    operation::{Smla, Smlad, Smlal, SmlalSelective, Smlald, Smlaw, Smlsd, Smlsld, Smmla, Smmls, Smmul, Smuad, Smul, Smull, Smulw, Smusd, Ssat, SubSpMinusRegister, Sxth},
-};
-use object::elf::R_PPC_DTPREL16_HA;
+use disarmv7::operation::{Smla, Smlad, Smlal, SmlalSelective, Smlald, Smlaw, Smlsd, Smlsld, Smmla, Smmls, Smmul, Smuad, Smul, Smull, Smulw, Smusd, Sxth};
 use transpiler::pseudo;
 
 use super::Decode;
@@ -24,7 +20,7 @@ impl Decode for Sxth {
 }
 
 impl Decode for Smla {
-    fn decode(&self, in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
+    fn decode(&self, _in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
         let Self { n_high, m_high, rd, rn, rm, ra } = self;
         let rd = rd.local_into();
         let rn = rn.local_into();
@@ -58,7 +54,7 @@ impl Decode for Smla {
 }
 
 impl Decode for Smlad {
-    fn decode(&self, in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
+    fn decode(&self, _in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
         let Self { x, rd, rn, rm, ra } = self;
         let m_swap = x.unwrap_or(false);
         let rd = rd.local_into();
@@ -90,7 +86,7 @@ impl Decode for Smlad {
 }
 
 impl Decode for Smlal {
-    fn decode(&self, in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
+    fn decode(&self, _in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
         let Self { rdlo, rdhi, rn, rm } = self;
         let rdlo = rdlo.local_into();
         let rdhi = rdhi.local_into();
@@ -111,7 +107,7 @@ impl Decode for Smlal {
 }
 
 impl Decode for SmlalSelective {
-    fn decode(&self, in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
+    fn decode(&self, _in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
         let Self {
             n_high,
             m_high,
@@ -151,7 +147,7 @@ impl Decode for SmlalSelective {
 }
 
 impl Decode for Smlald {
-    fn decode(&self, in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
+    fn decode(&self, _in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
         let Self { x, rdlo, rdhi, rn, rm } = self;
         let m_swap = x.unwrap_or(false);
 
@@ -184,7 +180,7 @@ impl Decode for Smlald {
 }
 
 impl Decode for Smlaw {
-    fn decode(&self, in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
+    fn decode(&self, _in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
         let Self { m_high, rd, rn, rm, ra } = self;
 
         let rd = rd.local_into();
@@ -214,7 +210,7 @@ impl Decode for Smlaw {
 }
 
 impl Decode for Smlsd {
-    fn decode(&self, in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
+    fn decode(&self, _in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
         let Self { m_swap, rd, rn, rm, ra } = self;
         let rd = rd.local_into();
         let rn = rn.local_into();
@@ -239,7 +235,7 @@ impl Decode for Smlsd {
 }
 
 impl Decode for Smlsld {
-    fn decode(&self, in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
+    fn decode(&self, _in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
         let Self { m_swap, rdlo, rdhi, rn, rm } = self;
         let m_swap = m_swap.unwrap_or(false);
         let rdlo = rdlo.local_into();
@@ -270,7 +266,7 @@ impl Decode for Smlsld {
 }
 
 impl Decode for Smmla {
-    fn decode(&self, in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
+    fn decode(&self, _in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
         let Self { round, rd, rn, rm, ra } = self;
         let round = round.unwrap_or(false);
         let rd = rd.local_into();
@@ -294,7 +290,7 @@ impl Decode for Smmla {
 }
 
 impl Decode for Smmls {
-    fn decode(&self, in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
+    fn decode(&self, _in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
         let Self { round, rd, rn, rm, ra } = self;
         let round = round.unwrap_or(false);
         let rd = rd.local_into();
@@ -318,7 +314,7 @@ impl Decode for Smmls {
 }
 
 impl Decode for Smmul {
-    fn decode(&self, in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
+    fn decode(&self, _in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
         let Self { round, rd, rn, rm } = self;
         let round = round.unwrap_or(false);
         let rd = rd.local_into();
@@ -339,7 +335,7 @@ impl Decode for Smmul {
 }
 
 impl Decode for Smuad {
-    fn decode(&self, in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
+    fn decode(&self, _in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
         let Self { m_swap, rd, rn, rm } = self;
         let m_swap = m_swap.unwrap_or(false);
         let rd = rd.local_into();
@@ -364,7 +360,7 @@ impl Decode for Smuad {
 }
 
 impl Decode for Smul {
-    fn decode(&self, in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
+    fn decode(&self, _in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
         let Self { n_high, m_high, rd, rn, rm } = self;
 
         let rn = rn.local_into();
@@ -388,7 +384,7 @@ impl Decode for Smul {
 }
 
 impl Decode for Smull {
-    fn decode(&self, in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
+    fn decode(&self, _in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
         let Self { rdlo, rdhi, rn, rm } = self;
         let rdlo = rdlo.local_into();
         let rdhi = rdhi.local_into();
@@ -404,7 +400,7 @@ impl Decode for Smull {
 }
 
 impl Decode for Smulw {
-    fn decode(&self, in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
+    fn decode(&self, _in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
         let Self { m_high, rd, rn, rm } = self;
         let rn = rn.local_into();
         let rd = rd.local_into().unwrap_or(rn.clone());
@@ -424,7 +420,7 @@ impl Decode for Smulw {
 }
 
 impl Decode for Smusd {
-    fn decode(&self, in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
+    fn decode(&self, _in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
         let Self { m_swap, rd, rn, rm } = self;
         let rn = rn.local_into();
         let rd = rd.local_into().unwrap_or(rn.clone());
