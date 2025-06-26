@@ -174,6 +174,9 @@ pub struct HookContainer<C: Composition> {
     /// Disallows access to any memory region not contained in this vector.
     great_filter: Vec<(C::SmtExpression, C::SmtExpression)>,
 
+    /// Same as great filter but non smt expressions.
+    great_filter_const: Vec<(u64, u64)>,
+
     fp_register_read_hook: HashMap<String, FpRegisterReadHook<C>>,
     fp_register_write_hook: HashMap<String, FpRegisterWriteHook<C>>,
 
@@ -480,6 +483,11 @@ impl<C: Composition> HookContainer<C> {
 
     pub fn allow_access(&mut self, addresses: Vec<(C::SmtExpression, C::SmtExpression)>) {
         self.strict = true;
+        for el in &addresses {
+            let lower = el.0.get_constant().expect("Addresses to be constants");
+            let upper = el.1.get_constant().expect("Addresses to be constants");
+            self.great_filter_const.push((lower, upper));
+        }
         self.great_filter = addresses;
     }
 
@@ -491,10 +499,26 @@ impl<C: Composition> HookContainer<C> {
         new_expr
     }
 
+    pub fn could_possibly_be_invalid_read_const(&self, pre_condition: bool, addr: u64) -> bool {
+        let mut new_expr = pre_condition.clone();
+        for (lower, upper) in &self.great_filter_const {
+            new_expr = new_expr && ((addr < *lower) || (addr > *upper));
+        }
+        new_expr
+    }
+
     pub fn could_possibly_be_invalid_write(&self, pre_condition: C::SmtExpression, addr: C::SmtExpression) -> C::SmtExpression {
         let mut new_expr = pre_condition.clone();
         for (lower, upper) in &self.great_filter {
             new_expr = new_expr.and(&addr.ult(lower).or(&addr.ugt(upper)));
+        }
+        new_expr
+    }
+
+    pub fn could_possibly_be_invalid_write_const(&self, pre_condition: bool, addr: u64) -> bool {
+        let mut new_expr = pre_condition.clone();
+        for (lower, upper) in &self.great_filter_const {
+            new_expr = new_expr && ((addr < *lower) || (addr > *upper));
         }
         new_expr
     }
@@ -779,6 +803,7 @@ impl<C: Composition> HookContainer<C> {
             range_memory_read_hook: Vec::new(),
             range_memory_write_hook: Vec::new(),
             great_filter: Vec::new(),
+            great_filter_const: Vec::new(),
             fp_register_read_hook: HashMap::new(),
             fp_register_write_hook: HashMap::new(),
             flag_read_hook: HashMap::new(),
@@ -815,9 +840,34 @@ impl<C: Composition> HookContainer<C> {
         ResultOrHook::Result(value)
     }
 
-    // pub fn dispatch_temporal_hooks(&mut self, state: &mut GAState<C>) ->
-    // ResultOrTerminate<()> {     dispatch_temporal_hooks(state)
-    // }
+    #[allow(dead_code)]
+    pub fn permitted_regions(&mut self, mem: &C::Memory) -> Vec<(C::SmtExpression, C::SmtExpression)> {
+        self.permitted_regions_const(mem)
+            .iter()
+            .map(|(lower, upper)| (mem.from_u64(*lower, mem.get_ptr_size()), mem.from_u64(*upper, mem.get_ptr_size())))
+            .collect()
+    }
+
+    #[allow(dead_code)]
+    pub fn permitted_regions_const(&mut self, _mem: &C::Memory) -> Vec<(u64, u64)> {
+        self.great_filter_const.clone()
+    }
+
+    #[allow(dead_code)]
+    pub fn all_regions(&mut self, mem: &C::Memory) -> Vec<(C::SmtExpression, C::SmtExpression)> {
+        self.all_regions_const(mem)
+            .iter()
+            .map(|(lower, upper)| (mem.from_u64(*lower, mem.get_ptr_size()), mem.from_u64(*upper, mem.get_ptr_size())))
+            .collect()
+    }
+
+    #[allow(dead_code)]
+    pub fn all_regions_const(&mut self, mem: &C::Memory) -> Vec<(u64, u64)> {
+        let mut regs = self.great_filter_const.clone();
+        regs.extend(mem.regions());
+        regs.extend(mem.program_memory().regions());
+        regs
+    }
 }
 
 pub enum ResultOrHook<A: Sized, B: Sized> {
@@ -830,42 +880,78 @@ pub enum ResultOrHook<A: Sized, B: Sized> {
 impl<'a, C: Composition> Reader<'a, C> {
     #[allow(clippy::if_same_then_else)]
     pub fn read_memory(&mut self, addr: C::SmtExpression, size: u32) -> ResultOrHook<anyhow::Result<C::SmtExpression>, MemoryReadHook<C>> {
+        let caddr = addr.get_constant();
         if self.container.strict {
-            let (stack_start, stack_end) = self.memory.get_stack();
-            let lower = addr.ult(&stack_end);
-            let upper = addr.ugt(&stack_start);
-            let total = lower.or(&upper);
-            let total = total;
+            if let Some(addr) = caddr {
+                let (stack_start, stack_end) = self.memory.get_stack();
+                let stack_start = stack_start.get_constant().expect("Stack pointers to be known!");
+                let stack_end = stack_end.get_constant().expect("Stack pointers to be known!");
+                let lower = addr < stack_end;
+                let upper = addr > stack_start;
+                let total = lower || upper;
+                let total = total;
 
-            let mut cond = self.container.could_possibly_be_invalid_read(total.clone(), addr.clone());
-            let not_stack = cond.get_constant_bool().unwrap_or(true);
-            if not_stack {
+                let mut cond = self.container.could_possibly_be_invalid_read_const(total, addr);
+                let not_stack = cond;
                 if not_stack {
-                    trace!("Address {:#x?} not contained in resources or stack. Trying to locate it in memory.", addr.get_constant());
+                    if not_stack {
+                        trace!("Address {:#x?} not contained in resources or stack. Trying to locate it in memory.", addr);
+                    }
+                    let not_in_program_data = {
+                        let program_memory = self.memory.program_memory();
+                        program_memory.out_of_bounds_const(addr)
+                    };
+                    if not_stack && not_in_program_data {
+                        trace!("Address {:#x?} not contained in memory segments. Trying to locate it in memory.", addr);
+                    } else if not_stack {
+                        trace!("Address {:#x?} contained in a segment of constants.", addr);
+                    }
+                    cond = cond && not_in_program_data;
                 }
-                let not_in_program_data = {
-                    let program_memory = self.memory.program_memory();
-                    program_memory.out_of_bounds(&addr, self.memory)
-                };
-                if not_stack && not_in_program_data.get_constant_bool().unwrap_or(true) {
-                    trace!("Address {:#x?} not contained in memory segments. Trying to locate it in memory.", addr.get_constant());
-                } else if not_stack {
-                    trace!("Address {:#x?} contained in a segment of constants.", addr.get_constant());
+                if cond
+                    && !self
+                        .container
+                        .is_privileged((self.memory.get_pc().expect("PC must be accessible").get_constant().expect("PC must be deterministic") >> 1) << 1)
+                {
+                    return ResultOrHook::EndFailure(format!("Tried to read from {}", format!("{:#x}", addr)));
                 }
-                cond = cond.and(&not_in_program_data);
-            }
-            if cond.get_constant_bool().unwrap_or(true)
-                && !self
-                    .container
-                    .is_privileged((self.memory.get_pc().expect("PC must be accessible").get_constant().expect("PC must be deterministic") >> 1) << 1)
-            {
-                return ResultOrHook::EndFailure(format!("Tried to read from {}", match addr.get_constant() {
-                    Some(val) => format!("{:#x}", val),
-                    _ => addr.to_binary_string().to_string(),
-                }));
+            } else {
+                let (stack_start, stack_end) = self.memory.get_stack();
+                let lower = addr.ult(&stack_end);
+                let upper = addr.ugt(&stack_start);
+                let total = lower.or(&upper);
+                let total = total;
+
+                let mut cond = self.container.could_possibly_be_invalid_read(total.clone(), addr.clone());
+                let not_stack = cond.get_constant_bool().unwrap_or(true);
+                if not_stack {
+                    if not_stack {
+                        trace!("Address {:#x?} not contained in resources or stack. Trying to locate it in memory.", addr.get_constant());
+                    }
+                    let not_in_program_data = {
+                        let program_memory = self.memory.program_memory();
+                        program_memory.out_of_bounds(&addr, self.memory)
+                    };
+                    if not_stack && not_in_program_data.get_constant_bool().unwrap_or(true) {
+                        trace!("Address {:#x?} not contained in memory segments. Trying to locate it in memory.", addr.get_constant());
+                    } else if not_stack {
+                        trace!("Address {:#x?} contained in a segment of constants.", addr.get_constant());
+                    }
+                    cond = cond.and(&not_in_program_data);
+                }
+                if cond.get_constant_bool().unwrap_or(true)
+                    && !self
+                        .container
+                        .is_privileged((self.memory.get_pc().expect("PC must be accessible").get_constant().expect("PC must be deterministic") >> 1) << 1)
+                {
+                    return ResultOrHook::EndFailure(format!("Tried to read from {}", match addr.get_constant() {
+                        Some(val) => format!("{:#x}", val),
+                        _ => addr.to_binary_string().to_string(),
+                    }));
+                }
             }
         }
-        let caddr = addr.get_constant();
+        // TODO: Run hooks if symbol could be containend in them....
         if caddr.is_none() {
             return match self.memory.get(&addr, size) {
                 ResultOrTerminate::Result(r) => ResultOrHook::Result(r.context("While reading from a non- constant address")),
@@ -899,7 +985,7 @@ impl<'a, C: Composition> Reader<'a, C> {
             debug!("Address {caddr} had a hooks : {:?}", ret);
             return ResultOrHook::Hooks(ret);
         }
-        let res = match self.memory.get(&addr, size) {
+        let res = match self.memory.get_from_const_address(caddr, size) {
             ResultOrTerminate::Failure(f) => return ResultOrHook::EndFailure(f),
             ResultOrTerminate::Result(r) => r.context("While reading from a static address"),
         };
@@ -944,28 +1030,48 @@ impl<'a, C: Composition> Reader<'a, C> {
 
 impl<'a, C: Composition> Writer<'a, C> {
     pub fn write_memory(&mut self, addr: C::SmtExpression, value: C::SmtExpression) -> ResultOrHook<std::result::Result<(), MemoryError>, MemoryWriteHook<C>> {
+        let caddr = addr.get_constant();
         if self.container.strict {
-            let (stack_start, stack_end) = self.memory.get_stack();
-            let lower = addr.ult(&stack_end);
-            let upper = addr.ugt(&stack_start);
-            let total = lower.or(&upper);
-            let on_stack = total.clone();
-            if self.container.could_possibly_be_invalid_write(total, addr.clone()).get_constant_bool().unwrap_or(true)
-                && !self
-                    .container
-                    .is_privileged((self.memory.get_pc().expect("PC must be accessible").get_constant().expect("PC must be deterministic") >> 1) << 1)
-            {
-                return ResultOrHook::EndFailure(format!(
-                    "Tried to write to {}, on stack: {:?}",
-                    match addr.get_constant() {
-                        Some(val) => format!("{:#x}", val),
-                        _ => self.memory.with_model_gen(|| match self.memory.is_sat() {
-                            true => addr.to_binary_string().to_string(),
-                            false => "Unsat".to_string(),
-                        }),
-                    },
-                    on_stack.get_constant_bool().map(|el| !el),
-                ));
+            if let Some(addr) = caddr {
+                let (stack_start, stack_end) = self.memory.get_stack();
+                let stack_start = stack_start.get_constant().expect("Stack pointers to be known!");
+                let stack_end = stack_end.get_constant().expect("Stack pointers to be known!");
+                let lower = addr < stack_end;
+                let upper = addr > stack_start;
+                let total = lower || upper;
+                let total = total;
+
+                let cond = self.container.could_possibly_be_invalid_write_const(total, addr);
+                if cond
+                    && !self
+                        .container
+                        .is_privileged((self.memory.get_pc().expect("PC must be accessible").get_constant().expect("PC must be deterministic") >> 1) << 1)
+                {
+                    return ResultOrHook::EndFailure(format!("Tried to write to {}", format!("{:#x}", addr)));
+                }
+            } else {
+                let (stack_start, stack_end) = self.memory.get_stack();
+                let lower = addr.ult(&stack_end);
+                let upper = addr.ugt(&stack_start);
+                let total = lower.or(&upper);
+                let on_stack = total.clone();
+                if self.container.could_possibly_be_invalid_write(total, addr.clone()).get_constant_bool().unwrap_or(true)
+                    && !self
+                        .container
+                        .is_privileged((self.memory.get_pc().expect("PC must be accessible").get_constant().expect("PC must be deterministic") >> 1) << 1)
+                {
+                    return ResultOrHook::EndFailure(format!(
+                        "Tried to write to {}, on stack: {:?}",
+                        match addr.get_constant() {
+                            Some(val) => format!("{:#x}", val),
+                            _ => self.memory.with_model_gen(|| match self.memory.is_sat() {
+                                true => addr.to_binary_string().to_string(),
+                                false => "Unsat".to_string(),
+                            }),
+                        },
+                        on_stack.get_constant_bool().map(|el| !el),
+                    ));
+                }
             }
         }
         let caddr = addr.get_constant();
@@ -997,7 +1103,52 @@ impl<'a, C: Composition> Writer<'a, C> {
         if !ret.is_empty() {
             return ResultOrHook::Hooks(ret);
         }
-        ResultOrHook::Result(self.memory.set(&addr, value))
+        ResultOrHook::Result(self.memory.set_to_const_address(caddr, value))
+    }
+
+    pub fn write_memory_constant(&mut self, caddr: u64, value: C::SmtExpression) -> ResultOrHook<std::result::Result<(), MemoryError>, MemoryWriteHook<C>> {
+        if self.container.strict {
+            let (stack_start, stack_end) = self.memory.get_stack();
+            let stack_start = stack_start.get_constant().expect("Stack pointers to be known!");
+            let stack_end = stack_end.get_constant().expect("Stack pointers to be known!");
+            let lower = caddr < stack_end;
+            let upper = caddr > stack_start;
+            let total = lower || upper;
+            let total = total;
+
+            let cond = self.container.could_possibly_be_invalid_write_const(total, caddr);
+            if cond
+                && !self
+                    .container
+                    .is_privileged((self.memory.get_pc().expect("PC must be accessible").get_constant().expect("PC must be deterministic") >> 1) << 1)
+            {
+                return ResultOrHook::EndFailure(format!("Tried to write to {}", format!("{:#x}", caddr)));
+            }
+        }
+
+        if let Some(hook) = self.container.single_memory_write_hook.get(&caddr) {
+            let mut ret = self
+                .container
+                .range_memory_write_hook
+                .iter()
+                .filter(|el| ((el.0 .0)..=(el.0 .1)).contains(&caddr))
+                .map(|el| el.1)
+                .collect::<Vec<_>>();
+            ret.push(*hook);
+            return ResultOrHook::Hooks(ret.clone());
+        }
+
+        let ret = self
+            .container
+            .range_memory_write_hook
+            .iter()
+            .filter(|el| ((el.0 .0)..=(el.0 .1)).contains(&caddr))
+            .map(|el| el.1)
+            .collect::<Vec<_>>();
+        if !ret.is_empty() {
+            return ResultOrHook::Hooks(ret);
+        }
+        ResultOrHook::Result(self.memory.set_to_const_address(caddr, value))
     }
 
     pub fn write_register(&mut self, id: &String, value: &C::SmtExpression) -> ResultOrHook<std::result::Result<(), MemoryError>, RegisterWriteHook<C>> {

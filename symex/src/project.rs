@@ -152,6 +152,10 @@ impl Project {
 }
 
 impl ProgramMemory for &'static Project {
+    fn regions(&self) -> Vec<(u64, u64)> {
+        self.segments.sections()
+    }
+
     fn get_word_size(&self) -> u32 {
         // This is an oversimplification and not true for some architectures
         // But will do and should map to the addresses in the elf
@@ -165,6 +169,10 @@ impl ProgramMemory for &'static Project {
 
     fn out_of_bounds<Map: SmtMap>(&self, addr: &Map::Expression, memory: &Map) -> Map::Expression {
         self.segments.could_possibly_be_out_of_bounds(addr, memory)
+    }
+
+    fn out_of_bounds_const(&self, addr: u64) -> bool {
+        self.segments.could_possibly_be_out_of_bounds_const(addr)
     }
 
     fn get_ptr_size(&self) -> u32 {

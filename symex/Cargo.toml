@@ -26,9 +26,11 @@ transpiler = { path = "../symex/transpiler" }
 general_assembly = { path = "../symex/general_assembly" }
 
 # SMT-backends
-boolector = { git = "https://github.com/ivajon/boolector-rs.git", optional=true }
+boolector = { git = "https://github.com/ivajon/boolector-rs.git", optional = true }
 
-bitwuzla = { git = "https://github.com/ivajon/boolector-rs.git", branch = "mac",optional=true }
+bitwuzla = { path = "../../biwtuzla-rs/", optional = true, features = [
+    "vendor-cadical",
+] } # bitwuzla = { git = "https://github.com/ivajon/boolector-rs.git", branch = "mac", optional = true, features = [
 
 
 # Parsing-backends.
@@ -40,16 +42,15 @@ fst = "0.4.7"
 regex-automata = { version = "0.1.9", features = ["transducer"] }
 dyn-clone = "1.0.18"
 risc-v-disassembler = "0.0.1"
-z3-sys = {version = "0.8.1", optional=true}
+z3-sys = { version = "0.8.1", optional = true }
 serde = { version = "1.0.219", features = ["derive"], optional = true }
-
 
 
 [features]
 bitwuzla = ["dep:bitwuzla"]
 boolector = ["dep:boolector"]
 
-z3 = ["incomplete","dep:z3-sys"]
+z3 = ["incomplete", "dep:z3-sys"]
 
 # Denotes that a feature is experimental.
 experimental = []
@@ -60,7 +61,7 @@ bitwuzla-exact-fp = ["experimental"]
 
 exact = ["bitwuzla-exact-fp"]
 
-default = ["bitwuzla","boolector"]
+default = ["bitwuzla"]
 
 log = []
 

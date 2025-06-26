@@ -108,6 +108,12 @@ pub trait ProgramMemory: Debug + Clone {
 
     /// Determines if the address is in range of the program memory.
     fn out_of_bounds<Map: SmtMap>(&self, addr: &Map::Expression, memory: &Map) -> Map::Expression;
+
+    fn out_of_bounds_const(&self, addr: u64) -> bool;
+
+    fn regions(&self) -> Vec<(u64, u64)> {
+        Vec::new()
+    }
 }
 pub trait SmtMap: Debug + Clone + Display {
     type Expression: SmtExpr<FPExpression = <Self::SMT as SmtSolver>::FpExpression>;
@@ -126,12 +132,26 @@ pub trait SmtMap: Debug + Clone + Display {
 
     fn get(&mut self, idx: &Self::Expression, size: u32) -> ResultOrTerminate<Self::Expression>;
 
+    fn get_from_const_address(&mut self, idx: u64, size: u32) -> ResultOrTerminate<Self::Expression> {
+        self.get(&self.from_u64(idx, self.get_ptr_size()), size)
+    }
+
     fn get_word(&mut self, idx: &Self::Expression) -> ResultOrTerminate<Self::Expression> {
         self.get(idx, self.get_word_size())
     }
 
     /// Writes a symbolic value to the given address.
     fn set(&mut self, idx: &Self::Expression, value: Self::Expression) -> Result<(), MemoryError>;
+
+    /// Bypasses all of the checks that the memory abstraction might make.
+    fn set_raw(&mut self, idx: &Self::Expression, value: Self::Expression) -> Result<(), MemoryError> {
+        self.set(idx, value)
+    }
+
+    /// Writes to a constant address.
+    fn set_to_const_address(&mut self, idx: u64, value: Self::Expression) -> Result<(), MemoryError> {
+        self.set(&self.from_u64(idx, self.get_ptr_size()), value)
+    }
 
     /// Retrieves a particular flag from memory.
     ///
@@ -253,6 +273,10 @@ pub trait SmtMap: Debug + Clone + Display {
     fn increment_cycle_count(&mut self, value: u64) {
         let value = self.get_cycle_count() + value;
         self.set_cycle_count(value);
+    }
+
+    fn regions(&self) -> Vec<(u64, u64)> {
+        Vec::new()
     }
 }
 

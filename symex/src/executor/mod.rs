@@ -573,6 +573,7 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
         })
     }
 
+    #[allow(dead_code)]
     /// Sets the memory at `address` to `data`.
     fn set_memory(&mut self, data: C::SmtExpression, addr: C::SmtExpression, bits: u32) -> ResultOrTerminate<()> {
         // trace!("Setting memory addr: {:?}", address);
@@ -582,6 +583,26 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
             hooks::ResultOrHook::Hooks(hooks) => {
                 if hooks.len() == 1 {
                     return ResultOrTerminate::Result(hooks[0](&mut self.state, data, addr));
+                }
+                todo!("Handle multiple hooks (write).");
+                //for hook in hooks {
+                //    hook(&mut self.state, address)?;
+                //}
+            }
+            hooks::ResultOrHook::Result(result) => result.map_err(|e| e.into()),
+            hooks::ResultOrHook::EndFailure(e) => return ResultOrTerminate::Failure(format!("{e} @ {}", self.state.debug_string())),
+        })
+    }
+
+    /// Sets the memory at `address` to `data`.
+    fn set_memory_constant(&mut self, data: C::SmtExpression, addr: u64, bits: u32) -> ResultOrTerminate<()> {
+        // trace!("Setting memory addr: {:?}", address);
+        let sym_addr = self.state.memory.from_u64(addr, self.project.get_ptr_size());
+        ResultOrTerminate::Result(match self.state.writer().write_memory_constant(addr, data.resize_unsigned(bits)) {
+            hooks::ResultOrHook::Hook(hook) => hook(&mut self.state, data, sym_addr),
+            hooks::ResultOrHook::Hooks(hooks) => {
+                if hooks.len() == 1 {
+                    return ResultOrTerminate::Result(hooks[0](&mut self.state, data, sym_addr));
                 }
                 todo!("Handle multiple hooks (write).");
                 //for hook in hooks {
@@ -712,11 +733,13 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
             Operand::AddressInLocal(local_name, width) => {
                 let address = extract!(Ok(self.get_operand_value(&Operand::Local(local_name.to_owned()), logger)));
                 let address = match extract!(Ok(self.resolve_address(address.clone(), logger, true))) {
-                    Some(addr) => self.state.memory.from_u64(addr, self.state.memory.get_ptr_size()),
-                    None => address,
+                    Some(addr) => addr,
+                    None => {
+                        return self.set_memory(value, address, *width);
+                    }
                 };
                 // println!("Setting address {address:#x}");
-                extract!(Ok(self.set_memory(value.simplify(), address, *width)));
+                extract!(Ok(self.set_memory_constant(value, address, *width)));
                 // trace!("Setting address {:?} to {:?}",
                 // address.get_constant(), value.get_constant());
                 // extract!(Ok(self.set_memory(value.simplify(), address,
@@ -725,11 +748,11 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
             Operand::Address(address, width) => {
                 let address = self.get_dexpr_from_dataword(*address);
                 let address = match extract!(Ok(self.resolve_address(address.clone(), logger, true))) {
-                    Some(addr) => self.state.memory.from_u64(addr, self.state.memory.get_ptr_size()),
-                    None => address,
+                    Some(addr) => addr,
+                    None => todo!(),
                 };
                 // println!("Setting address {address:#x}");
-                extract!(Ok(self.set_memory(value.simplify(), address, *width)));
+                extract!(Ok(self.set_memory_constant(value, address, *width)));
                 // extract!(Ok(self.set_memory(value.simplify(), address,
                 // *width)));
             }
@@ -757,6 +780,57 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
             Some(addr) => Result::Ok(Some(*addr)),
             None => {
                 debug!("Address {:?} non deterministic!", address);
+
+                if self.state.hooks.is_strict() {
+                    let regions = self.state.hooks.permitted_regions(&self.state.memory);
+                    for (lower, upper) in regions {
+                        let could_be_lower = lower.ugt(&address);
+                        let could_be_higher = upper.ult(&address);
+
+                        let true_possible = could_be_higher.get_constant_bool();
+                        let false_possible = could_be_higher.not().get_constant_bool();
+                        match true_possible.as_ref().zip(false_possible.as_ref()) {
+                            Some((true, true)) => {
+                                extract!(Ok(self.fork(could_be_higher.not(), logger, Continue::This, "Narrowing search space for resources")));
+                                self.state.constraints.assert(&could_be_higher);
+                            }
+                            Some((true, false)) | Some((false, true)) | Some((false, false)) | None => {}
+                        }
+                        let true_possible = could_be_lower.get_constant_bool();
+                        let false_possible = could_be_lower.not().get_constant_bool();
+                        match true_possible.as_ref().zip(false_possible.as_ref()) {
+                            Some((true, true)) => {
+                                extract!(Ok(self.fork(could_be_lower.not(), logger, Continue::This, "Narrowing search space for resources")));
+                                self.state.constraints.assert(&could_be_lower);
+                            }
+                            Some((true, false)) | Some((false, true)) | Some((false, false)) | None => {}
+                        }
+                    }
+                }
+                let regions = self.state.hooks.all_regions(&self.state.memory);
+                for (lower, upper) in regions {
+                    let could_be_lower = lower.ugt(&address);
+                    let could_be_higher = upper.ult(&address);
+
+                    let true_possible = could_be_higher.get_constant_bool();
+                    let false_possible = could_be_higher.not().get_constant_bool();
+                    match true_possible.as_ref().zip(false_possible.as_ref()) {
+                        Some((true, true)) => {
+                            extract!(Ok(self.fork(could_be_higher.not(), logger, Continue::This, "Narrowing search space for resources")));
+                            self.state.constraints.assert(&could_be_higher);
+                        }
+                        Some((true, false)) | Some((false, true)) | Some((false, false)) | None => {}
+                    }
+                    let true_possible = could_be_lower.get_constant_bool();
+                    let false_possible = could_be_lower.not().get_constant_bool();
+                    match true_possible.as_ref().zip(false_possible.as_ref()) {
+                        Some((true, true)) => {
+                            extract!(Ok(self.fork(could_be_lower.not(), logger, Continue::This, "Narrowing search space for resources")));
+                            self.state.constraints.assert(&could_be_lower);
+                        }
+                        Some((true, false)) | Some((false, true)) | Some((false, false)) | None => {}
+                    }
+                }
                 // // Find all possible addresses
                 // let (stack_start, stack_end) = self.state.memory.get_stack();
                 // let lower = address.ult(&stack_end);

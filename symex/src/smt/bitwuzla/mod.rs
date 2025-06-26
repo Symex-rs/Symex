@@ -40,7 +40,7 @@ impl SmtSolver for Bitwuzla {
             // .verbosity(bitwuzla::option::Verbosity::Level3)
             .n_threads(24)
             // .rewrite_level(bitwuzla::option::RewriteLevel::TermLevel)
-            .model_gen(ModelGen::Asserted)
+            .model_gen(ModelGen::Disabled)
             .set_abort_callback(abort_callback)
             // .sat_engine(bitwuzla::option::SatEngine::CaDiCaL)
             .incremental(true)

@@ -13,6 +13,10 @@ pub struct Segment {
 pub struct Segments(Vec<Segment>);
 
 impl Segments {
+    pub fn sections(&self) -> Vec<(u64, u64)> {
+        self.0.iter().map(|seg| (seg.start_address, seg.end_address)).collect()
+    }
+
     pub fn from_single_segment(data: Vec<u8>, start_addr: u64, end_addr: u64, constants: bool) -> Self {
         Segments(vec![Segment {
             data,
@@ -30,6 +34,16 @@ impl Segments {
             let start = memory.from_u64(segment.start_address, memory.get_ptr_size());
             let end = memory.from_u64(segment.end_address, memory.get_ptr_size());
             ret = ret.and(&addr.ult(&start).or(&addr.ugt(&end)));
+        }
+        ret
+    }
+
+    pub(crate) fn could_possibly_be_out_of_bounds_const(&self, addr: u64) -> bool {
+        let mut ret = true;
+        for segment in self.0.iter().filter(|el| el.constants) {
+            let start = segment.start_address;
+            let end = segment.end_address;
+            ret = ret && ((addr < start) || (addr > end));
         }
         ret
     }
