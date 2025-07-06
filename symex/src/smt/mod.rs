@@ -5,7 +5,6 @@ use general_assembly::{
     shift::Shift,
 };
 use hashbrown::HashMap;
-use sealed::Context;
 
 use crate::{
     arch::{ArchitectureOverride, SupportedArchitecture},
@@ -273,6 +272,15 @@ pub trait SmtMap: Debug + Clone + Display {
     fn increment_cycle_count(&mut self, value: u64) {
         let value = self.get_cycle_count() + value;
         self.set_cycle_count(value);
+    }
+
+    /// Determines if the address is in range of the program memory.
+    fn out_of_bounds(&self, addr: &Self::Expression) -> Self::Expression {
+        self.program_memory().out_of_bounds(addr, self)
+    }
+
+    fn out_of_bounds_const(&self, addr: u64) -> bool {
+        self.program_memory().out_of_bounds_const(addr)
     }
 
     fn regions(&self) -> Vec<(u64, u64)> {
@@ -688,11 +696,14 @@ impl From<crate::memory::MemoryError> for crate::smt::MemoryError {
     }
 }
 
-pub(crate) mod sealed {
-    use super::SmtExpr;
+pub trait Context {
+    type Expr: SmtExpr;
+    fn new_from_u64(&self, val: u64, bits: u32) -> Self::Expr;
+}
+impl<T: SmtMap> Context for T {
+    type Expr = <Self as SmtMap>::Expression;
 
-    pub trait Context {
-        type Expr: SmtExpr;
-        fn new_from_u64(&self, val: u64, bits: u32) -> Self::Expr;
+    fn new_from_u64(&self, val: u64, bits: u32) -> Self::Expr {
+        <Self as SmtMap>::from_u64(&self, val, bits)
     }
 }

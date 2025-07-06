@@ -9,7 +9,7 @@ use segments::Segments;
 use crate::{
     arch::ArchError,
     memory::MemoryError,
-    smt::{sealed::Context, ProgramMemory, SmtExpr, SmtMap},
+    smt::{Context, ProgramMemory, SmtExpr, SmtMap},
     Endianness,
     WordSize,
 };

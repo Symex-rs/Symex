@@ -39,7 +39,7 @@ impl SmtSolver for Bitwuzla {
             // .logging(bitwuzla::option::LogLevel::Debug)
             // .verbosity(bitwuzla::option::Verbosity::Level3)
             .n_threads(24)
-            // .rewrite_level(bitwuzla::option::RewriteLevel::TermLevel)
+            .rewrite_level(bitwuzla::option::RewriteLevel::None)
             .model_gen(ModelGen::Disabled)
             .set_abort_callback(abort_callback)
             // .sat_engine(bitwuzla::option::SatEngine::CaDiCaL)

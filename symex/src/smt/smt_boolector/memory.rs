@@ -20,8 +20,8 @@ use crate::{
     memory::{MemoryError, BITS_IN_BYTE},
     project::Project,
     smt::{
-        sealed::Context,
         smt_boolector::{Boolector, DArray, DContext, DExpr},
+        Context,
         ProgramMemory,
         SmtExpr,
         SmtMap,

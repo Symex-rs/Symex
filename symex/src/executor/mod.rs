@@ -573,6 +573,26 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
         })
     }
 
+    /// Retrieves a smt expression representing value stored at `address` in
+    /// memory.
+    fn get_memory_constant(&mut self, addr: u64, bits: u32) -> ResultOrTerminate<C::SmtExpression> {
+        let sym_addr = self.state.memory.from_u64(addr, self.project.get_ptr_size());
+        ResultOrTerminate::Result(match self.state.reader().read_memory_constant(addr.clone(), bits) {
+            hooks::ResultOrHook::Hook(hook) => hook(&mut self.state, sym_addr),
+            hooks::ResultOrHook::Hooks(hooks) => {
+                if hooks.len() == 1 {
+                    return ResultOrTerminate::Result(hooks[0](&mut self.state, sym_addr));
+                }
+                todo!("Handle multiple hooks.");
+                //for hook in hooks {
+                //    hook(&mut self.state, address)?;
+                //}
+            }
+            hooks::ResultOrHook::Result(result) => result,
+            hooks::ResultOrHook::EndFailure(e) => return ResultOrTerminate::Failure(format!("{e} @ {}", self.state.debug_string())),
+        })
+    }
+
     #[allow(dead_code)]
     /// Sets the memory at `address` to `data`.
     fn set_memory(&mut self, data: C::SmtExpression, addr: C::SmtExpression, bits: u32) -> ResultOrTerminate<()> {
@@ -640,7 +660,10 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
             Operand::AddressInLocal(local_name, width) => {
                 let address = self.context.locals.get(local_name).expect("Local was used before it was declared!").to_owned();
                 let address = match extract!(Ok(self.resolve_address(address.clone(), logger, false))) {
-                    Some(addr) => self.state.memory.from_u64(addr, self.state.memory.get_ptr_size()),
+                    Some(addr) => {
+                        return self.get_memory_constant(addr, *width);
+                    }
+                    // self.state.memory.from_u64(addr, self.state.memory.get_ptr_size()),
                     None => address,
                 };
                 // context: "While resolving address for address in local!");
@@ -885,7 +908,7 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
                 // if self.state.hooks.is_strict() {
                 //     self.state.constraints.assert(&cond_sym.not());
                 // }
-                let addresses = match self.state.constraints.get_values(&address, 255) {
+                let addresses = match self.state.constraints.get_values(&address, 10) {
                     Ok(val) => val,
                     Err(err) => {
                         warn!("Too many solutions");
@@ -898,7 +921,7 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
                     // NOTE: We should likely not break here but allow for a configurable number
                     // paths.
                     crate::smt::Solutions::AtLeast(_) => {
-                        warn!("Number of soltions exceeeds 255.");
+                        warn!("Number of soltions exceeeds 2.");
 
                         return ResultOrTerminate::Result(Ok(None));
                     }

@@ -897,10 +897,7 @@ impl<'a, C: Composition> Reader<'a, C> {
                     if not_stack {
                         trace!("Address {:#x?} not contained in resources or stack. Trying to locate it in memory.", addr);
                     }
-                    let not_in_program_data = {
-                        let program_memory = self.memory.program_memory();
-                        program_memory.out_of_bounds_const(addr)
-                    };
+                    let not_in_program_data = { self.memory.out_of_bounds_const(addr) };
                     if not_stack && not_in_program_data {
                         trace!("Address {:#x?} not contained in memory segments. Trying to locate it in memory.", addr);
                     } else if not_stack {
@@ -928,10 +925,7 @@ impl<'a, C: Composition> Reader<'a, C> {
                     if not_stack {
                         trace!("Address {:#x?} not contained in resources or stack. Trying to locate it in memory.", addr.get_constant());
                     }
-                    let not_in_program_data = {
-                        let program_memory = self.memory.program_memory();
-                        program_memory.out_of_bounds(&addr, self.memory)
-                    };
+                    let not_in_program_data = { self.memory.out_of_bounds(&addr) };
                     if not_stack && not_in_program_data.get_constant_bool().unwrap_or(true) {
                         trace!("Address {:#x?} not contained in memory segments. Trying to locate it in memory.", addr.get_constant());
                     } else if not_stack {
@@ -960,6 +954,73 @@ impl<'a, C: Composition> Reader<'a, C> {
         }
 
         let caddr = caddr.unwrap();
+
+        if let Some(hook) = self.container.single_memory_read_hook.get(&caddr) {
+            debug!("Address {caddr} had a hook : {:?}", hook);
+            let mut ret = self
+                .container
+                .range_memory_read_hook
+                .iter()
+                .filter(|el| ((el.0 .0)..=(el.0 .1)).contains(&caddr))
+                .map(|el| el.1)
+                .collect::<Vec<_>>();
+            ret.push(*hook);
+            return ResultOrHook::Hooks(ret.clone());
+        }
+
+        let ret = self
+            .container
+            .range_memory_read_hook
+            .iter()
+            .filter(|el| ((el.0 .0)..=(el.0 .1)).contains(&caddr))
+            .map(|el| el.1)
+            .collect::<Vec<_>>();
+        if !ret.is_empty() {
+            debug!("Address {caddr} had a hooks : {:?}", ret);
+            return ResultOrHook::Hooks(ret);
+        }
+        let res = match self.memory.get_from_const_address(caddr, size) {
+            ResultOrTerminate::Failure(f) => return ResultOrHook::EndFailure(f),
+            ResultOrTerminate::Result(r) => r.context("While reading from a static address"),
+        };
+        ResultOrHook::Result(res)
+    }
+
+    #[allow(clippy::if_same_then_else)]
+    pub fn read_memory_constant(&mut self, addr: u64, size: u32) -> ResultOrHook<anyhow::Result<C::SmtExpression>, MemoryReadHook<C>> {
+        if self.container.strict {
+            let (stack_start, stack_end) = self.memory.get_stack();
+            let stack_start = stack_start.get_constant().expect("Stack pointers to be known!");
+            let stack_end = stack_end.get_constant().expect("Stack pointers to be known!");
+            let lower = addr < stack_end;
+            let upper = addr > stack_start;
+            let total = lower || upper;
+            let total = total;
+
+            let mut cond = self.container.could_possibly_be_invalid_read_const(total, addr);
+            let not_stack = cond;
+            if not_stack {
+                if not_stack {
+                    trace!("Address {:#x?} not contained in resources or stack. Trying to locate it in memory.", addr);
+                }
+                let not_in_program_data = { self.memory.out_of_bounds_const(addr) };
+                if not_stack && not_in_program_data {
+                    trace!("Address {:#x?} not contained in memory segments. Trying to locate it in memory.", addr);
+                } else if not_stack {
+                    trace!("Address {:#x?} contained in a segment of constants.", addr);
+                }
+                cond = cond && not_in_program_data;
+            }
+            if cond
+                && !self
+                    .container
+                    .is_privileged((self.memory.get_pc().expect("PC must be accessible").get_constant().expect("PC must be deterministic") >> 1) << 1)
+            {
+                return ResultOrHook::EndFailure(format!("Tried to read from {}", format!("{:#x}", addr)));
+            }
+        }
+
+        let caddr = addr;
 
         if let Some(hook) = self.container.single_memory_read_hook.get(&caddr) {
             debug!("Address {caddr} had a hook : {:?}", hook);

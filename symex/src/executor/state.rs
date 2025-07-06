@@ -235,6 +235,8 @@ impl<C: Composition> GAState<C> {
         state: C::StateContainer,
         architecture: SupportedArchitecture<C::ArchitectureOverride>,
     ) -> Self {
+        use hashbrown::HashMap;
+
         let pc_reg = start_pc;
         //let ptr_size = project.get_ptr_size();
 

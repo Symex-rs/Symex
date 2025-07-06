@@ -10,7 +10,7 @@ use crate::{
     executor::ResultOrTerminate,
     memory::{MemoryError, BITS_IN_BYTE},
     project::Project,
-    smt::{sealed::Context, ProgramMemory, SmtExpr, SmtFPExpr, SmtMap, SmtSolver},
+    smt::{Context, ProgramMemory, SmtExpr, SmtFPExpr, SmtMap, SmtSolver},
     trace,
     warn,
     Endianness,
