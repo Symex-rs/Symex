@@ -144,6 +144,9 @@ pub struct PrioriHookContainer<C: Composition> {
     privelege_map: Vec<(u64, u64)>,
 
     strict: bool,
+
+    priority: u64,
+    pub priority_floor: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -172,10 +175,10 @@ pub struct HookContainer<C: Composition> {
     range_memory_write_hook: Vec<((u64, u64), MemoryRangeWriteHook<C>)>,
 
     /// Disallows access to any memory region not contained in this vector.
-    great_filter: Vec<(C::SmtExpression, C::SmtExpression)>,
+    pub great_filter: Vec<(u64, C::SmtExpression, C::SmtExpression)>,
 
     /// Same as great filter but non smt expressions.
-    great_filter_const: Vec<(u64, u64)>,
+    pub great_filter_const: Vec<(u64, u64, u64)>,
 
     fp_register_read_hook: HashMap<String, FpRegisterReadHook<C>>,
     fp_register_write_hook: HashMap<String, FpRegisterWriteHook<C>>,
@@ -184,6 +187,8 @@ pub struct HookContainer<C: Composition> {
     privelege_map: Vec<(u64, u64)>,
 
     strict: bool,
+    pub priority: u64,
+    pub priority_floor: u64,
 }
 
 pub enum PriveledgeLevel {
@@ -266,6 +271,9 @@ impl<C: Composition> HookContainer<C> {
         for (low, high) in other.privelege_map {
             self.privelege_map.push((low, high));
         }
+
+        self.priority = other.priority;
+        self.priority_floor = other.priority_floor;
     }
 
     /// Adds a PC hook to the executor.
@@ -477,23 +485,24 @@ impl<C: Composition> HookContainer<C> {
         Ok(())
     }
 
-    fn is_privileged(&self, pc: u64) -> bool {
+    pub fn is_privileged(&self, pc: u64) -> bool {
         self.privelege_map.iter().any(|(low, high)| (*low..=*high).contains(&pc))
     }
 
-    pub fn allow_access(&mut self, addresses: Vec<(C::SmtExpression, C::SmtExpression)>) {
+    pub fn allow_access(&mut self, addresses: Vec<(u64, C::SmtExpression, C::SmtExpression)>) {
         self.strict = true;
         for el in &addresses {
-            let lower = el.0.get_constant().expect("Addresses to be constants");
-            let upper = el.1.get_constant().expect("Addresses to be constants");
-            self.great_filter_const.push((lower, upper));
+            let lower = el.1.get_constant().expect("Addresses to be constants");
+            let upper = el.2.get_constant().expect("Addresses to be constants");
+            self.great_filter_const.push((el.0, lower, upper));
         }
         self.great_filter = addresses;
     }
 
     pub fn could_possibly_be_invalid_read(&self, pre_condition: C::SmtExpression, addr: C::SmtExpression) -> C::SmtExpression {
         let mut new_expr = pre_condition.clone();
-        for (lower, upper) in &self.great_filter {
+        let filter = self.sufficient_priority();
+        for (_, lower, upper) in self.great_filter.iter().filter(filter) {
             new_expr = new_expr.and(&addr.ult(lower).or(&addr.ugt(upper)));
         }
         new_expr
@@ -501,7 +510,10 @@ impl<C: Composition> HookContainer<C> {
 
     pub fn could_possibly_be_invalid_read_const(&self, pre_condition: bool, addr: u64) -> bool {
         let mut new_expr = pre_condition.clone();
-        for (lower, upper) in &self.great_filter_const {
+        let filter = self.sufficient_priority();
+        for (_prio, lower, upper) in self.great_filter_const.iter().filter(filter) {
+            // println!("Checking {lower:#x} <= {addr:#x} <= {upper:#x} @ {prio}");
+
             new_expr = new_expr && ((addr < *lower) || (addr > *upper));
         }
         new_expr
@@ -509,7 +521,9 @@ impl<C: Composition> HookContainer<C> {
 
     pub fn could_possibly_be_invalid_write(&self, pre_condition: C::SmtExpression, addr: C::SmtExpression) -> C::SmtExpression {
         let mut new_expr = pre_condition.clone();
-        for (lower, upper) in &self.great_filter {
+        let filter = self.sufficient_priority();
+        let iter = self.great_filter.iter().filter(filter);
+        for (_, lower, upper) in iter {
             new_expr = new_expr.and(&addr.ult(lower).or(&addr.ugt(upper)));
         }
         new_expr
@@ -517,10 +531,24 @@ impl<C: Composition> HookContainer<C> {
 
     pub fn could_possibly_be_invalid_write_const(&self, pre_condition: bool, addr: u64) -> bool {
         let mut new_expr = pre_condition.clone();
-        for (lower, upper) in &self.great_filter_const {
+        let filter = self.sufficient_priority();
+        for (_, lower, upper) in self.great_filter_const.iter().filter(filter) {
             new_expr = new_expr && ((addr < *lower) || (addr > *upper));
         }
         new_expr
+    }
+
+    // TODO: Make this cleaner with generics.
+    #[inline]
+    const fn sufficient_priority<T1, T2>(&self) -> impl Fn(&&(u64, T1, T2)) -> bool {
+        let prio = self.priority;
+        move |t| prio >= t.0
+    }
+
+    #[inline]
+    const fn sufficient_priority_single_borrow<T1, T2>(&self) -> impl Fn(&(u64, T1, T2)) -> bool {
+        let prio = self.priority;
+        move |t| prio >= t.0
     }
 
     pub fn is_strict(&self) -> bool {
@@ -788,7 +816,13 @@ impl<C: Composition> PrioriHookContainer<C> {
             pc_preconditions: HashMap::new(),
             pc_preconditions_one_shots: HashMap::new(),
             privelege_map: Vec::new(),
+            priority: 0,
+            priority_floor: 0,
         }
+    }
+
+    pub const fn set_priority(&mut self, priority: u64) {
+        self.priority = priority;
     }
 }
 
@@ -812,7 +846,13 @@ impl<C: Composition> HookContainer<C> {
             pc_preconditions: HashMap::new(),
             pc_preconditions_one_shots: HashMap::new(),
             privelege_map: Vec::new(),
+            priority: 0,
+            priority_floor: 0,
         }
+    }
+
+    pub const fn set_priority(&mut self, priority: u64) {
+        self.priority = priority;
     }
 
     /// Disables the memory protection.
@@ -841,31 +881,30 @@ impl<C: Composition> HookContainer<C> {
     }
 
     #[allow(dead_code)]
-    pub fn permitted_regions(&mut self, mem: &C::Memory) -> Vec<(C::SmtExpression, C::SmtExpression)> {
-        self.permitted_regions_const(mem)
-            .iter()
-            .map(|(lower, upper)| (mem.from_u64(*lower, mem.get_ptr_size()), mem.from_u64(*upper, mem.get_ptr_size())))
-            .collect()
+    pub fn permitted_regions(&mut self) -> impl Iterator<Item = impl FnOnce(&C::Memory) -> (C::SmtExpression, C::SmtExpression)> {
+        self.permitted_regions_const()
+            .map(|(lower, upper)| move |mem: &C::Memory| (mem.from_u64(lower, mem.get_ptr_size()), mem.from_u64(upper, mem.get_ptr_size())))
     }
 
     #[allow(dead_code)]
-    pub fn permitted_regions_const(&mut self, _mem: &C::Memory) -> Vec<(u64, u64)> {
-        self.great_filter_const.clone()
+    #[inline]
+    pub fn permitted_regions_const(&self) -> impl Iterator<Item = (u64, u64)> {
+        let filter = self.sufficient_priority_single_borrow();
+        self.great_filter_const.clone().into_iter().filter(filter).map(|(.., lower, upper)| (lower, upper))
     }
 
     #[allow(dead_code)]
-    pub fn all_regions(&mut self, mem: &C::Memory) -> Vec<(C::SmtExpression, C::SmtExpression)> {
+    pub fn all_regions(&self, mem: &C::Memory) -> impl Iterator<Item = impl FnOnce(&C::Memory) -> (C::SmtExpression, C::SmtExpression)> {
         self.all_regions_const(mem)
-            .iter()
-            .map(|(lower, upper)| (mem.from_u64(*lower, mem.get_ptr_size()), mem.from_u64(*upper, mem.get_ptr_size())))
-            .collect()
+            .map(|(lower, upper)| move |mem: &C::Memory| (mem.from_u64(lower, mem.get_ptr_size()), mem.from_u64(upper, mem.get_ptr_size())))
     }
 
     #[allow(dead_code)]
-    pub fn all_regions_const(&mut self, mem: &C::Memory) -> Vec<(u64, u64)> {
-        let mut regs = self.great_filter_const.clone();
-        regs.extend(mem.regions());
-        regs.extend(mem.program_memory().regions());
+    pub fn all_regions_const(&self, mem: &C::Memory) -> impl Iterator<Item = (u64, u64)> {
+        // TODO: These should be in static memory.
+        let regs = self.permitted_regions_const().collect::<Vec<_>>().into_iter();
+        let regs = regs.chain(mem.regions().collect::<Vec<_>>());
+        let regs = regs.chain(mem.program_memory().regions().collect::<Vec<_>>());
         regs
     }
 }
@@ -881,7 +920,7 @@ impl<'a, C: Composition> Reader<'a, C> {
     #[allow(clippy::if_same_then_else)]
     pub fn read_memory(&mut self, addr: C::SmtExpression, size: u32) -> ResultOrHook<anyhow::Result<C::SmtExpression>, MemoryReadHook<C>> {
         let caddr = addr.get_constant();
-        if self.container.strict {
+        if self.container.strict && self.container.priority != 16 && self.container.priority != 0 {
             if let Some(addr) = caddr {
                 let (stack_start, stack_end) = self.memory.get_stack();
                 let stack_start = stack_start.get_constant().expect("Stack pointers to be known!");
@@ -889,7 +928,6 @@ impl<'a, C: Composition> Reader<'a, C> {
                 let lower = addr < stack_end;
                 let upper = addr > stack_start;
                 let total = lower || upper;
-                let total = total;
 
                 let mut cond = self.container.could_possibly_be_invalid_read_const(total, addr);
                 let not_stack = cond;
@@ -909,6 +947,8 @@ impl<'a, C: Composition> Reader<'a, C> {
                     && !self
                         .container
                         .is_privileged((self.memory.get_pc().expect("PC must be accessible").get_constant().expect("PC must be deterministic") >> 1) << 1)
+                    && self.container.priority != 16
+                    && self.container.priority != 0
                 {
                     return ResultOrHook::EndFailure(format!("Tried to read from {}", format!("{:#x}", addr)));
                 }
@@ -937,6 +977,8 @@ impl<'a, C: Composition> Reader<'a, C> {
                     && !self
                         .container
                         .is_privileged((self.memory.get_pc().expect("PC must be accessible").get_constant().expect("PC must be deterministic") >> 1) << 1)
+                    && self.container.priority != 16
+                    && self.container.priority != 0
                 {
                     return ResultOrHook::EndFailure(format!("Tried to read from {}", match addr.get_constant() {
                         Some(val) => format!("{:#x}", val),
@@ -968,16 +1010,16 @@ impl<'a, C: Composition> Reader<'a, C> {
             return ResultOrHook::Hooks(ret.clone());
         }
 
-        let ret = self
+        let mut ret = self
             .container
             .range_memory_read_hook
             .iter()
             .filter(|el| ((el.0 .0)..=(el.0 .1)).contains(&caddr))
             .map(|el| el.1)
-            .collect::<Vec<_>>();
-        if !ret.is_empty() {
-            debug!("Address {caddr} had a hooks : {:?}", ret);
-            return ResultOrHook::Hooks(ret);
+            .peekable();
+        if !ret.peek().is_none() {
+            // debug!("Address {caddr} had a hooks : {:?}", ret);
+            return ResultOrHook::Hooks(ret.collect());
         }
         let res = match self.memory.get_from_const_address(caddr, size) {
             ResultOrTerminate::Failure(f) => return ResultOrHook::EndFailure(f),
@@ -1015,8 +1057,10 @@ impl<'a, C: Composition> Reader<'a, C> {
                 && !self
                     .container
                     .is_privileged((self.memory.get_pc().expect("PC must be accessible").get_constant().expect("PC must be deterministic") >> 1) << 1)
+                && self.container.priority != 16
+                && self.container.priority != 0
             {
-                return ResultOrHook::EndFailure(format!("Tried to read from {}", format!("{:#x}", addr)));
+                return ResultOrHook::EndFailure(format!("Tried to read from {} @ {}", format!("{:#x}", addr), self.container.priority));
             }
         }
 
@@ -1035,16 +1079,15 @@ impl<'a, C: Composition> Reader<'a, C> {
             return ResultOrHook::Hooks(ret.clone());
         }
 
-        let ret = self
+        let mut ret = self
             .container
             .range_memory_read_hook
             .iter()
             .filter(|el| ((el.0 .0)..=(el.0 .1)).contains(&caddr))
             .map(|el| el.1)
-            .collect::<Vec<_>>();
-        if !ret.is_empty() {
-            debug!("Address {caddr} had a hooks : {:?}", ret);
-            return ResultOrHook::Hooks(ret);
+            .peekable();
+        if !ret.peek().is_none() {
+            return ResultOrHook::Hooks(ret.collect());
         }
         let res = match self.memory.get_from_const_address(caddr, size) {
             ResultOrTerminate::Failure(f) => return ResultOrHook::EndFailure(f),
@@ -1092,7 +1135,7 @@ impl<'a, C: Composition> Reader<'a, C> {
 impl<'a, C: Composition> Writer<'a, C> {
     pub fn write_memory(&mut self, addr: C::SmtExpression, value: C::SmtExpression) -> ResultOrHook<std::result::Result<(), MemoryError>, MemoryWriteHook<C>> {
         let caddr = addr.get_constant();
-        if self.container.strict {
+        if self.container.strict && self.container.priority != 16 && self.container.priority != 0 {
             if let Some(addr) = caddr {
                 let (stack_start, stack_end) = self.memory.get_stack();
                 let stack_start = stack_start.get_constant().expect("Stack pointers to be known!");
@@ -1100,15 +1143,16 @@ impl<'a, C: Composition> Writer<'a, C> {
                 let lower = addr < stack_end;
                 let upper = addr > stack_start;
                 let total = lower || upper;
-                let total = total;
 
                 let cond = self.container.could_possibly_be_invalid_write_const(total, addr);
                 if cond
                     && !self
                         .container
                         .is_privileged((self.memory.get_pc().expect("PC must be accessible").get_constant().expect("PC must be deterministic") >> 1) << 1)
+                    && self.container.priority != 16
+                    && self.container.priority != 0
                 {
-                    return ResultOrHook::EndFailure(format!("Tried to write to {}", format!("{:#x}", addr)));
+                    return ResultOrHook::EndFailure(format!("Tried to write to {:#x}", addr));
                 }
             } else {
                 let (stack_start, stack_end) = self.memory.get_stack();
@@ -1120,6 +1164,8 @@ impl<'a, C: Composition> Writer<'a, C> {
                     && !self
                         .container
                         .is_privileged((self.memory.get_pc().expect("PC must be accessible").get_constant().expect("PC must be deterministic") >> 1) << 1)
+                    && self.container.priority != 16
+                    && self.container.priority != 0
                 {
                     return ResultOrHook::EndFailure(format!(
                         "Tried to write to {}, on stack: {:?}",
@@ -1154,21 +1200,21 @@ impl<'a, C: Composition> Writer<'a, C> {
             return ResultOrHook::Hooks(ret.clone());
         }
 
-        let ret = self
+        let mut ret = self
             .container
             .range_memory_write_hook
             .iter()
             .filter(|el| ((el.0 .0)..=(el.0 .1)).contains(&caddr))
             .map(|el| el.1)
-            .collect::<Vec<_>>();
-        if !ret.is_empty() {
-            return ResultOrHook::Hooks(ret);
+            .peekable();
+        if !ret.peek().is_none() {
+            return ResultOrHook::Hooks(ret.collect());
         }
         ResultOrHook::Result(self.memory.set_to_const_address(caddr, value))
     }
 
     pub fn write_memory_constant(&mut self, caddr: u64, value: C::SmtExpression) -> ResultOrHook<std::result::Result<(), MemoryError>, MemoryWriteHook<C>> {
-        if self.container.strict {
+        if self.container.strict && self.container.priority != 16 && self.container.priority != 0 {
             let (stack_start, stack_end) = self.memory.get_stack();
             let stack_start = stack_start.get_constant().expect("Stack pointers to be known!");
             let stack_end = stack_end.get_constant().expect("Stack pointers to be known!");
@@ -1182,6 +1228,8 @@ impl<'a, C: Composition> Writer<'a, C> {
                 && !self
                     .container
                     .is_privileged((self.memory.get_pc().expect("PC must be accessible").get_constant().expect("PC must be deterministic") >> 1) << 1)
+                && self.container.priority != 16
+                && self.container.priority != 0
             {
                 return ResultOrHook::EndFailure(format!("Tried to write to {}", format!("{:#x}", caddr)));
             }
@@ -1199,15 +1247,15 @@ impl<'a, C: Composition> Writer<'a, C> {
             return ResultOrHook::Hooks(ret.clone());
         }
 
-        let ret = self
+        let mut ret = self
             .container
             .range_memory_write_hook
             .iter()
             .filter(|el| ((el.0 .0)..=(el.0 .1)).contains(&caddr))
             .map(|el| el.1)
-            .collect::<Vec<_>>();
-        if !ret.is_empty() {
-            return ResultOrHook::Hooks(ret);
+            .peekable();
+        if !ret.peek().is_none() {
+            return ResultOrHook::Hooks(ret.collect());
         }
         ResultOrHook::Result(self.memory.set_to_const_address(caddr, value))
     }

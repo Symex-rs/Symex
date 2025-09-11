@@ -1129,9 +1129,10 @@ impl Decode for VcvtCustomRoundingIntF64 {
 // NOTE: We might want to take endianness in to account here.
 
 impl Decode for VStmF32 {
+    #[allow(unused_parens)]
     fn decode(&self, _in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
         let Self { add, wback, imm32, rn, registers } = self;
-        let registers: Vec<_> = registers.iter().map(|el| el.local_into()).collect();
+        let registers = registers.iter().map(|el| el.local_into());
         let rn = rn.local_into();
         let imm32 = imm32.local_into();
         pseudo!([
@@ -1150,7 +1151,7 @@ impl Decode for VStmF32 {
                 }
             }
 
-            for register in registers.into_iter() {
+            for register in (registers) {
                 register:f32;
                 LocalAddress(address,32) = Cast(register, u32);
                 address += 4.local_into();
@@ -1160,9 +1161,10 @@ impl Decode for VStmF32 {
 }
 
 impl Decode for VStmF64 {
+    #[allow(unused_parens)]
     fn decode(&self, _in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
         let Self { add, wback, imm32, rn, registers } = self;
-        let registers: Vec<_> = registers.iter().map(|el| el.local_into()).collect();
+        let registers = registers.iter().map(|el| el.local_into());
         let rn = rn.local_into();
         let imm32 = imm32.local_into();
         pseudo!([
@@ -1181,7 +1183,7 @@ impl Decode for VStmF64 {
                 }
             }
 
-            for register in registers.into_iter() {
+            for register in (registers) {
                 register:f64;
                 LocalAddress(address,64) = Cast(register, u64);
                 address += 8.local_into();
@@ -1233,14 +1235,15 @@ impl Decode for VStrF64 {
 }
 
 impl Decode for VPushF32 {
+    #[allow(unused_parens)]
     fn decode(&self, _in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
         let Self { imm32, registers } = self;
         let imm32 = imm32.local_into();
-        let registers: Vec<_> = registers.iter().map(|el| el.local_into()).collect();
+        let registers = registers.iter().map(|el| el.local_into());
         pseudo!([
             let address:u32 = Register("SP&") - imm32;
             Register("SP&") = Register("SP&") - imm32;
-            for register in registers.into_iter() {
+            for register in (registers) {
                 register:f32;
                 LocalAddress(address,32) = Cast(register,u32);
                 address += 4.local_into();
@@ -1250,14 +1253,15 @@ impl Decode for VPushF32 {
 }
 
 impl Decode for VPushF64 {
+    #[allow(unused_parens)]
     fn decode(&self, _in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
         let Self { imm32, registers } = self;
         let imm32 = imm32.local_into();
-        let registers: Vec<_> = registers.iter().map(|el| el.local_into()).collect();
+        let registers = registers.iter().map(|el| el.local_into());
         pseudo!([
             let address:u32 = Register("SP&") - imm32;
             Register("SP&") = Register("SP&") - imm32;
-            for register in registers.into_iter() {
+            for register in (registers) {
                 register:f64;
                 let intermediate:u64 = Cast(register,u64);
                 LocalAddress(address,32) = intermediate<63:32>;
@@ -1326,13 +1330,14 @@ impl Decode for VLdrF64 {
 }
 
 impl Decode for VPopF32 {
+    #[allow(unused_parens)]
     fn decode(&self, _in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
         let Self { imm32, registers } = self;
         let imm32 = imm32.local_into();
-        let registers: Vec<_> = registers.iter().map(|el| el.local_into()).collect();
+        let registers = registers.iter().map(|el| el.local_into());
         pseudo!([
             let address:u32 = Register("SP&");
-            for register in registers.into_iter() {
+            for register in (registers) {
                 let value = LocalAddress(address,32);
                 register:f32 = Cast(value,f32);
                 address += 4.local_into();
@@ -1343,13 +1348,14 @@ impl Decode for VPopF32 {
 }
 
 impl Decode for VPopF64 {
+    #[allow(unused_parens)]
     fn decode(&self, _in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
         let Self { imm32, registers } = self;
         let imm32 = imm32.local_into();
-        let registers: Vec<_> = registers.iter().map(|el| el.local_into()).collect();
+        let registers = registers.iter().map(|el| el.local_into());
         pseudo!([
             let address:u32 = Register("SP&");
-            for register in registers.into_iter() {
+            for register in (registers) {
                 let value = LocalAddress(address,64);
                 register:f64 = Cast(value,f64);
                 address += 8.local_into();
@@ -1360,11 +1366,12 @@ impl Decode for VPopF64 {
 }
 
 impl Decode for VLdmF32 {
+    #[allow(unused_parens)]
     fn decode(&self, _in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
         let Self { add, wback, imm32, rn, registers } = self;
         let imm32 = imm32.local_into();
         let rn = rn.local_into();
-        let registers: Vec<_> = registers.iter().map(|el| el.local_into()).collect();
+        let registers = registers.iter().map(|el| el.local_into());
         pseudo!([
             rn:u32; imm32:u32;
 
@@ -1380,7 +1387,7 @@ impl Decode for VLdmF32 {
                     rn-=imm32;
                 }
             }
-            for register in registers.iter() {
+            for register in (registers) {
                 register:f32;
                 let value:u32 = LocalAddress(address,32);
                 address += 4.local_into();
@@ -1391,11 +1398,12 @@ impl Decode for VLdmF32 {
 }
 
 impl Decode for VLdmF64 {
+    #[allow(unused_parens)]
     fn decode(&self, _in_it_block: bool) -> Vec<general_assembly::prelude::Operation> {
         let Self { add, wback, imm32, rn, registers } = self;
         let imm32 = imm32.local_into();
         let rn = rn.local_into();
-        let registers: Vec<_> = registers.iter().map(|el| el.local_into()).collect();
+        let registers = registers.iter().map(|el| el.local_into());
         pseudo!([
             rn:u32; imm32:u32;
 
@@ -1411,7 +1419,7 @@ impl Decode for VLdmF64 {
                     rn-=imm32;
                 }
             }
-            for register in registers.iter() {
+            for register in (registers) {
                 register:f64;
                 let value:u64 = LocalAddress(address,64);
                 address += 8.local_into();

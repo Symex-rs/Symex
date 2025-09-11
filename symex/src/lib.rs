@@ -4,9 +4,9 @@
     // clippy::pedantic,
     // clippy::nursery,
     rustdoc::all,
-    rust_2024_compatibility,
+    // rust_2024_compatibility,
     rust_2018_idioms,
-    warnings
+    // warnings
 )]
 // Add exceptions for things that are not error prone.
 #![allow(

@@ -805,8 +805,9 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
                 debug!("Address {:?} non deterministic!", address);
 
                 if self.state.hooks.is_strict() {
-                    let regions = self.state.hooks.permitted_regions(&self.state.memory);
-                    for (lower, upper) in regions {
+                    let iter = self.state.hooks.permitted_regions();
+                    for closure in iter {
+                        let (lower, upper) = closure(&self.state.memory);
                         let could_be_lower = lower.ugt(&address);
                         let could_be_higher = upper.ult(&address);
 
@@ -831,7 +832,8 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
                     }
                 }
                 let regions = self.state.hooks.all_regions(&self.state.memory);
-                for (lower, upper) in regions {
+                for closure in regions {
+                    let (lower, upper) = closure(&self.state.memory);
                     let could_be_lower = lower.ugt(&address);
                     let could_be_higher = upper.ult(&address);
 

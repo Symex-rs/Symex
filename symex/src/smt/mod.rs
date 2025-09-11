@@ -110,8 +110,8 @@ pub trait ProgramMemory: Debug + Clone {
 
     fn out_of_bounds_const(&self, addr: u64) -> bool;
 
-    fn regions(&self) -> Vec<(u64, u64)> {
-        Vec::new()
+    fn regions(&self) -> impl Iterator<Item = (u64, u64)> + '_ {
+        Vec::new().into_iter()
     }
 }
 pub trait SmtMap: Debug + Clone + Display {
@@ -283,8 +283,8 @@ pub trait SmtMap: Debug + Clone + Display {
         self.program_memory().out_of_bounds_const(addr)
     }
 
-    fn regions(&self) -> Vec<(u64, u64)> {
-        Vec::new()
+    fn regions(&self) -> impl Iterator<Item = (u64, u64)> {
+        Vec::new().into_iter()
     }
 }
 

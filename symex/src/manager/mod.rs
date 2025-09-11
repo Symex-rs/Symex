@@ -9,6 +9,7 @@ use crate::{
         PathResult,
     },
     logging::Logger,
+    path_selection::PathSelector,
     project::dwarf_helper::{DebugData, LineMap, SubProgram, SubProgramMap},
     smt::{ProgramMemory, SmtExpr, SmtMap, SmtSolver},
     Composition,
@@ -56,6 +57,13 @@ impl<C: Composition> SymexArbiter<C> {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct MemoryRegion {
+    pub priority: u64,
+    pub start: u64,
+    pub end: u64,
+}
+
 impl<C: Composition> SymexArbiter<C> {
     pub fn add_hooks<F: FnMut(&mut HookContainer<C>, &SubProgramMap)>(&mut self, mut f: F) -> &mut Self {
         f(&mut self.hooks, &self.symbol_lookup);
@@ -91,7 +99,7 @@ impl<C: Composition> SymexArbiter<C> {
     pub fn run_with_strict_memory(
         &mut self,
         function: &SubProgram,
-        ranges: &[(u64, u64)],
+        ranges: &[MemoryRegion],
         hooks: Option<PrioriHookContainer<C>>,
         language: LangagueHooks,
     ) -> crate::Result<Runner<C>> {
@@ -99,7 +107,13 @@ impl<C: Composition> SymexArbiter<C> {
         intermediate_hooks.add_language_hooks(&self.symbol_lookup, language);
         let allowed = ranges
             .iter()
-            .map(|(low, high)| (self.ctx.from_u64(*low, self.project.get_ptr_size()), self.ctx.from_u64(*high, self.project.get_ptr_size())))
+            .map(|MemoryRegion { priority, start, end }| {
+                (
+                    *priority,
+                    self.ctx.from_u64(*start, self.project.get_ptr_size()),
+                    self.ctx.from_u64(*end, self.project.get_ptr_size()),
+                )
+            })
             .collect::<Vec<_>>();
 
         intermediate_hooks.allow_access(allowed);
@@ -199,6 +213,13 @@ impl<C: Composition> SymexArbiter<C> {
 pub struct Runner<C: Composition> {
     vm: VM<C>,
     path_idx: usize,
+}
+
+impl<C: Composition> Runner<C> {
+    /// Returns the number of enqueued paths.
+    pub fn number_of_queued_paths(&self) -> usize {
+        self.vm.paths.waiting_paths()
+    }
 }
 
 impl<C: Composition> Iterator for Runner<C> {

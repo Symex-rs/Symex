@@ -152,7 +152,7 @@ impl Project {
 }
 
 impl ProgramMemory for &'static Project {
-    fn regions(&self) -> Vec<(u64, u64)> {
+    fn regions(&self) -> impl Iterator<Item = (u64, u64)> {
         self.segments.sections()
     }
 

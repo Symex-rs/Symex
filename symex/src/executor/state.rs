@@ -58,7 +58,7 @@ pub struct GAState<C: Composition> {
     pub instruction_had_condition: bool,
     pub fp_state: FpState,
     pub line_lookup: LineMap,
-    entry_subprogram: Option<SubProgram>,
+    pub entry_subprogram: Option<SubProgram>,
     debug_data: Option<DebugData>,
 }
 

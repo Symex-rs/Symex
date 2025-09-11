@@ -13,8 +13,8 @@ pub struct Segment {
 pub struct Segments(Vec<Segment>);
 
 impl Segments {
-    pub fn sections(&self) -> Vec<(u64, u64)> {
-        self.0.iter().map(|seg| (seg.start_address, seg.end_address)).collect()
+    pub fn sections(&self) -> impl Iterator<Item = (u64, u64)> + '_ {
+        self.0.iter().map(|seg| (seg.start_address, seg.end_address))
     }
 
     pub fn from_single_segment(data: Vec<u8>, start_addr: u64, end_addr: u64, constants: bool) -> Self {
