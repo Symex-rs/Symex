@@ -2,10 +2,7 @@
 
 use object::{read::elf::ProgramHeader, File, Object};
 
-use crate::{
-    smt::{Lambda, SmtExpr, SmtMap, SmtSolver},
-    Composition,
-};
+use crate::smt::{Lambda, SmtExpr, SmtSolver};
 pub struct Segment {
     data: Vec<u8>,
     start_address: u64,
@@ -20,7 +17,6 @@ fn construct_lookup<C: SmtSolver>(ctx: &mut C, word_size: u32, segments: &Vec<Se
     C::UnaryLambda::new(ctx, word_size, move |addr: C::Expression| {
         let mut ret = ctx_clone.from_bool(true);
         let symbolic = segments
-            .clone()
             .into_iter()
             .filter(|el| el.constants)
             .map(|el| (ctx_clone.from_u64(el.start_address, word_size), ctx_clone.from_u64(el.end_address, word_size)));
@@ -39,18 +35,6 @@ impl<S: SmtSolver> Segments<S> {
     pub fn read_only_sections(&self) -> impl Iterator<Item = (u64, u64)> + '_ {
         self.0.iter().filter(|el| el.constants).map(|seg| (seg.start_address, seg.end_address))
     }
-
-    // pub fn from_single_segment(ctx: &mut M, data: Vec<u8>, start_addr: u64,
-    // end_addr: u64, constants: bool, word_size: u32) -> Self {     todo!();
-    //     let data = vec![Segment {
-    //         data,
-    //         start_address: start_addr,
-    //         end_address: end_addr,
-    //         constants,
-    //     }];
-    //     let filter = construct_lookup_memory_based(ctx, word_size, &data);
-    //     Segments(data, filter)
-    // }
 
     pub(crate) fn could_possibly_be_out_of_bounds(&self, addr: S::Expression) -> S::Expression {
         self.1.apply(addr)

@@ -16,7 +16,8 @@ use super::ArmV6M;
 use crate::executor::instruction::Instruction as GAInstruction;
 
 impl ArmV6M {
-    pub(super) fn expand<C: crate::Composition>(instr: Instruction) -> GAInstruction<C> {
+    #[allow(clippy::too_many_lines)]
+    pub(super) fn expand<C: crate::Composition>(instr: &Instruction) -> GAInstruction<C> {
         crate::debug!("Running {instr:?}");
         let operations = match &instr.operation {
             Operation::UDF { .. } => todo!(),
@@ -309,8 +310,8 @@ impl ArmV6M {
                         carry: false,
                     },
                     GAOperation::SetVFlag {
-                        operand1: op_n.clone(),
-                        operand2: op_imm.clone(),
+                        operand1: op_n,
+                        operand2: op_imm,
                         sub: true,
                         carry: false,
                     },
@@ -334,8 +335,8 @@ impl ArmV6M {
                         carry: false,
                     },
                     GAOperation::SetVFlag {
-                        operand1: op_n.clone(),
-                        operand2: op_m.clone(),
+                        operand1: op_n,
+                        operand2: op_m,
                         sub: true,
                         carry: false,
                     },
@@ -390,7 +391,7 @@ impl ArmV6M {
                         destination: Operand::Local("Address".to_owned()),
                         operand1: Operand::Local("Address".to_owned()),
                         operand2: Operand::Immediate(DataWord::Word32(4)),
-                    })
+                    });
                 }
                 if reg_list.contains(n) {
                     // addre reg not in reg list writeback
@@ -760,7 +761,7 @@ impl ArmV6M {
                         destination: Operand::Local("Address".to_owned()),
                         operand1: Operand::Local("Address".to_owned()),
                         operand2: Operand::Immediate(DataWord::Word32(4)),
-                    })
+                    });
                 }
 
                 operations
@@ -773,10 +774,10 @@ impl ArmV6M {
                 let b3 = Operand::Local("B3".to_owned());
                 let b4 = Operand::Local("B4".to_owned());
 
-                let b1_mask = Operand::Immediate(DataWord::Word32(0x000000ff));
-                let b2_mask = Operand::Immediate(DataWord::Word32(0x0000ff00));
-                let b3_mask = Operand::Immediate(DataWord::Word32(0x00ff0000));
-                let b4_mask = Operand::Immediate(DataWord::Word32(0xff000000));
+                let b1_mask = Operand::Immediate(DataWord::Word32(0x0000_00ff));
+                let b2_mask = Operand::Immediate(DataWord::Word32(0x0000_ff00));
+                let b3_mask = Operand::Immediate(DataWord::Word32(0x00ff_0000));
+                let b4_mask = Operand::Immediate(DataWord::Word32(0xff00_0000));
 
                 vec![
                     // set destination to 0
@@ -857,10 +858,10 @@ impl ArmV6M {
                 let b3 = Operand::Local("B3".to_owned());
                 let b4 = Operand::Local("B4".to_owned());
 
-                let b1_mask = Operand::Immediate(DataWord::Word32(0x000000ff));
-                let b2_mask = Operand::Immediate(DataWord::Word32(0x0000ff00));
-                let b3_mask = Operand::Immediate(DataWord::Word32(0x00ff0000));
-                let b4_mask = Operand::Immediate(DataWord::Word32(0xff000000));
+                let b1_mask = Operand::Immediate(DataWord::Word32(0x0000_00ff));
+                let b2_mask = Operand::Immediate(DataWord::Word32(0x0000_ff00));
+                let b3_mask = Operand::Immediate(DataWord::Word32(0x00ff_0000));
+                let b4_mask = Operand::Immediate(DataWord::Word32(0xff00_0000));
 
                 vec![
                     // set destination to 0
@@ -939,8 +940,8 @@ impl ArmV6M {
                 let b1 = Operand::Local("b1".to_owned());
                 let b2 = Operand::Local("B2".to_owned());
 
-                let b1_mask = Operand::Immediate(DataWord::Word32(0x000000ff));
-                let b2_mask = Operand::Immediate(DataWord::Word32(0x0000ff00));
+                let b1_mask = Operand::Immediate(DataWord::Word32(0x0000_00ff));
+                let b2_mask = Operand::Immediate(DataWord::Word32(0x0000_ff00));
 
                 vec![
                     // set destination to 0

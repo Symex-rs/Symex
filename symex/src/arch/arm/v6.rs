@@ -52,8 +52,8 @@ impl<Override: ArchitectureOverride> Architecture<Override> for ArmV6M {
     #[allow(clippy::cast_possible_truncation)]
     fn add_hooks<C: crate::Composition>(&self, cfg: &mut crate::executor::hooks::HookContainer<C>, map: &mut crate::project::dwarf_helper::SubProgramMap) {
         let symbolic_sized = |state: &mut GAState<_>| {
-            let value_ptr = state.get_register("R0".to_owned())?;
-            let size_expr: C::SmtExpression = state.get_register("R1".to_owned())?;
+            let value_ptr = state.get_register("R0")?;
+            let size_expr: C::SmtExpression = state.get_register("R1")?;
             let size: u64 = size_expr.get_constant().unwrap() * 8;
             trace!("trying to create symbolic: addr: {:?}, size: {}", value_ptr, size);
             let name = state.label_new_symbolic("any");
@@ -67,31 +67,31 @@ impl<Override: ArchitectureOverride> Architecture<Override> for ArmV6M {
             //});
             memory.set(&value_ptr, symb_value)?;
 
-            let lr = state.get_register("LR".to_owned())?;
-            state.set_register("PC".to_owned(), lr)?;
+            let lr = state.get_register("LR")?;
+            state.set_register("PC", lr)?;
             Ok(())
         };
 
-        cfg.add_pc_hook_regex(map, r"^symbolic_size<.+>$", PCHook::Intrinsic(symbolic_sized))
+        cfg.add_pc_hook_regex(map, r"^symbolic_size<.+>$", &PCHook::Intrinsic(symbolic_sized))
             .expect("Symbol not found in symtab");
 
         let read_pc = |state: &mut GAState<C>| {
             let two = state.memory.from_u64(1, 32);
-            let pc = state.get_register("PC".to_owned()).unwrap();
+            let pc = state.get_register("PC").unwrap();
             Ok(pc.add(&two))
         };
 
-        let write_pc = |state: &mut GAState<C>, value: C::SmtExpression| state.set_register("PC".to_owned(), value);
+        let write_pc = |state: &mut GAState<C>, value: C::SmtExpression| state.set_register("PC", value);
 
-        cfg.add_register_read_hook("PC+".to_owned(), read_pc);
-        cfg.add_register_write_hook("PC+".to_owned(), write_pc);
+        cfg.add_register_read_hook("PC+", read_pc);
+        cfg.add_register_write_hook("PC+", write_pc);
 
         // reset always done
         let read_reset_done = |state: &mut GAState<C>, _addr| {
             let value = state.memory.from_u64(0xffff_ffff, 32);
             Ok(value)
         };
-        cfg.add_memory_read_hook(0x4000c008, read_reset_done);
+        cfg.add_memory_read_hook(0x4000_c008, read_reset_done);
     }
 
     fn translate<C: crate::Composition>(buff: &[u8], _state: &mut GAState<C>) -> Result<crate::executor::instruction::Instruction<C>, ArchError> {
@@ -100,7 +100,7 @@ impl<Override: ArchitectureOverride> Architecture<Override> for ArmV6M {
             *dest = *source;
         }
         let ret = armv6_m_instruction_parser::parse(buff).map_err(|e| map_err(e, buffer))?;
-        let to_exec = Self::expand(ret);
+        let to_exec = Self::expand(&ret);
         Ok(to_exec)
     }
 

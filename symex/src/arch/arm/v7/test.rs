@@ -1,3 +1,6 @@
+#![allow(clippy::too_many_lines)]
+use std::sync::Arc;
+
 use disarmv7::prelude::{operation::*, *};
 use general_assembly::{
     operand::{DataWord, Operand},
@@ -151,8 +154,7 @@ macro_rules! initiate {
 
 fn setup_test_vm() -> VM<DefaultCompositionNoLogger> {
     let ctx = Bitwuzla::new();
-    let project_global = Box::new(Project::manual_project(vec![], 0, 0, WordSize::Bit32, Endianness::Little, HashMap::new()));
-    let project: &'static Project = Box::leak(project_global);
+    let project = Arc::new(Box::new(Project::manual_project(vec![], 0, 0, WordSize::Bit32, Endianness::Little, HashMap::new())));
     let mut hooks = HookContainer::new();
     ArmV7EM {
         in_it_block: false,
@@ -160,9 +162,9 @@ fn setup_test_vm() -> VM<DefaultCompositionNoLogger> {
     }
     .add_hooks(&mut hooks, &mut SubProgramMap::empty());
     let state = GAState::<DefaultCompositionNoLogger>::create_test_state(
-        project,
+        project.clone(),
         ctx.clone(),
-        ctx.clone(),
+        ctx,
         0,
         0,
         hooks,
@@ -175,7 +177,7 @@ fn setup_test_vm() -> VM<DefaultCompositionNoLogger> {
 #[test]
 fn test_adc_no_set_flag() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
@@ -212,7 +214,7 @@ fn test_adc_no_set_flag() {
 #[test]
 fn test_adc_set_flag() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
@@ -247,8 +249,8 @@ fn test_adc_set_flag() {
 
     initiate!(executor {
         register R0 = 1;
-        register R1 = 0x80000000;
-        register R2 = 0x80000000;
+        register R1 = 0x8000_0000;
+        register R2 = 0x8000_0000;
         flag C = false
     });
 
@@ -278,8 +280,8 @@ fn test_adc_set_flag() {
 
     initiate!(executor {
         register R0 = 1;
-        register R1 = 0x80000000;
-        register R2 = 0x80000000;
+        register R1 = 0x8000_0000;
+        register R2 = 0x8000_0000;
         flag C = false;
         flag V = false;
         flag Z = false
@@ -311,8 +313,8 @@ fn test_adc_set_flag() {
 
     initiate!(executor {
         register R0 = 1;
-        register R1 = 0x80000000;
-        register R2 = 0x80000000;
+        register R1 = 0x8000_0000;
+        register R2 = 0x8000_0000;
         flag C = false;
         flag V = false;
         flag Z = false
@@ -346,7 +348,7 @@ fn test_adc_set_flag() {
 #[test]
 fn test_adc_imm_no_set_flag() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
@@ -379,7 +381,7 @@ fn test_adc_imm_no_set_flag() {
 #[test]
 fn test_adc_immediate_set_flag() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
@@ -407,7 +409,7 @@ fn test_adc_immediate_set_flag() {
 
     initiate!(executor {
         register R0 = 1;
-        register R1 = 0x80000000;
+        register R1 = 0x8000_0000;
         flag C = false
     });
 
@@ -415,7 +417,7 @@ fn test_adc_immediate_set_flag() {
         .set_s(Some(true))
         .set_rd(Some(Register::R1))
         .set_rn(Register::R1)
-        .set_imm(0x80000000)
+        .set_imm(0x8000_0000)
         .complete()
         .into();
 
@@ -438,7 +440,7 @@ fn test_adc_immediate_set_flag() {
 #[test]
 fn test_add_no_set_flag() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
@@ -475,7 +477,7 @@ fn test_add_no_set_flag() {
 #[test]
 fn test_add_set_flag() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
@@ -510,8 +512,8 @@ fn test_add_set_flag() {
 
     initiate!(executor {
         register R0 = 1;
-        register R1 = 0x80000000;
-        register R2 = 0x80000000;
+        register R1 = 0x8000_0000;
+        register R2 = 0x8000_0000;
         flag C = false
     });
 
@@ -541,8 +543,8 @@ fn test_add_set_flag() {
 
     initiate!(executor {
         register R0 = 1;
-        register R1 = 0x80000000;
-        register R2 = 0x80000000;
+        register R1 = 0x8000_0000;
+        register R2 = 0x8000_0000;
         flag C = true;
         flag V = false;
         flag Z = false
@@ -574,8 +576,8 @@ fn test_add_set_flag() {
 
     initiate!(executor {
         register R0 = 1;
-        register R1 = 0x80000000;
-        register R2 = 0x80000000;
+        register R1 = 0x8000_0000;
+        register R2 = 0x8000_0000;
         flag C = false;
         flag V = false;
         flag Z = false
@@ -609,7 +611,7 @@ fn test_add_set_flag() {
 #[test]
 fn test_add_imm_no_set_flag() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
@@ -637,7 +639,7 @@ fn test_add_imm_no_set_flag() {
 #[test]
 fn test_add_immediate_set_flag() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
@@ -671,7 +673,7 @@ fn test_add_immediate_set_flag() {
 
     initiate!(executor {
         register R0 = 1;
-        register R1 = 0x80000000;
+        register R1 = 0x8000_0000;
         flag C = false
     });
 
@@ -679,7 +681,7 @@ fn test_add_immediate_set_flag() {
         .set_s(Some(true))
         .set_rd(None)
         .set_rn(Register::R1)
-        .set_imm(0x80000000)
+        .set_imm(0x8000_0000)
         .complete()
         .into();
 
@@ -702,7 +704,7 @@ fn test_add_immediate_set_flag() {
 #[test]
 fn test_add_sp_immediate() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
@@ -774,7 +776,7 @@ fn test_add_sp_immediate() {
 #[test]
 fn test_add_sp_reg() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
@@ -863,7 +865,7 @@ fn test_add_sp_reg() {
 #[test]
 fn test_adr() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
@@ -928,14 +930,14 @@ fn test_adr() {
 #[test]
 fn test_and_no_set_flag() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
     initiate!(executor {
         register R0 = 1;
-        register R1 = 0x00000002;
-        register R2 = 0x80000001;
+        register R1 = 0x0000_0002;
+        register R2 = 0x8000_0001;
         flag C = true
     });
 
@@ -965,14 +967,14 @@ fn test_and_no_set_flag() {
 #[test]
 fn test_and_set_flag() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
     initiate!(executor {
         register R0 = 1;
-        register R1 = 0x00000002;
-        register R2 = 0x80000001;
+        register R1 = 0x0000_0002;
+        register R2 = 0x8000_0001;
         flag C = false
     });
 
@@ -1000,8 +1002,8 @@ fn test_and_set_flag() {
 
     initiate!(executor {
         register R0 = 1;
-        register R1 = 0x00000002;
-        register R2 = 0x80000002;
+        register R1 = 0x0000_0002;
+        register R2 = 0x8000_0002;
         flag C = false
     });
 
@@ -1031,8 +1033,8 @@ fn test_and_set_flag() {
 
     initiate!(executor {
         register R0 = 1;
-        register R1 = 0x00000002;
-        register R2 = 0x80000002;
+        register R1 = 0x0000_0002;
+        register R2 = 0x8000_0002;
         flag C = 0;
         flag Z = 0;
         flag N = 0
@@ -1064,8 +1066,8 @@ fn test_and_set_flag() {
 
     initiate!(executor {
         register R0 = 1;
-        register R1 = 0x00000002;
-        register R2 = 0x80000002;
+        register R1 = 0x0000_0002;
+        register R2 = 0x8000_0002;
         flag C = 0;
         flag Z = 0;
         flag N = 0
@@ -1097,8 +1099,8 @@ fn test_and_set_flag() {
 
     initiate!(executor {
         register R0 = 1;
-        register R1 = 0x00000002;
-        register R2 = 0x80000002;
+        register R1 = 0x0000_0002;
+        register R2 = 0x8000_0002;
         flag C = 0;
         flag Z = 0;
         flag N = 0
@@ -1132,7 +1134,7 @@ fn test_and_set_flag() {
 #[test]
 fn test_and_imm_no_set_flag() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
@@ -1166,12 +1168,12 @@ fn test_and_imm_no_set_flag() {
 #[test]
 fn test_and_immediate_set_flag() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
     initiate!(executor {
-        register R1 = 0x00000002;
+        register R1 = 0x0000_0002;
         flag C = false
     });
 
@@ -1179,7 +1181,7 @@ fn test_and_immediate_set_flag() {
         .set_s(Some(true))
         .set_rd(Some(Register::R1))
         .set_rn(Register::R1)
-        .set_imm(0x00000002)
+        .set_imm(0x0000_0002)
         .set_carry(Some(true))
         .complete()
         .into();
@@ -1199,7 +1201,7 @@ fn test_and_immediate_set_flag() {
     });
 
     initiate!(executor {
-        register R1 = 0x00000002;
+        register R1 = 0x0000_0002;
         flag C = false
     });
 
@@ -1207,7 +1209,7 @@ fn test_and_immediate_set_flag() {
         .set_s(Some(true))
         .set_rd(Some(Register::R1))
         .set_rn(Register::R1)
-        .set_imm(0x00000002)
+        .set_imm(0x0000_0002)
         .set_carry(Some(false))
         .complete()
         .into();
@@ -1228,15 +1230,15 @@ fn test_and_immediate_set_flag() {
 
     initiate!(executor {
         register R0 = 1;
-        register R1 = 0x00000002;
-        register R2 = 0x80000002;
+        register R1 = 0x0000_0002;
+        register R2 = 0x8000_0002;
         flag C = 0;
         flag Z = 0;
         flag N = 0
     });
 
     initiate!(executor {
-        register R1 = 0x00000002;
+        register R1 = 0x0000_0002;
         flag C = false
     });
 
@@ -1244,7 +1246,7 @@ fn test_and_immediate_set_flag() {
         .set_s(Some(true))
         .set_rd(Some(Register::R1))
         .set_rn(Register::R1)
-        .set_imm(0x00000000)
+        .set_imm(0x0000_0000)
         .set_carry(None)
         .complete()
         .into();
@@ -1264,7 +1266,7 @@ fn test_and_immediate_set_flag() {
     });
 
     initiate!(executor {
-        register R1 = 0x80000002;
+        register R1 = 0x8000_0002;
         flag C = false
     });
 
@@ -1272,7 +1274,7 @@ fn test_and_immediate_set_flag() {
         .set_s(Some(true))
         .set_rd(Some(Register::R1))
         .set_rn(Register::R1)
-        .set_imm(0x80000000)
+        .set_imm(0x8000_0000)
         .set_carry(None)
         .complete()
         .into();
@@ -1287,7 +1289,7 @@ fn test_and_immediate_set_flag() {
     executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
-        register R1 == 0x80000000,
+        register R1 == 0x8000_0000,
         flag C == 0,
         flag N == 1
     });
@@ -1296,12 +1298,12 @@ fn test_and_immediate_set_flag() {
 #[test]
 fn test_asr_immediate() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
     initiate!(executor {
-        register R1 = 0x80000000;
+        register R1 = 0x8000_0000;
         flag C = true
     });
 
@@ -1322,7 +1324,7 @@ fn test_asr_immediate() {
     executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
-        register R1 == 0xc0000000,
+        register R1 == 0xc000_0000,
         flag C == 1
     });
 }
@@ -1330,12 +1332,12 @@ fn test_asr_immediate() {
 #[test]
 fn test_asr_immediate_set_flag() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
     initiate!(executor {
-        register R1 = 0x80000001;
+        register R1 = 0x8000_0001;
         flag C = false;
         flag Z = false;
         flag N = false
@@ -1358,13 +1360,13 @@ fn test_asr_immediate_set_flag() {
     executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
-        register R1 == 0xc0000000,
+        register R1 == 0xc000_0000,
         flag C == 1,
         flag N == 1
     });
 
     initiate!(executor {
-        register R1 = 0x00000001;
+        register R1 = 0x0000_0001;
         flag C = false;
         flag Z = false;
         flag N = false
@@ -1387,13 +1389,13 @@ fn test_asr_immediate_set_flag() {
     executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
-        register R1 == 0x00000000,
+        register R1 == 0x0000_0000,
         flag C == 1,
         flag Z == 1
     });
 
     initiate!(executor {
-        register R1 = 0x80000001;
+        register R1 = 0x8000_0001;
         flag C = false;
         flag Z = false;
         flag N = false
@@ -1416,13 +1418,13 @@ fn test_asr_immediate_set_flag() {
     executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
-        register R1 == 0xc0000000,
+        register R1 == 0xc000_0000,
         flag C == 1,
         flag N == 1
     });
 
     initiate!(executor {
-        register R1 = 0x00000001;
+        register R1 = 0x0000_0001;
         flag C = false;
         flag Z = false;
         flag N = false
@@ -1445,7 +1447,7 @@ fn test_asr_immediate_set_flag() {
     executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
-        register R1 == 0x00000000,
+        register R1 == 0x0000_0000,
         flag C == 1,
         flag Z == 1
     });
@@ -1454,12 +1456,12 @@ fn test_asr_immediate_set_flag() {
 #[test]
 fn test_asr() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
     initiate!(executor {
-        register R1 = 0x80000000;
+        register R1 = 0x8000_0000;
         register R2 = 1;
         flag C = true
     });
@@ -1481,7 +1483,7 @@ fn test_asr() {
     executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
-        register R1 == 0xc0000000,
+        register R1 == 0xc000_0000,
         flag C == 1
     });
 }
@@ -1489,12 +1491,12 @@ fn test_asr() {
 #[test]
 fn test_asr_set_flag() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
     initiate!(executor {
-        register R1 = 0x80000001;
+        register R1 = 0x8000_0001;
         register R2 = 1;
         flag C = false;
         flag Z = false;
@@ -1518,13 +1520,13 @@ fn test_asr_set_flag() {
     executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
-        register R1 == 0xc0000000,
+        register R1 == 0xc000_0000,
         flag C == 1,
         flag N == 1
     });
 
     initiate!(executor {
-        register R1 = 0x00000001;
+        register R1 = 0x0000_0001;
         register R2 = 1;
         flag C = false;
         flag Z = false;
@@ -1548,13 +1550,13 @@ fn test_asr_set_flag() {
     executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
-        register R1 == 0x00000000,
+        register R1 == 0x0000_0000,
         flag C == 1,
         flag Z == 1
     });
 
     initiate!(executor {
-        register R1 = 0x80000001;
+        register R1 = 0x8000_0001;
         register R2 = 1;
         flag C = false;
         flag Z = false;
@@ -1578,13 +1580,13 @@ fn test_asr_set_flag() {
     executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
-        register R1 == 0xc0000000,
+        register R1 == 0xc000_0000,
         flag C == 1,
         flag N == 1
     });
 
     initiate!(executor {
-        register R1 = 0x00000001;
+        register R1 = 0x0000_0001;
         register R2 = 1;
         flag C = false;
         flag Z = false;
@@ -1608,7 +1610,7 @@ fn test_asr_set_flag() {
     executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
-        register R1 == 0x00000000,
+        register R1 == 0x0000_0000,
         flag C == 1,
         flag Z == 1
     });
@@ -1617,13 +1619,13 @@ fn test_asr_set_flag() {
 #[test]
 fn test_b() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
     initiate!(executor {
         register PC = 0;
-        register R1 = 0x80000000;
+        register R1 = 0x8000_0000;
         register R2 = 1;
         flag C = true
     });
@@ -1646,13 +1648,13 @@ fn test_b() {
 #[test]
 fn test_b_conditional() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
     initiate!(executor {
         register PC = 0;
-        register R1 = 0x80000000;
+        register R1 = 0x8000_0000;
         register R2 = 1;
         flag C = true
     });
@@ -1674,7 +1676,7 @@ fn test_b_conditional() {
 
     initiate!(executor {
         register PC = 0;
-        register R1 = 0x80000000;
+        register R1 = 0x8000_0000;
         register R2 = 1;
         flag C = true
     });
@@ -1695,7 +1697,7 @@ fn test_b_conditional() {
 
     initiate!(executor {
         register PC = 0;
-        register R1 = 0x80000000;
+        register R1 = 0x8000_0000;
         register R2 = 1;
         flag V = true
     });
@@ -1716,7 +1718,7 @@ fn test_b_conditional() {
 
     initiate!(executor {
         register PC = 0;
-        register R1 = 0x80000000;
+        register R1 = 0x8000_0000;
         register R2 = 1;
         flag V = true
     });
@@ -1739,14 +1741,14 @@ fn test_b_conditional() {
 #[test]
 fn test_bx() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
     initiate!(executor {
         register PC = 0;
         register LR = 0x1234;
-        register R1 = 0x80000000;
+        register R1 = 0x8000_0000;
         register R2 = 1;
         flag C = true
     });
@@ -1769,13 +1771,13 @@ fn test_bx() {
 #[test]
 fn test_bfc() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
     initiate!(executor {
         register PC = 0;
-        register R1 = 0x80010003;
+        register R1 = 0x8001_0003;
         register R2 = 1;
         flag C = true
     });
@@ -1791,20 +1793,20 @@ fn test_bfc() {
     executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
-        register R1 == 0x80010000
+        register R1 == 0x8001_0000
     });
 }
 
 #[test]
 fn test_bfi() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
     initiate!(executor {
         register PC = 0;
-        register R1 = 0x80010003;
+        register R1 = 0x8001_0003;
         register R2 = 12;
         flag C = true
     });
@@ -1820,7 +1822,7 @@ fn test_bfi() {
     executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
-        register R1 == 0x8001000c
+        register R1 == 0x8001_000c
     });
 }
 
@@ -1828,13 +1830,13 @@ fn test_bfi() {
 #[should_panic]
 fn test_bfi_panic() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
     initiate!(executor {
         register PC = 0;
-        register R1 = 0x80010003;
+        register R1 = 0x8001_0003;
         register R2 = 12;
         flag C = true
     });
@@ -1850,20 +1852,20 @@ fn test_bfi_panic() {
     executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
-        register R1 == 0x8001000c
+        register R1 == 0x8001_000c
     });
 }
 
 #[test]
 fn test_bic_imm() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
     initiate!(executor {
         register PC = 0;
-        register R1 = 0x80010003;
+        register R1 = 0x8001_0003;
         register R2 = 12;
         flag C = false
     });
@@ -1886,7 +1888,7 @@ fn test_bic_imm() {
     executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
-        register R1 == 0x80010001,
+        register R1 == 0x8001_0001,
         flag C == 0
     });
 }
@@ -1894,13 +1896,13 @@ fn test_bic_imm() {
 #[test]
 fn test_bic_imm_set_flags() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
     initiate!(executor {
         register PC = 0;
-        register R1 = 0x80010003;
+        register R1 = 0x8001_0003;
         register R2 = 12;
         flag C = true
     });
@@ -1923,12 +1925,12 @@ fn test_bic_imm_set_flags() {
     executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
-        register R1 == 0x80010001,
+        register R1 == 0x8001_0001,
         flag C == 1
     });
     initiate!(executor {
         register PC = 0;
-        register R1 = 0x80010003;
+        register R1 = 0x8001_0003;
         register R2 = 12;
         flag C = true;
         flag Z = false
@@ -1937,7 +1939,7 @@ fn test_bic_imm_set_flags() {
     let instruction: Operation = BicImmediate::builder()
         .set_rd(None)
         .set_rn(Register::R1)
-        .set_imm(0xffffffff)
+        .set_imm(0xffff_ffff)
         .set_s(Some(true))
         .set_carry(Some(true))
         .complete()
@@ -1961,13 +1963,13 @@ fn test_bic_imm_set_flags() {
 #[test]
 fn test_bic_reg() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
     initiate!(executor {
         register PC = 0;
-        register R1 = 0x80010003;
+        register R1 = 0x8001_0003;
         register R2 = 0b0110;
         flag C = false
     });
@@ -1990,7 +1992,7 @@ fn test_bic_reg() {
     executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
-        register R1 == 0x80010001,
+        register R1 == 0x8001_0001,
         flag C == 0
     });
 }
@@ -1998,13 +2000,13 @@ fn test_bic_reg() {
 #[test]
 fn test_bic_reg_set_flags() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
     initiate!(executor {
         register PC = 0;
-        register R1 = 0x80010003;
+        register R1 = 0x8001_0003;
         register R2 = 0b11;
         flag C = true
     });
@@ -2027,13 +2029,13 @@ fn test_bic_reg_set_flags() {
     executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
-        register R1 == 0x80010001,
+        register R1 == 0x8001_0001,
         flag C == 0
     });
     initiate!(executor {
         register PC = 0;
-        register R1 = 0x80010000;
-        register R2 = 0xFFFFFFFF;
+        register R1 = 0x8001_0000;
+        register R2 = 0xFFFF_FFFF;
         flag C = false;
         flag Z = false
     });
@@ -2065,7 +2067,7 @@ fn test_bic_reg_set_flags() {
 #[test]
 fn test_bl() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
@@ -2090,7 +2092,7 @@ fn test_bl() {
     ];
     initiate!(executor {
         register PC = 0x100;
-        register LR = 0xFFFFFFFF;
+        register LR = 0xFFFF_FFFF;
         flag C = false;
         flag V = false;
         flag N = false;
@@ -2118,7 +2120,7 @@ fn test_bl() {
 
     initiate!(executor {
         register PC = 0x100;
-        register LR = 0xFFFFFFFF;
+        register LR = 0xFFFF_FFFF;
         flag C = false;
         flag V = false;
         flag N = false;
@@ -2148,7 +2150,7 @@ fn test_bl() {
 #[test]
 fn test_cmp_imm() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
@@ -2206,7 +2208,7 @@ fn test_cmp_imm() {
 #[test]
 fn test_ldr_imm() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
@@ -2364,7 +2366,7 @@ fn test_ldr_imm() {
 #[test]
 fn test_ldr_literal() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
@@ -2393,7 +2395,7 @@ fn test_ldr_literal() {
 #[test]
 fn test_ldr_register() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
@@ -2490,13 +2492,13 @@ fn test_ldr_register() {
 #[test]
 fn test_ldrh_imm() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
     initiate!(executor {
         register R1 = 0x3;
-        address (0x104,32) = 0x8001000;
+        address (0x104,32) = 0x800_1000;
         register SP = 0x104
 
     });
@@ -2526,7 +2528,7 @@ fn test_ldrh_imm() {
 
     initiate!(executor {
         register R1 = 0x3;
-        address (0x104,32) = 0x80001000;
+        address (0x104,32) = 0x8000_1000;
         register SP = 0x100
     });
 
@@ -2555,7 +2557,7 @@ fn test_ldrh_imm() {
 
     initiate!(executor {
         register R1 = 0x3;
-        address (0x104,32) = 0x80001000;
+        address (0x104,32) = 0x8000_1000;
         register SP = 0x108
     });
 
@@ -2584,7 +2586,7 @@ fn test_ldrh_imm() {
 
     initiate!(executor {
         register R1 = 0x3;
-        address (0x104,32) = 0x80001000;
+        address (0x104,32) = 0x8000_1000;
         register SP = 0x104
     });
 
@@ -2612,7 +2614,7 @@ fn test_ldrh_imm() {
     });
     initiate!(executor {
         register R1 = 0x3;
-        address (0x104,32) = 0x80001000;
+        address (0x104,32) = 0x8000_1000;
         register SP = 0x100
     });
 
@@ -2643,13 +2645,13 @@ fn test_ldrh_imm() {
 #[test]
 fn test_ldrb_imm() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
     initiate!(executor {
         register R1 = 0x3;
-        address (0x104,32) = 0x8001000;
+        address (0x104,32) = 0x800_1000;
         register SP = 0x104
 
     });
@@ -2679,7 +2681,7 @@ fn test_ldrb_imm() {
 
     initiate!(executor {
         register R1 = 0x3;
-        address (0x104,32) = 0x8001001;
+        address (0x104,32) = 0x800_1001;
         register SP = 0x104
 
     });
@@ -2709,7 +2711,7 @@ fn test_ldrb_imm() {
 
     initiate!(executor {
         register R1 = 0x3;
-        address (0x104,32) = 0x80001001;
+        address (0x104,32) = 0x8000_1001;
         register SP = 0x100
     });
 
@@ -2738,7 +2740,7 @@ fn test_ldrb_imm() {
 
     initiate!(executor {
         register R1 = 0x3;
-        address (0x104,32) = 0x80001002;
+        address (0x104,32) = 0x8000_1002;
         register SP = 0x108
     });
 
@@ -2767,7 +2769,7 @@ fn test_ldrb_imm() {
 
     initiate!(executor {
         register R1 = 0x3;
-        address (0x104,32) = 0x80001004;
+        address (0x104,32) = 0x8000_1004;
         register SP = 0x104
     });
 
@@ -2795,7 +2797,7 @@ fn test_ldrb_imm() {
     });
     initiate!(executor {
         register R1 = 0x3;
-        address (0x104,32) = 0x80001006;
+        address (0x104,32) = 0x8000_1006;
         register SP = 0x100
     });
 
@@ -2826,7 +2828,7 @@ fn test_ldrb_imm() {
 #[test]
 fn test_lsl_immediate() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
@@ -2895,7 +2897,7 @@ fn test_lsl_immediate() {
 #[test]
 fn test_lsr_immediate() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
@@ -2964,7 +2966,7 @@ fn test_lsr_immediate() {
 #[test]
 fn test_mov_imm_no_set_flags() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
@@ -3002,7 +3004,7 @@ fn test_mov_imm_no_set_flags() {
 #[test]
 fn test_mov_imm_set_flags() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
@@ -3045,7 +3047,7 @@ fn test_mov_imm_set_flags() {
 
     let instruction: Operation = MovImmediate::builder()
         .set_rd(Register::R1)
-        .set_imm(0x80010001)
+        .set_imm(0x8001_0001)
         .set_s(Some(SetFlags::Literal(true)))
         .set_carry(Some(true))
         .complete()
@@ -3060,7 +3062,7 @@ fn test_mov_imm_set_flags() {
     executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
-        register R1 == 0x80010001,
+        register R1 == 0x8001_0001,
         flag C == 1,
         flag Z == 0,
         flag N == 1
@@ -3070,7 +3072,7 @@ fn test_mov_imm_set_flags() {
 #[test]
 fn test_mov_reg_no_set_flags() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
@@ -3103,7 +3105,7 @@ fn test_mov_reg_no_set_flags() {
 #[test]
 fn test_mov_reg_set_flags() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
@@ -3134,7 +3136,7 @@ fn test_mov_reg_set_flags() {
 
     initiate!(executor {
         register R1 = 0x3;
-        register R2 = 0x80010001;
+        register R2 = 0x8001_0001;
         flag C = 0;
         flag Z = 0;
         flag N = 0
@@ -3151,7 +3153,7 @@ fn test_mov_reg_set_flags() {
     executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
-        register R1 == 0x80010001,
+        register R1 == 0x8001_0001,
         flag Z == 0,
         flag N == 1
     });
@@ -3160,7 +3162,7 @@ fn test_mov_reg_set_flags() {
 #[test]
 fn test_mul() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
@@ -3230,7 +3232,7 @@ fn test_mul() {
 #[test]
 fn test_pop() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
@@ -3276,7 +3278,7 @@ fn test_pop() {
 #[test]
 fn test_push() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
@@ -3320,7 +3322,7 @@ fn test_push() {
 #[test]
 fn test_rsb() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
@@ -3385,12 +3387,12 @@ fn test_rsb() {
 #[test]
 fn test_strb_imm() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
     initiate!(executor {
-        register R1 = 0x80001234;
+        register R1 = 0x8000_1234;
         register R2 = 0x101;
         address (0x100,32) = 0x1234_0003
     });
@@ -3420,7 +3422,7 @@ fn test_strb_imm() {
     });
 
     initiate!(executor {
-        register R1 = 0x80001234;
+        register R1 = 0x8000_1234;
         register R2 = 0x101;
         address (0x100,32) = 0x1234_0003
     });
@@ -3450,7 +3452,7 @@ fn test_strb_imm() {
     });
 
     initiate!(executor {
-        register R1 = 0x80001234;
+        register R1 = 0x8000_1234;
         register R2 = 0x105;
         address (0x100,32) = 0x1234_0003
     });
@@ -3480,7 +3482,7 @@ fn test_strb_imm() {
     });
 
     initiate!(executor {
-        register R1 = 0x80001234;
+        register R1 = 0x8000_1234;
         register R2 = 0x103;
         address (0x100,32) = 0x1234_0003
     });
@@ -3513,12 +3515,12 @@ fn test_strb_imm() {
 #[test]
 fn test_strh_imm() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
     initiate!(executor {
-        register R1 = 0x80001234;
+        register R1 = 0x8000_1234;
         register R2 = 0x100;
         address (0x100,32) = 0x1001;
         address (0x104,32) = 0x1002;
@@ -3551,7 +3553,7 @@ fn test_strh_imm() {
     });
 
     initiate!(executor {
-        register R1 = 0x80001234;
+        register R1 = 0x8000_1234;
         register R2 = 0x100;
         address (0x100,32) = 0x1001;
         address (0x104,32) = 0x1002;
@@ -3584,7 +3586,7 @@ fn test_strh_imm() {
     });
 
     initiate!(executor {
-        register R1 = 0x80001234;
+        register R1 = 0x8000_1234;
         register R2 = 0x104;
         address (0x100,32) = 0x1001;
         address (0x104,32) = 0x1002;
@@ -3617,7 +3619,7 @@ fn test_strh_imm() {
     });
 
     initiate!(executor {
-        register R1 = 0x80001234;
+        register R1 = 0x8000_1234;
         register R2 = 0x104;
         address (0x100,32) = 0x1001;
         address (0x104,32) = 0x1002;
@@ -3653,12 +3655,12 @@ fn test_strh_imm() {
 #[test]
 fn test_str_imm() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
     initiate!(executor {
-        register R1 = 0x80001234;
+        register R1 = 0x8000_1234;
         register R2 = 0x100;
         address (0x100,32) = 0x1001;
         address (0x104,32) = 0x1002;
@@ -3685,12 +3687,12 @@ fn test_str_imm() {
     executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
-        address (0x104,32) == 0x80001234,
+        address (0x104,32) == 0x8000_1234,
         register R2 == 0x104
     });
 
     initiate!(executor {
-        register R1 = 0x80001234;
+        register R1 = 0x8000_1234;
         register R2 = 0x100;
         address (0x100,32) = 0x1001;
         address (0x104,32) = 0x1002;
@@ -3717,12 +3719,12 @@ fn test_str_imm() {
     executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
-        address (0x104,32) == 0x80001234,
+        address (0x104,32) == 0x8000_1234,
         register R2 == 0x100
     });
 
     initiate!(executor {
-        register R1 = 0x80001234;
+        register R1 = 0x8000_1234;
         register R2 = 0x104;
         address (0x100,32) = 0x1001;
         address (0x104,32) = 0x1002;
@@ -3749,12 +3751,12 @@ fn test_str_imm() {
     executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
-        address (0x100,32) == 0x80001234,
+        address (0x100,32) == 0x8000_1234,
         register R2 == 0x104
     });
 
     initiate!(executor {
-        register R1 = 0x80001234;
+        register R1 = 0x8000_1234;
         register R2 = 0x104;
         address (0x100,32) = 0x1001;
         address (0x104,32) = 0x1002;
@@ -3781,7 +3783,7 @@ fn test_str_imm() {
     executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
-        address (0x104,32) == 0x80001234,
+        address (0x104,32) == 0x8000_1234,
         register R2 == 0x104
     });
 }
@@ -3789,7 +3791,7 @@ fn test_str_imm() {
 #[test]
 fn test_sub_imm_no_flags() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
@@ -3895,7 +3897,7 @@ fn test_sub_imm_no_flags() {
 #[test]
 fn test_sub_imm_set_flags() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
@@ -3969,7 +3971,7 @@ fn test_sub_imm_set_flags() {
 #[test]
 fn test_sub_reg_no_flags() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
@@ -4082,7 +4084,7 @@ fn test_sub_reg_no_flags() {
 #[test]
 fn test_sub_reg_set_flags() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
@@ -4160,7 +4162,7 @@ fn test_sub_reg_set_flags() {
 #[test]
 fn test_sub_sp_imm_no_flags() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
@@ -4264,7 +4266,7 @@ fn test_sub_sp_imm_no_flags() {
 #[test]
 fn test_sub_sp_imm_set_flags() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
@@ -4326,7 +4328,7 @@ fn test_sub_sp_imm_set_flags() {
 #[test]
 fn test_sub_uxth() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
@@ -4388,7 +4390,7 @@ fn test_sub_uxth() {
 #[test]
 fn test_tb() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
@@ -4445,12 +4447,12 @@ fn test_tb() {
 #[test]
 fn test_bfi_2() {
     let mut vm = setup_test_vm();
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
     initiate!(executor {
-        register R1 = 0b110011;
+        register R1 = 0b11_0011;
         register R2 = 0x1;
         address(0x123,8) = 0x23;
         address(0x124,8) = 0x22;
@@ -4472,10 +4474,10 @@ fn test_bfi_2() {
     executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
-        register R2 == 0b011001
+        register R2 == 0b01_1001
     });
     initiate!(executor {
-        register R1 = 0b110011;
+        register R1 = 0b11_0011;
         register R2 = 0x1;
         address(0x123,8) = 0x23;
         address(0x124,8) = 0x22;
@@ -4497,6 +4499,6 @@ fn test_bfi_2() {
     executor.execute_instruction(&instruction, &mut crate::logging::NoLogger).expect("Malformed instruction");
 
     test!(executor {
-        register R2 == 0b100001
+        register R2 == 0b10_0001
     });
 }

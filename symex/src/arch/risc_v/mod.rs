@@ -135,14 +135,14 @@ impl<Override: ArchitectureOverride> Architecture<Override> for RISCV {
             Ok(())
         };
 
-        if cfg.add_pc_hook_regex(map, r"^symbolic_size$", PCHook::Intrinsic(symbolic_sized)).is_err() {
+        if cfg.add_pc_hook_regex(map, r"^symbolic_size$", &PCHook::Intrinsic(symbolic_sized)).is_err() {
             debug!("Could not add symoblic hook, must not contain any calls to `symbolic_size`");
         }
-        if cfg.add_pc_hook_regex(map, r"^symbolic_size<.+>$", PCHook::Intrinsic(symbolic_sized)).is_err() {
+        if cfg.add_pc_hook_regex(map, r"^symbolic_size<.+>$", &PCHook::Intrinsic(symbolic_sized)).is_err() {
             debug!("Could not add symoblic hook, must not contain any calls to `symbolic_size<.+>`");
         }
 
-        if cfg.add_pc_hook_regex(map, r"^HardFault.*$", PCHook::EndFailure("Hardfault")).is_err() {
+        if cfg.add_pc_hook_regex(map, r"^HardFault.*$", &PCHook::EndFailure("Hardfault")).is_err() {
             trace!("Could not add hardfault hook");
         }
 
@@ -151,7 +151,7 @@ impl<Override: ArchitectureOverride> Architecture<Override> for RISCV {
             trace!("Writing to zero register, no effect");
             Ok(())
         };
-        cfg.add_register_write_hook("ZERO".to_owned(), write_zero);
+        cfg.add_register_write_hook("ZERO", write_zero);
 
         // Symex increments PC BEFORE executing the instruction, which means that any
         // instruction that reads PC is actually reading PC + instruction size.
@@ -169,7 +169,7 @@ impl<Override: ArchitectureOverride> Architecture<Override> for RISCV {
             Ok(new_pc)
         };
 
-        cfg.add_register_read_hook("PC-".to_string(), pc_decrementer);
+        cfg.add_register_read_hook("PC-", pc_decrementer);
     }
 
     fn pre_instruction_loading_hook<C>(_state: &mut GAState<C>)

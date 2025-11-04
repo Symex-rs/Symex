@@ -8,14 +8,9 @@ use super::fpexpr::FpExpr;
 use crate::smt::{SmtExpr, SmtFPExpr};
 
 #[derive(Debug, Clone)]
+#[must_use]
 pub struct BitwuzlaExpr(pub(crate) BV<Rc<Btor>>);
 
-//impl BitwuzlaExpr {
-//    fn unbounded(bv: BV<Rc<Btor>>) {
-//        BV::new(btor, width, symbol)
-//    }
-//}
-//
 impl BitwuzlaExpr {
     pub fn get_ctx(&self) -> Rc<Btor> {
         self.0.get_btor()
@@ -41,7 +36,7 @@ impl SmtExpr for BitwuzlaExpr {
     type FPExpression = FpExpr;
 
     fn any(&self, width: u32) -> Self {
-        BitwuzlaExpr(BV::new(self.0.get_btor().clone(), width as u64, None))
+        Self(BV::new(self.0.get_btor(), width as u64, None))
     }
 
     fn from_fp(fp: &Self::FPExpression, rm: RoundingMode, signed: bool) -> crate::Result<Self> {
@@ -58,7 +53,7 @@ impl SmtExpr for BitwuzlaExpr {
     fn zero_ext(&self, width: u32) -> Self {
         assert!(self.size() <= width);
         match self.size().cmp(&width) {
-            Ordering::Less => BitwuzlaExpr(self.0.uext(width as u64 - self.size() as u64)),
+            Ordering::Less => Self(self.0.uext(width as u64 - self.size() as u64)),
             Ordering::Equal => self.clone(),
             Ordering::Greater => todo!(),
         }
@@ -69,7 +64,7 @@ impl SmtExpr for BitwuzlaExpr {
     fn sign_ext(&self, width: u32) -> Self {
         assert!(self.size() <= width);
         match self.size().cmp(&width) {
-            Ordering::Less => BitwuzlaExpr(self.0.sext(width as u64 - self.size() as u64)),
+            Ordering::Less => Self(self.0.sext(width as u64 - self.size() as u64)),
             Ordering::Equal => self.clone(),
             Ordering::Greater => todo!(),
         }
@@ -330,17 +325,17 @@ impl SmtExpr for BitwuzlaExpr {
                 Some(val) =>
                 // If we for some reason get less binary digits, pad the start with zeroes.
                 {
-                    format!("{:0width$b}", val)
+                    format!("{val:0width$b}")
                 }
                 None => match self.0.as_binary_str_pattern() {
-                    Some(val) => format!("0b{} (others possible)", val),
+                    Some(val) => format!("0b{val} (others possible)"),
                     None => String::from("UNSAT"),
                 },
             }
         } else {
             let upper = self.slice(64, self.size() - 1).to_binary_string();
             let lower = self.slice(0, 63).to_binary_string();
-            format!("{}{}", upper, lower)
+            format!("{upper}{lower}")
         }
     }
 
@@ -375,7 +370,7 @@ impl SmtExpr for BitwuzlaExpr {
 
         let result = self.add(other).simplify();
         let overflow = self.uaddo(other).simplify();
-        let saturated = BitwuzlaExpr(BV::max_signed(self.get_ctx(), self.size() as u64));
+        let saturated = Self(BV::max_signed(self.get_ctx(), self.size() as u64));
 
         overflow.ite(&saturated, &result)
     }
@@ -392,8 +387,8 @@ impl SmtExpr for BitwuzlaExpr {
         let result = self.add(other).simplify();
         let overflow = self.saddo(other).simplify();
 
-        let min = BitwuzlaExpr(BV::min_signed(self.get_ctx(), width as u64));
-        let max = BitwuzlaExpr(BV::max_signed(self.get_ctx(), width as u64));
+        let min = Self(BV::min_signed(self.get_ctx(), width as u64));
+        let max = Self(BV::max_signed(self.get_ctx(), width as u64));
 
         // Check the sign bit if max or min should be given on overflow.
         let is_negative = self.slice(self.size() - 1, self.size() - 1).simplify();
@@ -412,7 +407,7 @@ impl SmtExpr for BitwuzlaExpr {
         let result = self.sub(other).simplify();
         let overflow = self.usubo(other).simplify();
 
-        let zero = BitwuzlaExpr(BV::zero(self.get_ctx(), self.size() as u64));
+        let zero = Self(BV::zero(self.get_ctx(), self.size() as u64));
         overflow.ite(&zero, &result)
     }
 
@@ -427,8 +422,8 @@ impl SmtExpr for BitwuzlaExpr {
         let overflow = self.ssubo(other).simplify();
 
         let width = self.size();
-        let min = BitwuzlaExpr(BV::min_signed(self.get_ctx(), width as u64));
-        let max = BitwuzlaExpr(BV::max_signed(self.get_ctx(), width as u64));
+        let min = Self(BV::min_signed(self.get_ctx(), width as u64));
+        let max = Self(BV::max_signed(self.get_ctx(), width as u64));
 
         // Check the sign bit if max or min should be given on overflow.
         let is_negative = self.slice(self.size() - 1, self.size() - 1).simplify();

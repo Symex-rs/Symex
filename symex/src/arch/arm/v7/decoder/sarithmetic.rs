@@ -274,7 +274,7 @@ impl Decode for Smmla {
         let rm = rm.local_into();
         let ra = ra.local_into();
 
-        let immediate = general_assembly::operand::Operand::Immediate(general_assembly::prelude::DataWord::Word64(0x80000000));
+        let immediate = general_assembly::operand::Operand::Immediate(general_assembly::prelude::DataWord::Word64(0x8000_0000));
         pseudo!([
             rd:u32; rn:u32; rm:u32; ra:u32;
             immediate:i32;
@@ -298,7 +298,7 @@ impl Decode for Smmls {
         let rm = rm.local_into();
         let ra = ra.local_into();
 
-        let immediate = general_assembly::operand::Operand::Immediate(general_assembly::prelude::DataWord::Word64(0x80000000));
+        let immediate = general_assembly::operand::Operand::Immediate(general_assembly::prelude::DataWord::Word64(0x8000_0000));
         pseudo!([
             rd:u32; rn:u32; rm:u32; ra:u32;
             immediate:i32;
@@ -321,7 +321,7 @@ impl Decode for Smmul {
         let rn = rn.local_into();
         let rm = rm.local_into();
 
-        let immediate = general_assembly::operand::Operand::Immediate(general_assembly::prelude::DataWord::Word64(0x80000000));
+        let immediate = general_assembly::operand::Operand::Immediate(general_assembly::prelude::DataWord::Word64(0x8000_0000));
         pseudo!([
             rn:u32;rm:u32;rd:u32;
             immediate:i32;

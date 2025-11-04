@@ -1,4 +1,12 @@
-#![allow(clippy::unnecessary_cast)]
+#![allow(
+    clippy::unnecessary_cast,
+    clippy::cognitive_complexity,
+    clippy::too_many_lines,
+    clippy::match_same_arms,
+    clippy::all,
+    clippy::pedantic,
+    clippy::nursery
+)]
 use disarmv7::prelude::{arch::set_flags::LocalUnwrap, Condition as ARMCondition, Operation as V7Operation, Register, Shift};
 use general_assembly::{
     condition::Condition,
@@ -124,9 +132,9 @@ impl Convert for (usize, V7Operation) {
         match self.1 {
             V7Operation::AdcImmediate(adc) => {
                 // Ensure that all fields are used
-                consume!((s.unwrap_or(false),rd,rn,imm) from adc);
+                consume!((s.unwrap_or_else(|| false),rd,rn,imm) from adc);
                 let (rd, rn, imm): (Option<Operand>, Operand, Operand) = (rd.local_into(), rn.local_into(), imm.local_into());
-                let rd = rd.unwrap_or(rn.clone());
+                let rd = rd.unwrap_or_else(|| rn.clone());
                 pseudo!([
                     let result: u32 = rn adc imm;
                     if (s) {
@@ -149,7 +157,7 @@ impl Convert for (usize, V7Operation) {
                     ) from adc
                 );
                 let (rd, rn, rm) = (rd.local_into(), rn.local_into(), rm.local_into());
-                let rd = rd.unwrap_or(rn.clone());
+                let rd = rd.unwrap_or_else(|| rn.clone());
                 local!(shifted);
                 let mut ret = vec![];
                 shift!(ret.shift rm -> shifted);
@@ -175,7 +183,7 @@ impl Convert for (usize, V7Operation) {
                     ) from add
                 );
 
-                let (rd, rn, imm) = (rd.unwrap_or(rn).local_into(), rn.local_into(), imm.local_into());
+                let (rd, rn, imm) = (rd.unwrap_or_else(|| rn).local_into(), rn.local_into(), imm.local_into());
                 pseudo!([
                     let result:u32 = imm + rn;
                     if (s) {
@@ -204,7 +212,7 @@ impl Convert for (usize, V7Operation) {
                 };
 
                 let (rd, rn, rm) = (rd.local_into(), rn.local_into(), rm.local_into());
-                let rd = rd.unwrap_or(rn.clone());
+                let rd = rd.unwrap_or_else(|| rn.clone());
 
                 let mut ret = vec![];
                 local!(shifted);
@@ -282,7 +290,7 @@ impl Convert for (usize, V7Operation) {
                 consume!((rd,imm,add) from adr);
                 let (rd, imm) = (rd.local_into(), imm.local_into());
                 pseudo!([
-                    let aligned = Register("PC+") & 0xFFFFFFFC.local_into();
+                    let aligned = Register("PC+") & 0xFFFF_FFFC.local_into();
 
                     let result = aligned - imm;
                     if (add) {
@@ -608,14 +616,14 @@ impl Convert for (usize, V7Operation) {
                         ret.push(Operation::Move {
                             destination: SpecialRegister::PRIMASK.local_into(),
                             source: ((0b0u32).local_into()),
-                        })
+                        });
                     }
                     if affect_fault {
                         // force lsb to 0
                         ret.push(Operation::Move {
                             destination: SpecialRegister::FAULTMASK.local_into(),
                             source: ((0b0u32).local_into()),
-                        })
+                        });
                     }
                 } else {
                     if affect_pri {
@@ -623,13 +631,13 @@ impl Convert for (usize, V7Operation) {
                         ret.push(Operation::Move {
                             destination: SpecialRegister::PRIMASK.local_into(),
                             source: ((0b1u32).local_into()),
-                        })
+                        });
                     }
                     if affect_fault {
                         ret.push(Operation::Move {
                             destination: SpecialRegister::FAULTMASK.local_into(),
                             source: ((0b1u32).local_into()),
-                        })
+                        });
                     }
                 }
                 ret
@@ -649,7 +657,7 @@ impl Convert for (usize, V7Operation) {
                     (
                         s.unwrap_or(false),
                         rn.local_into(),
-                        rd.local_into().unwrap_or(rn.clone()),
+                        rd.local_into().unwrap_or_else(|| rn.clone()),
                         imm.local_into(),
                         carry
                     ) from eor
@@ -680,7 +688,7 @@ impl Convert for (usize, V7Operation) {
                 match s {
                     true => shift!(ret.shift rm -> shifted set c for rm),
                     false => shift!(ret.shift rm -> shifted),
-                };
+                }
                 pseudo!(ret.extend[
                     let result:u32 = rn ^ shifted;
                     rd = result;
@@ -841,7 +849,7 @@ impl Convert for (usize, V7Operation) {
                 let new_t = rt.local_into();
                 pseudo!([
                     // Alling to 4
-                    let base:u32 = Register("PC+")& 0xFFFFFFFC.local_into();
+                    let base:u32 = Register("PC+")& 0xFFFF_FFFC.local_into();
 
                     let address:u32 = base - imm;
                     if (add) {
@@ -936,7 +944,7 @@ impl Convert for (usize, V7Operation) {
                     imm.local_into()
                     ) from ldrb);
                 pseudo!([
-                    let base = Register("PC+") & 0xFFFFFFFC.local_into();
+                    let base = Register("PC+") & 0xFFFF_FFFC.local_into();
 
                     let address = base - imm;
                     if (add) {
@@ -1064,7 +1072,7 @@ impl Convert for (usize, V7Operation) {
                 );
 
                 pseudo!([
-                    let aligned:u32 = Register("PC+") & 0xFFFFFFFC.local_into();
+                    let aligned:u32 = Register("PC+") & 0xFFFF_FFFC.local_into();
 
                     let address:u32 = aligned - imm;
                     if (add) {
@@ -1146,7 +1154,7 @@ impl Convert for (usize, V7Operation) {
                     ) from ldrsb
                 );
                 pseudo!([
-                    let base = Register("PC+") & 0xFFFFFFFC.local_into();
+                    let base = Register("PC+") & 0xFFFF_FFFC.local_into();
 
                     let address = base - imm;
                     if (add) {
@@ -1257,7 +1265,7 @@ impl Convert for (usize, V7Operation) {
                     ) from ldrsh
                 );
                 pseudo!([
-                    let base:u32 = Register("PC+") & 0xFFFFFFFC.local_into();
+                    let base:u32 = Register("PC+") & 0xFFFF_FFFC.local_into();
 
                     let address:u32 = base - imm;
                     if (add) {

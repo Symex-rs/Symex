@@ -1,16 +1,19 @@
 #![cfg(test)]
+#![allow(clippy::cast_sign_loss, clippy::cast_possible_wrap)]
+
+use std::sync::Arc;
 
 use general_assembly::operand::{DataWord, Operand};
 use hashbrown::HashMap;
 
 use crate::{
     arch::{Architecture, NoArchitectureOverride, RISCV},
-    defaults::boolector::DefaultCompositionNoLogger,
+    defaults::bitwuzla::DefaultCompositionNoLogger,
     executor::{hooks::HookContainer, instruction::Instruction, state::GAState, vm::VM, GAExecutor},
     logging::NoLogger,
     path_selection::PathSelector,
     project::{dwarf_helper::SubProgramMap, Project},
-    smt::{smt_boolector::Boolector, SmtSolver},
+    smt::{bitwuzla::Bitwuzla, SmtExpr, SmtSolver},
     Endianness,
     WordSize,
 };
@@ -86,13 +89,13 @@ macro_rules! generate_test_data {
 }
 
 fn setup_test_vm() -> VM<DefaultCompositionNoLogger> {
-    let ctx = Boolector::new();
-    let project_global = Box::new(Project::manual_project(vec![], 0, 0, WordSize::Bit32, Endianness::Little, HashMap::new()));
-    let project: &'static Project = Box::leak(project_global);
+    let ctx = Bitwuzla::new();
+    let project_global = Box::new(Project::<Bitwuzla>::manual_project(vec![], 0, 0, WordSize::Bit32, Endianness::Little, HashMap::new()));
+    let project = Arc::new(project_global);
     let mut hooks = HookContainer::new();
     RISCV {}.add_hooks(&mut hooks, &mut SubProgramMap::empty());
     let state = GAState::<DefaultCompositionNoLogger>::create_test_state(
-        project,
+        project.clone(),
         ctx.clone(),
         ctx.clone(),
         0,
@@ -112,7 +115,7 @@ fn translate_instruction(instruction_bytes: [u8; 4]) -> Instruction<DefaultCompo
 }
 
 fn init_executor(vm: &mut VM<DefaultCompositionNoLogger>) -> GAExecutor<'_, DefaultCompositionNoLogger> {
-    let project = vm.project;
+    let project = vm.project.clone();
 
     let state = vm.paths.get_path().unwrap().state;
 
@@ -250,7 +253,7 @@ fn run_test_with_mem(test_data: &TestData, mem_addr: u32, init_value: u32, expec
 
 #[test]
 fn test_add() {
-    let test_data = generate_test_data!(0x00b50533u32.to_le_bytes(), ("A0", 0x01, 0x02), ("A1", 0x01, 0x01));
+    let test_data = generate_test_data!(0x00b5_0533u32.to_le_bytes(), ("A0", 0x01, 0x02), ("A1", 0x01, 0x01));
     run_test_no_mem(&test_data);
 }
 
@@ -259,16 +262,16 @@ fn test_add_wrap() {
     // RISCV ignores overflow and result is wrapped, from ISA:
     //"Arithmetic overflow is ignored and the result is simply the low XLEN bits of
     //"Arithmetic the result."
-    let test_data = generate_test_data!(0x00b50533u32.to_le_bytes(), ("A0", 0xffffffffu32, 0x0u32), ("A1", 0x1u32, 0x1u32));
+    let test_data = generate_test_data!(0x00b5_0533u32.to_le_bytes(), ("A0", 0xffff_ffffu32, 0x0u32), ("A1", 0x1u32, 0x1u32));
     run_test_no_mem(&test_data);
 
-    let test_data = generate_test_data!(0x00b50533u32.to_le_bytes(), ("A0", 0x7fffffffu32, 0x80000000u32), ("A1", 0x1u32, 0x1u32));
+    let test_data = generate_test_data!(0x00b5_0533u32.to_le_bytes(), ("A0", 0x7fff_ffffu32, 0x8000_0000u32), ("A1", 0x1u32, 0x1u32));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_sub() {
-    let test_data = generate_test_data!(0x40b50533u32.to_le_bytes(), ("A0", 25, 0x06), ("A1", 19, 19));
+    let test_data = generate_test_data!(0x40b5_0533u32.to_le_bytes(), ("A0", 25, 0x06), ("A1", 19, 19));
     run_test_no_mem(&test_data);
 }
 
@@ -277,244 +280,244 @@ fn test_sub_wrap() {
     // RISCV ignores overflow and result is wrapped, from ISA:
     //"Arithmetic overflow is ignored and the result is simply the low XLEN bits of
     //"Arithmetic the result."
-    let test_data = generate_test_data!(0x40b50533u32.to_le_bytes(), ("A0", 0x80000000u32, 0x7fffffffu32), ("A1", 0x01u32, 0x01u32));
+    let test_data = generate_test_data!(0x40b5_0533u32.to_le_bytes(), ("A0", 0x8000_0000u32, 0x7fff_ffffu32), ("A1", 0x01u32, 0x01u32));
     run_test_no_mem(&test_data);
 
-    let test_data = generate_test_data!(0x40b50533u32.to_le_bytes(), ("A0", 0x7fffffffu32, 0x80000000u32), ("A1", 0xffffffffu32, 0xffffffffu32));
+    let test_data = generate_test_data!(0x40b5_0533u32.to_le_bytes(), ("A0", 0x7fff_ffffu32, 0x8000_0000u32), ("A1", 0xffff_ffffu32, 0xffff_ffffu32));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_slt() {
-    let test_data = generate_test_data!(0x00b52533u32.to_le_bytes(), ("A0", (-25i32) as u32, 1), ("A1", 5, 5));
+    let test_data = generate_test_data!(0x00b5_2533u32.to_le_bytes(), ("A0", (-25i32) as u32, 1), ("A1", 5, 5));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_sltu() {
-    let test_data = generate_test_data!(0x00b53533u32.to_le_bytes(), ("A0", 3, 1), ("A1", 5, 5));
+    let test_data = generate_test_data!(0x00b5_3533u32.to_le_bytes(), ("A0", 3, 1), ("A1", 5, 5));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_sltu_signed() {
-    let test_data = generate_test_data!(0x00b53533u32.to_le_bytes(), ("A0", (-25i32) as u32, 0), ("A1", 5, 5));
+    let test_data = generate_test_data!(0x00b5_3533u32.to_le_bytes(), ("A0", (-25i32) as u32, 0), ("A1", 5, 5));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_xor() {
-    let test_data = generate_test_data!(0x00b54533u32.to_le_bytes(), ("A0", 13, 21), ("A1", 24, 24));
+    let test_data = generate_test_data!(0x00b5_4533u32.to_le_bytes(), ("A0", 13, 21), ("A1", 24, 24));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_or() {
-    let test_data = generate_test_data!(0x00b56533u32.to_le_bytes(), ("A0", 0b0110111, 0b0111111), ("A1", 0b0001111, 0b0001111));
+    let test_data = generate_test_data!(0x00b5_6533u32.to_le_bytes(), ("A0", 0b011_0111, 0b011_1111), ("A1", 0b000_1111, 0b000_1111));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_and() {
-    let test_data = generate_test_data!(0x00b57533u32.to_le_bytes(), ("A0", 0b0110111, 0b0000111), ("A1", 0b0001111, 0b0001111));
+    let test_data = generate_test_data!(0x00b5_7533u32.to_le_bytes(), ("A0", 0b011_0111, 0b000_0111), ("A1", 0b000_1111, 0b000_1111));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_srl() {
-    let test_data = generate_test_data!(0x00b55533u32.to_le_bytes(), ("A0", 0b01111001, 0b00011110), ("A1", 0x02, 0x02));
+    let test_data = generate_test_data!(0x00b5_5533u32.to_le_bytes(), ("A0", 0b0111_1001, 0b0001_1110), ("A1", 0x02, 0x02));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_srl_shift_exceed_max_bits() {
     // This checks that the shift amount does not exceed 5 bits
-    // 0xFFFFFFFF should be masked to 0x1F
-    let test_data = generate_test_data!(0x00b55533u32.to_le_bytes(), ("A0", 0x80000000u32, 0x1u32), ("A1", 0xffffffffu32, 0xffffffffu32));
+    // 0xFFFF_FFFF should be masked to 0x1F
+    let test_data = generate_test_data!(0x00b5_5533u32.to_le_bytes(), ("A0", 0x8000_0000u32, 0x1u32), ("A1", 0xffff_ffffu32, 0xffff_ffffu32));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_sra_leading_0() {
-    let test_data = generate_test_data!(0x40b55533u32.to_le_bytes(), ("A0", 0b01111001, 0b00011110), ("A1", 0x02, 0x02));
+    let test_data = generate_test_data!(0x40b5_5533u32.to_le_bytes(), ("A0", 0b0111_1001, 0b0001_1110), ("A1", 0x02, 0x02));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_sra_leading_1() {
-    let test_data = generate_test_data!(0x40b55533u32.to_le_bytes(), ("A0", 0xf0000000, 0xffffffff), ("A1", 31, 31));
+    let test_data = generate_test_data!(0x40b5_5533u32.to_le_bytes(), ("A0", 0xf000_0000, 0xffff_ffff), ("A1", 31, 31));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_sll() {
-    let test_data = generate_test_data!(0x00b51533u32.to_le_bytes(), ("A0", 0b01111001, 0x1e400000), ("A1", 22, 22));
+    let test_data = generate_test_data!(0x00b5_1533u32.to_le_bytes(), ("A0", 0b0111_1001, 0x1e40_0000), ("A1", 22, 22));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_sll_shift_exceeds_max_bits() {
     // This checks that the shift amount does not exceed 5 bits
-    // 0xFFFFFFFF should be masked to 0x1F
-    let test_data = generate_test_data!(0x00b51533u32.to_le_bytes(), ("A0", 0x1u32, 0x80000000u32), ("A1", 0xffffffffu32, 0xffffffffu32));
+    // 0xFFFF_FFFF should be masked to 0x1F
+    let test_data = generate_test_data!(0x00b5_1533u32.to_le_bytes(), ("A0", 0x1u32, 0x8000_0000u32), ("A1", 0xffff_ffffu32, 0xffff_ffffu32));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_addi() {
-    let test_data = generate_test_data!(0x00a50513u32.to_le_bytes(), ("A0", 0x01, 0x01 + 10));
+    let test_data = generate_test_data!(0x00a5_0513u32.to_le_bytes(), ("A0", 0x01, 0x01 + 10));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_slti() {
-    let test_data = generate_test_data!(0x00a52513u32.to_le_bytes(), ("A0", (-25i32) as u32, 1));
+    let test_data = generate_test_data!(0x00a5_2513u32.to_le_bytes(), ("A0", (-25i32) as u32, 1));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_sltiu() {
-    let test_data = generate_test_data!(0x00a53513u32.to_le_bytes(), ("A0", 3, 1));
+    let test_data = generate_test_data!(0x00a5_3513u32.to_le_bytes(), ("A0", 3, 1));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_sltiu_signed() {
-    let test_data = generate_test_data!(0x00a53513u32.to_le_bytes(), ("A0", (-25i32) as u32, 0));
+    let test_data = generate_test_data!(0x00a5_3513u32.to_le_bytes(), ("A0", (-25i32) as u32, 0));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_xori() {
-    let test_data = generate_test_data!(0x00a54513u32.to_le_bytes(), ("A0", 0xf12, 0xf18));
+    let test_data = generate_test_data!(0x00a5_4513u32.to_le_bytes(), ("A0", 0xf12, 0xf18));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_ori() {
-    let test_data = generate_test_data!(0x00f56513u32.to_le_bytes(), ("A0", 0b0110111, 0b0111111));
+    let test_data = generate_test_data!(0x00f5_6513u32.to_le_bytes(), ("A0", 0b011_0111, 0b011_1111));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_andi() {
-    let test_data = generate_test_data!(0x00f57513u32.to_le_bytes(), ("A0", 0b0110111, 0b0000111));
+    let test_data = generate_test_data!(0x00f5_7513u32.to_le_bytes(), ("A0", 0b011_0111, 0b000_0111));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_slli() {
-    let test_data = generate_test_data!(0x00451513u32.to_le_bytes(), ("A0", 0b01111001, 0b011110010000));
+    let test_data = generate_test_data!(0x0045_1513u32.to_le_bytes(), ("A0", 0b0111_1001, 0b0111_1001_0000));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_srli() {
-    let test_data = generate_test_data!(0x00455513u32.to_le_bytes(), ("A0", 0b01111001, 0b0111));
+    let test_data = generate_test_data!(0x0045_5513u32.to_le_bytes(), ("A0", 0b0111_1001, 0b0111));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn teat_srai_leading_0() {
-    let test_data = generate_test_data!(0x40455513u32.to_le_bytes(), ("A0", 0b01111001, 0b0111));
+    let test_data = generate_test_data!(0x4045_5513u32.to_le_bytes(), ("A0", 0b0111_1001, 0b0111));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_srai_leading_1() {
-    let test_data = generate_test_data!(0x40455513u32.to_le_bytes(), ("A0", 0xf0000000, 0xff000000));
+    let test_data = generate_test_data!(0x4045_5513u32.to_le_bytes(), ("A0", 0xf000_0000, 0xff00_0000));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_lb() {
     let test_data = generate_test_data!(
-        0x00e58503u32.to_le_bytes(),
+        0x00e5_8503u32.to_le_bytes(),
         ("A0", 0, 0xef as u8 as i8 as i32 as u32),
         ("A1", (-4i32 as u32), (-4i32 as u32))
     ); // Hacky method for sign extension
 
-    run_test_with_mem(&test_data, 10i32 as u32, 0xdeadbeef, 0xdeadbeef);
+    run_test_with_mem(&test_data, 10i32 as u32, 0xdead_beef, 0xdead_beef);
 }
 
 #[test]
 fn test_lh() {
     let test_data = generate_test_data!(
-        0x00e59503u32.to_le_bytes(),
+        0x00e5_9503u32.to_le_bytes(),
         ("A0", 0, 0xbeef as u16 as i16 as i32 as u32),
         ("A1", (-4i32 as u32), (-4i32 as u32))
     ); // Hacky method for sign extension
 
-    run_test_with_mem(&test_data, 10i32 as u32, 0xdeadbeef, 0xdeadbeef);
+    run_test_with_mem(&test_data, 10i32 as u32, 0xdead_beef, 0xdead_beef);
 }
 
 #[test]
 fn test_lw() {
-    let test_data = generate_test_data!(0x00e5a503u32.to_le_bytes(), ("A0", 0, 0xdeadbeef), ("A1", (-4i32 as u32), (-4i32 as u32)));
+    let test_data = generate_test_data!(0x00e5_a503u32.to_le_bytes(), ("A0", 0, 0xdead_beef), ("A1", (-4i32 as u32), (-4i32 as u32)));
 
-    run_test_with_mem(&test_data, 10i32 as u32, 0xdeadbeef, 0xdeadbeef);
+    run_test_with_mem(&test_data, 10i32 as u32, 0xdead_beef, 0xdead_beef);
 }
 
 #[test]
 fn test_lbu() {
-    let test_data = generate_test_data!(0x00e5c503u32.to_le_bytes(), ("A0", 0, 0xef as u32), ("A1", (-4i32 as u32), (-4i32 as u32)));
+    let test_data = generate_test_data!(0x00e5_c503u32.to_le_bytes(), ("A0", 0, 0xef as u32), ("A1", (-4i32 as u32), (-4i32 as u32)));
 
-    run_test_with_mem(&test_data, 10i32 as u32, 0xdeadbeef, 0xdeadbeef);
+    run_test_with_mem(&test_data, 10i32 as u32, 0xdead_beef, 0xdead_beef);
 }
 
 #[test]
 fn test_lhu() {
-    let test_data = generate_test_data!(0x00e5d503u32.to_le_bytes(), ("A0", 0, 0xbeef), ("A1", (-4i32 as u32), (-4i32 as u32)));
+    let test_data = generate_test_data!(0x00e5_d503u32.to_le_bytes(), ("A0", 0, 0xbeef), ("A1", (-4i32 as u32), (-4i32 as u32)));
 
-    run_test_with_mem(&test_data, 10i32 as u32, 0xdeadbeef, 0xdeadbeef);
+    run_test_with_mem(&test_data, 10i32 as u32, 0xdead_beef, 0xdead_beef);
 }
 
 #[test]
 fn test_sb() {
-    let test_data = generate_test_data!(0x00a58723u32.to_le_bytes(), ("A0", 0xdeadbeef, 0xdeadbeef), ("A1", (-4i32 as u32), (-4i32 as u32)));
+    let test_data = generate_test_data!(0x00a5_8723u32.to_le_bytes(), ("A0", 0xdead_beef, 0xdead_beef), ("A1", (-4i32 as u32), (-4i32 as u32)));
 
     run_test_with_mem(&test_data, 10i32 as u32, 0x0, 0xef);
 }
 
 #[test]
 fn test_sh() {
-    let test_data = generate_test_data!(0x00a59723u32.to_le_bytes(), ("A0", 0xdeadbeef, 0xdeadbeef), ("A1", (-4i32 as u32), (-4i32 as u32)));
+    let test_data = generate_test_data!(0x00a5_9723u32.to_le_bytes(), ("A0", 0xdead_beef, 0xdead_beef), ("A1", (-4i32 as u32), (-4i32 as u32)));
 
     run_test_with_mem(&test_data, 10i32 as u32, 0x0, 0xbeef);
 }
 
 #[test]
 fn test_sw() {
-    let test_data = generate_test_data!(0x00a5a723u32.to_le_bytes(), ("A0", 0xdeadbeef, 0xdeadbeef), ("A1", (-4i32 as u32), (-4i32 as u32)));
+    let test_data = generate_test_data!(0x00a5_a723u32.to_le_bytes(), ("A0", 0xdead_beef, 0xdead_beef), ("A1", (-4i32 as u32), (-4i32 as u32)));
 
-    run_test_with_mem(&test_data, 10i32 as u32, 0x0, 0xdeadbeef);
+    run_test_with_mem(&test_data, 10i32 as u32, 0x0, 0xdead_beef);
 }
 
 #[test]
 fn test_beq_ne() {
     let start_pc = 16;
-    let test_data = generate_test_data!(0x00b50c63u32.to_le_bytes(), ("A0", 0x01, 0x01), ("A1", 5, 5), ("PC", start_pc, start_pc + 4));
+    let test_data = generate_test_data!(0x00b5_0c63u32.to_le_bytes(), ("A0", 0x01, 0x01), ("A1", 5, 5), ("PC", start_pc, start_pc + 4));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_beq_eq() {
     let start_pc = 16;
-    let test_data = generate_test_data!(0x00b50c63u32.to_le_bytes(), ("A0", 5, 5), ("A1", 5, 5), ("PC", start_pc, start_pc + 24));
+    let test_data = generate_test_data!(0x00b5_0c63u32.to_le_bytes(), ("A0", 5, 5), ("A1", 5, 5), ("PC", start_pc, start_pc + 24));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_bne_ne() {
     let start_pc = 16;
-    let test_data = generate_test_data!(0x00b51c63u32.to_le_bytes(), ("A0", 0x01, 0x01), ("A1", 5, 5), ("PC", start_pc, start_pc + 24));
+    let test_data = generate_test_data!(0x00b5_1c63u32.to_le_bytes(), ("A0", 0x01, 0x01), ("A1", 5, 5), ("PC", start_pc, start_pc + 24));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_bne_eq() {
     let start_pc = 16;
-    let test_data = generate_test_data!(0x00b51c63u32.to_le_bytes(), ("A0", 5, 5), ("A1", 5, 5), ("PC", start_pc, start_pc + 4));
+    let test_data = generate_test_data!(0x00b5_1c63u32.to_le_bytes(), ("A0", 5, 5), ("A1", 5, 5), ("PC", start_pc, start_pc + 4));
     run_test_no_mem(&test_data);
 }
 
@@ -522,7 +525,7 @@ fn test_bne_eq() {
 fn test_blt_gt() {
     let start_pc = 16;
     let test_data = generate_test_data!(
-        0x00b54c63u32.to_le_bytes(),
+        0x00b5_4c63u32.to_le_bytes(),
         ("A0", 10, 10),
         ("A1", (-25i32) as u32, (-25i32) as u32),
         ("PC", start_pc, start_pc + 4)
@@ -533,7 +536,7 @@ fn test_blt_gt() {
 #[test]
 fn test_blt_eq() {
     let start_pc = 16;
-    let test_data = generate_test_data!(0x00b54c63u32.to_le_bytes(), ("A0", 5, 5), ("A1", 5, 5), ("PC", start_pc, start_pc + 4));
+    let test_data = generate_test_data!(0x00b5_4c63u32.to_le_bytes(), ("A0", 5, 5), ("A1", 5, 5), ("PC", start_pc, start_pc + 4));
     run_test_no_mem(&test_data);
 }
 
@@ -541,7 +544,7 @@ fn test_blt_eq() {
 fn test_blt_lt() {
     let start_pc = 16;
     let test_data = generate_test_data!(
-        0x00b54c63u32.to_le_bytes(),
+        0x00b5_4c63u32.to_le_bytes(),
         ("A0", (-25i32) as u32, (-25i32) as u32),
         ("A1", 5, 5),
         ("PC", start_pc, start_pc + 24)
@@ -553,7 +556,7 @@ fn test_blt_lt() {
 fn test_bge_gt() {
     let start_pc = 16;
     let test_data = generate_test_data!(
-        0x00b55c63u32.to_le_bytes(),
+        0x00b5_5c63u32.to_le_bytes(),
         ("A0", 10, 10),
         ("A1", (-25i32) as u32, (-25i32) as u32),
         ("PC", start_pc, start_pc + 24)
@@ -564,7 +567,7 @@ fn test_bge_gt() {
 #[test]
 fn test_bge_eq() {
     let start_pc = 16;
-    let test_data = generate_test_data!(0x00b55c63u32.to_le_bytes(), ("A0", 5, 5), ("A1", 5, 5), ("PC", start_pc, start_pc + 24));
+    let test_data = generate_test_data!(0x00b5_5c63u32.to_le_bytes(), ("A0", 5, 5), ("A1", 5, 5), ("PC", start_pc, start_pc + 24));
     run_test_no_mem(&test_data);
 }
 
@@ -572,7 +575,7 @@ fn test_bge_eq() {
 fn test_bge_lt() {
     let start_pc = 16;
     let test_data = generate_test_data!(
-        0x00b55c63u32.to_le_bytes(),
+        0x00b5_5c63u32.to_le_bytes(),
         ("A0", (-25i32) as u32, (-25i32) as u32),
         ("A1", 5, 5),
         ("PC", start_pc, start_pc + 4)
@@ -584,8 +587,8 @@ fn test_bge_lt() {
 fn test_bltu_gt() {
     let start_pc = 16;
     let test_data = generate_test_data!(
-        0x00b56c63u32.to_le_bytes(),
-        ("A0", (-25i32) as u32, (-25i32) as u32), //Unsigned interpretation: [(-25i32) = 11100111u32] > 10
+        0x00b5_6c63u32.to_le_bytes(),
+        ("A0", (-25i32) as u32, (-25i32) as u32), //Unsigned interpretation: [(-25i32) = 1110_0111u32] > 10
         ("A1", 10, 10),
         ("PC", start_pc, start_pc + 4)
     );
@@ -595,7 +598,7 @@ fn test_bltu_gt() {
 #[test]
 fn test_bltu_eq() {
     let start_pc = 16;
-    let test_data = generate_test_data!(0x00b56c63u32.to_le_bytes(), ("A0", 5, 5), ("A1", 5, 5), ("PC", start_pc, start_pc + 4));
+    let test_data = generate_test_data!(0x00b5_6c63u32.to_le_bytes(), ("A0", 5, 5), ("A1", 5, 5), ("PC", start_pc, start_pc + 4));
     run_test_no_mem(&test_data);
 }
 
@@ -603,9 +606,9 @@ fn test_bltu_eq() {
 fn test_bltu_lt() {
     let start_pc = 16;
     let test_data = generate_test_data!(
-        0x00b56c63u32.to_le_bytes(),
+        0x00b5_6c63u32.to_le_bytes(),
         ("A0", 10, 10),
-        ("A1", (-25i32) as u32, (-25i32) as u32), //Unsigned interpretation: [(-25i32) = 11100111u32] > 10
+        ("A1", (-25i32) as u32, (-25i32) as u32), //Unsigned interpretation: [(-25i32) = 1110_0111u32] > 10
         ("PC", start_pc, start_pc + 24)
     );
     run_test_no_mem(&test_data);
@@ -615,8 +618,8 @@ fn test_bltu_lt() {
 fn test_bgeu_gt() {
     let start_pc = 16;
     let test_data = generate_test_data!(
-        0x00b57c63u32.to_le_bytes(),
-        ("A0", (-25i32) as u32, (-25i32) as u32), //Unsigned interpretation: [(-25i32) = 11100111u32] > 10
+        0x00b5_7c63u32.to_le_bytes(),
+        ("A0", (-25i32) as u32, (-25i32) as u32), //Unsigned interpretation: [(-25i32) = 1110_0111u32] > 10
         ("A1", 10, 10),
         ("PC", start_pc, start_pc + 24)
     );
@@ -626,7 +629,7 @@ fn test_bgeu_gt() {
 #[test]
 fn test_bgeu_eq() {
     let start_pc = 16;
-    let test_data = generate_test_data!(0x00b57c63u32.to_le_bytes(), ("A0", 5, 5), ("A1", 5, 5), ("PC", start_pc, start_pc + 24));
+    let test_data = generate_test_data!(0x00b5_7c63u32.to_le_bytes(), ("A0", 5, 5), ("A1", 5, 5), ("PC", start_pc, start_pc + 24));
     run_test_no_mem(&test_data);
 }
 
@@ -634,9 +637,9 @@ fn test_bgeu_eq() {
 fn test_bgeu_lt() {
     let start_pc = 16;
     let test_data = generate_test_data!(
-        0x00b57c63u32.to_le_bytes(),
+        0x00b5_7c63u32.to_le_bytes(),
         ("A0", 10, 10),
-        ("A1", (-25i32) as u32, (-25i32) as u32), //Unsigned interpretation: [(-25i32) = 11100111u32] > 10
+        ("A1", (-25i32) as u32, (-25i32) as u32), //Unsigned interpretation: [(-25i32) = 1110_0111u32] > 10
         ("PC", start_pc, start_pc + 4)
     );
     run_test_no_mem(&test_data);
@@ -645,20 +648,20 @@ fn test_bgeu_lt() {
 #[test]
 fn test_jal() {
     let start_pc = 16;
-    let test_data = generate_test_data!(0x0100056fu32.to_le_bytes(), ("A0", 0x0, start_pc + 4), ("PC", start_pc, start_pc + 16));
+    let test_data = generate_test_data!(0x0100_056fu32.to_le_bytes(), ("A0", 0x0, start_pc + 4), ("PC", start_pc, start_pc + 16));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_lui() {
-    let test_data = generate_test_data!(0x03039537u32.to_le_bytes(), ("A0", 65829842, 12345 << 12));
+    let test_data = generate_test_data!(0x0303_9537u32.to_le_bytes(), ("A0", 6582_9842, 12345 << 12));
     run_test_no_mem(&test_data);
 }
 
 #[test]
 fn test_auipc() {
     let start_pc = 16;
-    let test_data = generate_test_data!(0x00018517u32.to_le_bytes(), ("A0", 64763252, start_pc + (24 << 12)), ("PC", start_pc, start_pc + 4));
+    let test_data = generate_test_data!(0x0001_8517u32.to_le_bytes(), ("A0", 6476_3252, start_pc + (24 << 12)), ("PC", start_pc, start_pc + 4));
     run_test_no_mem(&test_data);
 }
 
@@ -676,7 +679,7 @@ fn test_jalr() {
     let address: i32 = (xs1 + offset) & !1; // `& !1` clears the least significant bit
 
     let test_data = generate_test_data!(
-        0xfe758567u32.to_le_bytes(),
+        0xfe75_8567u32.to_le_bytes(),
         ("A0", 0x0, start_pc as u32 + 4),
         ("A1", xs1 as u32, xs1 as u32),
         ("PC", start_pc as u32, address as u32)
@@ -686,6 +689,6 @@ fn test_jalr() {
 
 #[test]
 fn test_write_to_zero() {
-    let test_data = generate_test_data!(0x00b50533u32.to_le_bytes(), ("ZERO", 0x5u32, 0x0u32), ("A1", 0x1u32, 0x1u32));
+    let test_data = generate_test_data!(0x00b5_0533u32.to_le_bytes(), ("ZERO", 0x5u32, 0x0u32), ("A1", 0x1u32, 0x1u32));
     run_test_no_mem(&test_data);
 }

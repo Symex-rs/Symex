@@ -1,17 +1,15 @@
 #![deny(
     clippy::all,
     clippy::perf,
-    // clippy::pedantic,
-    // clippy::nursery,
+    clippy::pedantic,
+    clippy::nursery,
     rustdoc::all,
     // rust_2024_compatibility,
     rust_2018_idioms,
-    // warnings
+    warnings
 )]
 // Add exceptions for things that are not error prone.
 #![allow(
-    clippy::new_without_default,
-    clippy::uninlined_format_args,
     // clippy::module_name_repetitions,
     // clippy::too_many_arguments,
     // This is just not a bad thing.
@@ -27,7 +25,11 @@
     tail_expr_drop_order,
     clippy::cast_possible_truncation,
     clippy::cast_precision_loss,
-    clippy::match_like_matches_macro
+    clippy::match_like_matches_macro,
+    clippy::match_same_arms,
+    clippy::inline_always,
+    clippy::match_bool,
+
 )]
 // #![feature(non_null_from_ref)]
 
@@ -169,7 +171,7 @@ pub enum WordSize {
     Bit8,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum Endianness {
     Little,
     Big,

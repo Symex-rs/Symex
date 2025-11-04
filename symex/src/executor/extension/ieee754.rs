@@ -1,3 +1,4 @@
+#![allow(clippy::similar_names)]
 use anyhow::Context;
 use general_assembly::extension::ieee754::{Operand, OperandStorage, OperandType, Operations, RoundingMode};
 
@@ -19,21 +20,21 @@ pub struct FpState {
 
 impl FpState {
     /// Creates a new instance of FP state.
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             rounding_mode: RoundingMode::TiesTowardZero,
         }
     }
 }
 
-impl<'vm, C: Composition, FP> GAExecutor<'vm, C>
+impl<C: Composition, FP> GAExecutor<'_, C>
 // TODO: These must be moved.
 where
     C::SMT: SmtSolver<FpExpression = FP>,
     C: Composition<SmtFPExpression = FP>,
     FP: SmtFPExpr<Expression = C::SmtExpression>,
 {
-    pub fn get_fp_operand_value(&mut self, operand: Operand, destination_ty: OperandType, rm: RoundingMode, logger: &mut C::Logger) -> ResultOrTerminate<FP> {
+    pub fn get_fp_operand_value(&mut self, operand: Operand, destination_ty: OperandType, rm: RoundingMode, logger: &C::Logger) -> ResultOrTerminate<FP> {
         match operand.value {
             OperandStorage::Local(id) => {
                 //self.state.hooks.read_fp_register(operand,logger.ty, id, , memory)
@@ -103,7 +104,7 @@ where
         }
     }
 
-    fn set_fp_operand_value(&mut self, operand: Operand, value: FP, logger: &mut C::Logger, rm: RoundingMode) -> ResultOrTerminate<()> {
+    fn set_fp_operand_value(&mut self, operand: Operand, value: FP, logger: &C::Logger, rm: RoundingMode) -> ResultOrTerminate<()> {
         match operand.value {
             OperandStorage::Local(id) => {
                 //self.state.hooks.read_fp_register(operand,logger.ty, id, , memory)
@@ -164,11 +165,12 @@ where
     }
 
     fn rm(&self, rm: Option<RoundingMode>) -> RoundingMode {
-        rm.unwrap_or(self.state.fp_state.rounding_mode.clone())
+        rm.unwrap_or_else(|| self.state.fp_state.rounding_mode.clone())
     }
 
     // TODO: Look in to reducing the clones here.
-    pub fn execute_ieee754(&mut self, op: Operations, logger: &mut C::Logger) -> ResultOrTerminate<()> {
+    #[allow(clippy::too_many_lines)]
+    pub fn execute_ieee754(&mut self, op: Operations, logger: &C::Logger) -> ResultOrTerminate<()> {
         match op {
             Operations::RoundToInt { source, destination, rounding } => {
                 let value = extract!(Ok(self.get_fp_operand_value(source.clone(), source.ty.clone(), self.rm(None), logger)));
@@ -188,8 +190,8 @@ where
                 denominator,
                 destination,
             } => {
-                let nominator = extract!(Ok(self.get_fp_operand_value(nominator.clone(), nominator.ty.clone(), self.rm(None), logger)));
-                let denominator = extract!(Ok(self.get_fp_operand_value(denominator.clone(), denominator.ty.clone(), self.rm(None), logger)));
+                let nominator = extract!(Ok(self.get_fp_operand_value(nominator.clone(), nominator.ty, self.rm(None), logger)));
+                let denominator = extract!(Ok(self.get_fp_operand_value(denominator.clone(), denominator.ty, self.rm(None), logger)));
                 let res = match nominator.remainder(&denominator, self.rm(None)) {
                     Ok(value) => value,
                     Err(res) => return ResultOrTerminate::Result(Err(res)),
@@ -198,8 +200,8 @@ where
                 self.set_fp_operand_value(destination, res, logger, self.rm(None))
             }
             Operations::Addition { lhs, rhs, destination } => {
-                let lhs = extract!(Ok(self.get_fp_operand_value(lhs.clone(), lhs.ty.clone(), self.rm(None), logger)));
-                let rhs = extract!(Ok(self.get_fp_operand_value(rhs.clone(), rhs.ty.clone(), self.rm(None), logger)));
+                let lhs = extract!(Ok(self.get_fp_operand_value(lhs.clone(), lhs.ty, self.rm(None), logger)));
+                let rhs = extract!(Ok(self.get_fp_operand_value(rhs.clone(), rhs.ty, self.rm(None), logger)));
                 let res = match lhs.add(&rhs, self.rm(None)) {
                     Ok(value) => value,
                     Err(res) => return ResultOrTerminate::Result(Err(res)),
@@ -208,8 +210,8 @@ where
                 self.set_fp_operand_value(destination, res, logger, self.rm(None))
             }
             Operations::Subtraction { lhs, rhs, destination } => {
-                let lhs = extract!(Ok(self.get_fp_operand_value(lhs.clone(), lhs.ty.clone(), self.rm(None), logger)));
-                let rhs = extract!(Ok(self.get_fp_operand_value(rhs.clone(), rhs.ty.clone(), self.rm(None), logger)));
+                let lhs = extract!(Ok(self.get_fp_operand_value(lhs.clone(), lhs.ty, self.rm(None), logger)));
+                let rhs = extract!(Ok(self.get_fp_operand_value(rhs.clone(), rhs.ty, self.rm(None), logger)));
                 let res = match lhs.sub(&rhs, self.rm(None)) {
                     Ok(value) => value,
                     Err(res) => return ResultOrTerminate::Result(Err(res)),
@@ -218,8 +220,8 @@ where
                 self.set_fp_operand_value(destination, res, logger, self.rm(None))
             }
             Operations::Multiplication { lhs, rhs, destination } => {
-                let lhs = extract!(Ok(self.get_fp_operand_value(lhs.clone(), lhs.ty.clone(), self.rm(None), logger)));
-                let rhs = extract!(Ok(self.get_fp_operand_value(rhs.clone(), rhs.ty.clone(), self.rm(None), logger)));
+                let lhs = extract!(Ok(self.get_fp_operand_value(lhs.clone(), lhs.ty, self.rm(None), logger)));
+                let rhs = extract!(Ok(self.get_fp_operand_value(rhs.clone(), rhs.ty, self.rm(None), logger)));
                 let res = match lhs.mul(&rhs, self.rm(None)) {
                     Ok(value) => value,
                     Err(res) => return ResultOrTerminate::Result(Err(res)),
@@ -232,8 +234,8 @@ where
                 denominator,
                 destination,
             } => {
-                let nominator = extract!(Ok(self.get_fp_operand_value(nominator.clone(), nominator.ty.clone(), self.rm(None), logger)));
-                let denominator = extract!(Ok(self.get_fp_operand_value(denominator.clone(), denominator.ty.clone(), self.rm(None), logger)));
+                let nominator = extract!(Ok(self.get_fp_operand_value(nominator.clone(), nominator.ty, self.rm(None), logger)));
+                let denominator = extract!(Ok(self.get_fp_operand_value(denominator.clone(), denominator.ty, self.rm(None), logger)));
                 let res = match nominator.div(&denominator, self.rm(None)) {
                     Ok(value) => value,
                     Err(res) => return ResultOrTerminate::Result(Err(res).context("Floating point division")),
@@ -330,5 +332,11 @@ impl std::fmt::Display for FpState {
         write!(f, "Rounding mode : {rounding_mode}\r\n")?;
 
         write!(f, "\r\n")
+    }
+}
+
+impl Default for FpState {
+    fn default() -> Self {
+        Self::new()
     }
 }

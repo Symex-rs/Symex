@@ -85,6 +85,7 @@ pub struct BinaryNotLoaded;
 pub struct NoArchOverride;
 
 #[derive(Clone)]
+#[must_use]
 /// Constructs the symex virtual machine to run with the desired settings.
 ///
 /// See [`defaults`](crate::defaults) for default configurations.
@@ -249,28 +250,3 @@ impl<S: SmtSolver> SmtSolverConfigured for SmtConfigured<S> {}
 
 impl BinaryLoadingDone for BinaryNotLoaded {}
 impl BinaryLoadingDone for BinaryLoaded<'static> {}
-
-//let context = Box::new(DContext::new());
-//    let context = Box::leak(context);
-//
-//    let end_pc = 0xFFFFFFFE;
-//
-//    debug!("Parsing elf file: {}", path);
-//    let file = fs::read(path).expect("Unable to open file.");
-//    let data = file.as_ref();
-//    let obj_file = match object::File::parse(data) {
-//        Ok(x) => x,
-//        Err(e) => {
-//            debug!("Error: {}", e);
-//            return Err(ProjectError::UnableToParseElf(path.to_owned()))?;
-//        }
-//    };
-//
-//    add_architecture_independent_hooks(&mut cfg);
-//    let project = Box::new(Project::from_path(&mut cfg, obj_file,
-// &architecture)?);    let project = Box::leak(project);
-//    project.add_pc_hook(end_pc, PCHook::EndSuccess);
-//    debug!("Created project: {:?}", project);
-//
-//    let mut vm = VM::new(project, context, function, end_pc, architecture)?;
-//    run_elf_paths(&mut vm, &cfg)

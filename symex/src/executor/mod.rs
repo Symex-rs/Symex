@@ -1,4 +1,4 @@
-//home/ivar/thesis/symex/symex/src/executor/mod.rs/! General assembly executor
+//! General assembly executor
 
 use std::{collections::VecDeque, fmt::Display};
 
@@ -86,21 +86,21 @@ impl<V> ResultOrTerminate<V> {
     }
 
     pub fn ok(self) -> Option<V> {
-        if let ResultOrTerminate::Result(Ok(val)) = self {
+        if let Self::Result(Ok(val)) = self {
             return Some(val);
         }
         panic!()
     }
 
     pub fn unwrap(self) -> V {
-        if let ResultOrTerminate::Result(Ok(val)) = self {
+        if let Self::Result(Ok(val)) = self {
             return val;
         }
         match self {
-            ResultOrTerminate::Result(Err(e)) => eprintln!("Error {:?}", e),
-            ResultOrTerminate::Failure(f) => eprintln!("Failure {:?}", f),
-            _ => unreachable!(),
-        };
+            Self::Result(Err(e)) => eprintln!("Error {e:?}"),
+            Self::Failure(f) => eprintln!("Failure {f:?}"),
+            Self::Result(Ok(_)) => unreachable!(),
+        }
         panic!()
     }
 
@@ -111,12 +111,6 @@ impl<V> ResultOrTerminate<V> {
             Self::Failure(f) => ResultOrTerminate::Failure(f),
         }
     }
-    //pub fn unwrap<T: ToString>(self) -> V {
-    //    match self {
-    //        //Self::Result(Ok(val)) => val,
-    //        _ => panic!("{}", id),
-    //    }
-    //}
 }
 
 #[macro_export]
@@ -244,11 +238,8 @@ impl<C: Composition> Context<C> {
 
     /// Marker that denotes that the forked instruction should resume execution
     /// on the same operation.
-    fn continue_on_current(&self) {
-        //if let Some((counter, _)) = self.execution_queue.back_mut() {
-        //    //*counter -= 1;
-        //}
-    }
+    #[allow(clippy::unused_self)]
+    const fn continue_on_current(&self) {}
 }
 
 impl<'vm, C: Composition> GAExecutor<'vm, C> {
@@ -265,7 +256,7 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
     }
 
     pub fn resume_execution(&mut self, logger: &mut C::Logger) -> Result<PathResult<C>> {
-        let possible_continue = self.state.continue_in_instruction.to_owned();
+        let possible_continue = self.state.continue_in_instruction.clone().to_owned();
 
         if let Some(i) = possible_continue {
             match self.continue_executing_instruction(&i, logger) {
@@ -274,12 +265,8 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
             };
             self.state.continue_in_instruction = None;
             self.state.set_last_instruction(i.instruction);
-            self.state.architecture.post_instruction_execution_hook()(&mut self.state);
-        } else {
-            self.state.architecture.post_instruction_execution_hook()(&mut self.state);
         }
-        // let bt = self.state.get_back_trace(&[]);
-        // logger.record_backtrace(bt);
+        self.state.architecture.post_instruction_execution_hook()(&mut self.state);
 
         let mut instruction_counter = 0;
         loop {
@@ -292,7 +279,7 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
                     PCHook::Continue => {
                         debug!("Continuing");
                         let ra_name = self.state.architecture.get_register_name(InterfaceRegister::ReturnAddress);
-                        let ra = self.state.get_register(ra_name.to_owned()).unwrap();
+                        let ra = self.state.get_register(ra_name).unwrap();
                         let pc_name = self.state.architecture.get_register_name(InterfaceRegister::ProgramCounter);
                         self.state.set_register(pc_name, ra)?;
 
@@ -501,10 +488,7 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
     }
 
     // Fork execution. Will create a new path with `constraint`.
-    fn fork(&mut self, constraint: C::SmtExpression, logger: &mut C::Logger, operation: Continue, msg: &'static str) -> Result<()> {
-        // println!("Save backtracking path: constraint={:?}, continue on {}
-        // instruction", constraint, operation);
-
+    fn fork(&mut self, constraint: C::SmtExpression, logger: &C::Logger, operation: Continue, msg: &'static str) -> Result<()> {
         let forked_state = match operation {
             Continue::This => {
                 let mut clone = self.state.clone();
@@ -635,7 +619,7 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
     }
 
     /// Get the smt expression for a operand.
-    pub(crate) fn get_operand_value(&mut self, operand: &Operand, logger: &mut C::Logger) -> ResultOrTerminate<C::SmtExpression> {
+    pub(crate) fn get_operand_value(&mut self, operand: &Operand, logger: &C::Logger) -> ResultOrTerminate<C::SmtExpression> {
         let ret = match operand {
             Operand::Register(name) => self.state.get_register(name.to_owned()),
             Operand::Immediate(v) => Ok(self.get_dexpr_from_dataword(v.to_owned())),
@@ -694,7 +678,7 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
         ResultOrTerminate::Result(ret)
     }
 
-    pub(crate) fn fork_for_all(&mut self, source: C::SmtExpression, logger: &mut C::Logger) -> ResultOrTerminate<C::SmtExpression> {
+    pub(crate) fn fork_for_all(&mut self, source: C::SmtExpression, logger: &C::Logger) -> ResultOrTerminate<C::SmtExpression> {
         let exprs = match self.state.constraints.get_values(&source, 255) {
             Ok(val) => val,
             Err(err) => {
@@ -739,7 +723,7 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
     }
 
     /// Sets what the operand represents to `value`.
-    pub(crate) fn set_operand_value(&mut self, operand: &Operand, value: C::SmtExpression, logger: &mut C::Logger) -> ResultOrTerminate<()> {
+    pub(crate) fn set_operand_value(&mut self, operand: &Operand, value: C::SmtExpression, logger: &C::Logger) -> ResultOrTerminate<()> {
         match operand {
             Operand::Register(v) => {
                 let value = if v == &self.state.architecture.get_register_name(InterfaceRegister::ProgramCounter) {
@@ -797,7 +781,7 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
         ResultOrTerminate::Result(Ok(()))
     }
 
-    fn resolve_address(&mut self, address: C::SmtExpression, logger: &mut C::Logger, _write: bool) -> ResultOrTerminate<Option<u64>> {
+    fn resolve_address(&mut self, address: C::SmtExpression, logger: &C::Logger, _write: bool) -> ResultOrTerminate<Option<u64>> {
         debug!("Resolving address {:?} as constant", address);
         let ret = match &address.get_constant() {
             Some(addr) => Result::Ok(Some(*addr)),
@@ -1512,7 +1496,7 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
 #[cfg(test)]
 mod test {
 
-    use std::u32;
+    use std::{sync::Arc, u32};
 
     use general_assembly::{
         condition::Condition,
@@ -1543,8 +1527,7 @@ mod test {
     #[test]
     fn test_count_ones_concrete() {
         let ctx = crate::smt::bitwuzla::Bitwuzla::new();
-        let project = Box::new(Project::manual_project(vec![], 0, 0, WordSize::Bit32, Endianness::Little, HashMap::new()));
-        let project = Box::leak(project);
+        let project = Arc::new(Box::new(Project::manual_project(vec![], 0, 0, WordSize::Bit32, Endianness::Little, HashMap::new())));
         let state = GAState::<DefaultCompositionNoLogger>::create_test_state(
             project,
             ctx.clone(),
@@ -1569,8 +1552,7 @@ mod test {
     #[test]
     fn test_count_ones_symbolic() {
         let ctx = crate::smt::bitwuzla::Bitwuzla::new();
-        let project = Box::new(Project::manual_project(vec![], 0, 0, WordSize::Bit32, Endianness::Little, HashMap::new()));
-        let project = Box::leak(project);
+        let project = Arc::new(Box::new(Project::manual_project(vec![], 0, 0, WordSize::Bit32, Endianness::Little, HashMap::new())));
         let state = GAState::<DefaultCompositionNoLogger>::create_test_state(
             project,
             ctx.clone(),
@@ -1597,8 +1579,7 @@ mod test {
     #[test]
     fn test_count_zeroes_concrete() {
         let ctx = crate::smt::bitwuzla::Bitwuzla::new();
-        let project = Box::new(Project::manual_project(vec![], 0, 0, WordSize::Bit32, Endianness::Little, HashMap::new()));
-        let project = Box::leak(project);
+        let project = Arc::new(Box::new(Project::manual_project(vec![], 0, 0, WordSize::Bit32, Endianness::Little, HashMap::new())));
         let state = GAState::<DefaultCompositionNoLogger>::create_test_state(
             project,
             ctx.clone(),
@@ -1623,8 +1604,7 @@ mod test {
     #[test]
     fn test_count_leading_ones_concrete() {
         let ctx = crate::smt::bitwuzla::Bitwuzla::new();
-        let project = Box::new(Project::manual_project(vec![], 0, 0, WordSize::Bit32, Endianness::Little, HashMap::new()));
-        let project = Box::leak(project);
+        let project = Arc::new(Box::new(Project::manual_project(vec![], 0, 0, WordSize::Bit32, Endianness::Little, HashMap::new())));
         let state = GAState::<DefaultCompositionNoLogger>::create_test_state(
             project,
             ctx.clone(),
@@ -1649,8 +1629,7 @@ mod test {
     #[test]
     fn test_count_leading_zeroes_concrete() {
         let ctx = crate::smt::bitwuzla::Bitwuzla::new();
-        let project = Box::new(Project::manual_project(vec![], 0, 0, WordSize::Bit32, Endianness::Little, HashMap::new()));
-        let project = Box::leak(project);
+        let project = Arc::new(Box::new(Project::manual_project(vec![], 0, 0, WordSize::Bit32, Endianness::Little, HashMap::new())));
         let state = GAState::<DefaultCompositionNoLogger>::create_test_state(
             project,
             ctx.clone(),
@@ -1675,8 +1654,7 @@ mod test {
     #[test]
     fn test_add_with_carry() {
         let ctx = crate::smt::bitwuzla::Bitwuzla::new();
-        let project = Box::new(Project::manual_project(vec![], 0, 0, WordSize::Bit32, Endianness::Little, HashMap::new()));
-        let project = Box::leak(project);
+        let project = Arc::new(Box::new(Project::manual_project(vec![], 0, 0, WordSize::Bit32, Endianness::Little, HashMap::new())));
         let state = GAState::<DefaultCompositionNoLogger>::create_test_state(
             project,
             ctx.clone(),
@@ -1747,10 +1725,9 @@ mod test {
 
     fn setup_test_vm() -> VM<DefaultCompositionNoLogger> {
         let ctx = crate::smt::bitwuzla::Bitwuzla::new();
-        let project_global = Box::new(Project::manual_project(vec![], 0, 0, WordSize::Bit32, Endianness::Little, HashMap::new()));
-        let project: &'static Project = Box::leak(project_global);
+        let project = Arc::new(Box::new(Project::manual_project(vec![], 0, 0, WordSize::Bit32, Endianness::Little, HashMap::new())));
         let state = GAState::<DefaultCompositionNoLogger>::create_test_state(
-            project,
+            project.clone(),
             ctx.clone(),
             ctx.clone(),
             0,
@@ -1765,7 +1742,7 @@ mod test {
     #[test]
     fn test_move() {
         let mut vm = setup_test_vm();
-        let project = vm.project;
+        let project = vm.project.clone();
         let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
         let operand_r0 = Operand::Register("R0".to_owned());
 
@@ -1819,7 +1796,7 @@ mod test {
     #[test]
     fn test_add() {
         let mut vm = setup_test_vm();
-        let project = vm.project;
+        let project = vm.project.clone();
         let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
         let r0 = Operand::Register("R0".to_owned());
@@ -1876,7 +1853,7 @@ mod test {
     #[test]
     fn test_adc() {
         let mut vm = setup_test_vm();
-        let project = vm.project;
+        let project = vm.project.clone();
         let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
         let imm_42 = Operand::Immediate(DataWord::Word32(42));
@@ -1930,7 +1907,7 @@ mod test {
     #[test]
     fn test_sub() {
         let mut vm = setup_test_vm();
-        let project = vm.project;
+        let project = vm.project.clone();
         let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
         let r0 = Operand::Register("R0".to_owned());
@@ -1987,7 +1964,7 @@ mod test {
     #[test]
     fn test_mul() {
         let mut vm = setup_test_vm();
-        let project = vm.project;
+        let project = vm.project.clone();
         let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
         let r0 = Operand::Register("R0".to_owned());
@@ -2010,7 +1987,7 @@ mod test {
         // multiplication right minus
         let operation = Operation::Mul {
             destination: r0.clone(),
-            operand1: imm_42.clone(),
+            operand1: imm_42,
             operand2: imm_minus_16.clone(),
         };
         executor.execute_operation(&operation, &mut NoLogger).ok();
@@ -2021,8 +1998,8 @@ mod test {
         // multiplication left minus
         let operation = Operation::Mul {
             destination: r0.clone(),
-            operand1: imm_minus_42.clone(),
-            operand2: imm_16.clone(),
+            operand1: imm_minus_42,
+            operand2: imm_16,
         };
         executor.execute_operation(&operation, &mut NoLogger).ok();
 
@@ -2032,8 +2009,8 @@ mod test {
         // multiplication both minus
         let operation = Operation::Mul {
             destination: r0.clone(),
-            operand1: imm_minus_42.clone(),
-            operand2: imm_minus_16.clone(),
+            operand1: imm_minus_42,
+            operand2: imm_minus_16,
         };
         executor.execute_operation(&operation, &mut NoLogger).ok();
 
@@ -2044,7 +2021,7 @@ mod test {
     #[test]
     fn test_set_v_flag() {
         let mut vm = setup_test_vm();
-        let project = vm.project;
+        let project = vm.project.clone();
         let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
         let imm_42 = Operand::Immediate(DataWord::Word32(42));
@@ -2092,7 +2069,7 @@ mod test {
     #[test]
     fn test_conditional_execution() {
         let mut vm = setup_test_vm();
-        let project = vm.project;
+        let project = vm.project.clone();
         let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
         let imm_0 = Operand::Immediate(DataWord::Word32(0));
         let imm_1 = Operand::Immediate(DataWord::Word32(1));
@@ -2144,8 +2121,8 @@ mod test {
     #[test]
     fn test_ite() {
         let mut vm = setup_test_vm();
-        let project = vm.project;
-        let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
+        let project = vm.project.clone();
+        let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project.clone());
         let imm_0 = Operand::Immediate(DataWord::Word32(0));
         let imm_1 = Operand::Immediate(DataWord::Word32(1));
         let imm_2 = Operand::Immediate(DataWord::Word32(2));

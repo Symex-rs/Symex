@@ -1,3 +1,4 @@
+#![allow(clippy::similar_names)]
 use std::fmt::Display;
 
 use anyhow::Context;
@@ -68,13 +69,13 @@ impl ArmV7EM {
             Ok(ret)
         };
 
-        cfg.add_register_write_hook("APSR".to_string(), write_aspr);
-        cfg.add_register_read_hook("APSR".to_string(), read_apsr);
+        cfg.add_register_write_hook("APSR", write_aspr);
+        cfg.add_register_read_hook("APSR", read_apsr);
 
-        cfg.add_flag_write_hook("APSR.N".to_string(), write_aspr_n);
-        cfg.add_flag_read_hook("APSR.N".to_string(), read_apsr_n);
-        cfg.add_flag_write_hook("N".to_string(), write_aspr_n);
-        cfg.add_flag_read_hook("N".to_string(), read_apsr_n);
+        cfg.add_flag_write_hook("APSR.N", write_aspr_n);
+        cfg.add_flag_read_hook("APSR.N", read_apsr_n);
+        cfg.add_flag_write_hook("N", write_aspr_n);
+        cfg.add_flag_read_hook("N", read_apsr_n);
 
         let write_apsr_z = |state: &mut GAState<C>, value: C::SmtExpression| {
             let value = value.resize_unsigned(1);
@@ -88,10 +89,10 @@ impl ArmV7EM {
             Ok(reg)
         };
 
-        cfg.add_flag_write_hook("APSR.Z".to_string(), write_apsr_z);
-        cfg.add_flag_read_hook("APSR.Z".to_string(), read_apsr_z);
-        cfg.add_flag_write_hook("Z".to_string(), write_apsr_z);
-        cfg.add_flag_read_hook("Z".to_string(), read_apsr_z);
+        cfg.add_flag_write_hook("APSR.Z", write_apsr_z);
+        cfg.add_flag_read_hook("APSR.Z", read_apsr_z);
+        cfg.add_flag_write_hook("Z", write_apsr_z);
+        cfg.add_flag_read_hook("Z", read_apsr_z);
 
         let write_apsr_c = |state: &mut GAState<C>, value: C::SmtExpression| {
             let value = value.resize_unsigned(1);
@@ -107,10 +108,10 @@ impl ArmV7EM {
             Ok(reg)
         };
 
-        cfg.add_flag_write_hook("APSR.C".to_string(), write_apsr_c);
-        cfg.add_flag_read_hook("APSR.C".to_string(), read_apsr_c);
-        cfg.add_flag_write_hook("C".to_string(), write_apsr_c);
-        cfg.add_flag_read_hook("C".to_string(), read_apsr_c);
+        cfg.add_flag_write_hook("APSR.C", write_apsr_c);
+        cfg.add_flag_read_hook("APSR.C", read_apsr_c);
+        cfg.add_flag_write_hook("C", write_apsr_c);
+        cfg.add_flag_read_hook("C", read_apsr_c);
 
         let write_apsr_v = |state: &mut GAState<C>, value: C::SmtExpression| {
             let value = value.resize_unsigned(1);
@@ -127,10 +128,10 @@ impl ArmV7EM {
             Ok(reg)
         };
 
-        cfg.add_flag_write_hook("APSR.V".to_string(), write_apsr_v);
-        cfg.add_flag_read_hook("APSR.V".to_string(), read_apsr_v);
-        cfg.add_flag_write_hook("V".to_string(), write_apsr_v);
-        cfg.add_flag_read_hook("V".to_string(), read_apsr_v);
+        cfg.add_flag_write_hook("APSR.V", write_apsr_v);
+        cfg.add_flag_read_hook("APSR.V", read_apsr_v);
+        cfg.add_flag_write_hook("V", write_apsr_v);
+        cfg.add_flag_read_hook("V", read_apsr_v);
 
         let write_apsr_q = |state: &mut GAState<C>, value: C::SmtExpression| {
             let value = value.resize_unsigned(1);
@@ -147,10 +148,10 @@ impl ArmV7EM {
             Ok(reg.resize_unsigned(1))
         };
 
-        cfg.add_flag_write_hook("APSR.Q".to_string(), write_apsr_q);
-        cfg.add_flag_read_hook("APSR.Q".to_string(), read_apsr_q_flag);
-        cfg.add_flag_write_hook("Q".to_string(), write_apsr_q);
-        cfg.add_flag_read_hook("Q".to_string(), read_apsr_q_flag);
+        cfg.add_flag_write_hook("APSR.Q", write_apsr_q);
+        cfg.add_flag_read_hook("APSR.Q", read_apsr_q_flag);
+        cfg.add_flag_write_hook("Q", write_apsr_q);
+        cfg.add_flag_read_hook("Q", read_apsr_q_flag);
 
         let write_apsr_ge = |state: &mut GAState<C>, value: C::SmtExpression| {
             let value = value.resize_unsigned(4);
@@ -164,8 +165,8 @@ impl ArmV7EM {
             Ok(reg)
         };
 
-        cfg.add_register_write_hook("APSR.GE".to_string(), write_apsr_ge);
-        cfg.add_register_read_hook("APSR.GE".to_string(), read_apsr_ge);
+        cfg.add_register_write_hook("APSR.GE", write_apsr_ge);
+        cfg.add_register_read_hook("APSR.GE", read_apsr_ge);
     }
 
     // TODO: Write to the EXTRA register for control, faultmask, primask and basepri
@@ -178,7 +179,7 @@ impl ArmV7EM {
             trace!("IT : {:?}", it.get_constant());
             Ok(it.resize_unsigned(32))
         };
-        cfg.add_register_read_hook("ITSTATE.IT".to_string(), it_read);
+        cfg.add_register_read_hook("ITSTATE.IT", it_read);
         let it_write = |state: &mut GAState<C>, value: C::SmtExpression| {
             let val_7_2 = value.slice(2, 7);
             let val_1_0 = value.slice(0, 1);
@@ -191,7 +192,7 @@ impl ArmV7EM {
 
             Ok(())
         };
-        cfg.add_register_write_hook("ITSTATE.IT".to_string(), it_write);
+        cfg.add_register_write_hook("ITSTATE.IT", it_write);
     }
 
     fn add_fpscr_hooks<C: crate::Composition>(&self, cfg: &mut HookContainer<C>, _map: &mut SubProgramMap) {
@@ -208,8 +209,8 @@ impl ArmV7EM {
             Ok(reg.slice(31, 31))
         };
 
-        cfg.add_flag_write_hook("FPSCR.N".to_string(), write_fpscr_n);
-        cfg.add_flag_read_hook("FPSCR.N".to_string(), read_fpscr_n);
+        cfg.add_flag_write_hook("FPSCR.N", write_fpscr_n);
+        cfg.add_flag_read_hook("FPSCR.N", read_fpscr_n);
 
         let write_fpscr_z = |state: &mut GAState<C>, value: C::SmtExpression| {
             let value = value.resize_unsigned(1);
@@ -224,8 +225,8 @@ impl ArmV7EM {
             Ok(reg.slice(30, 30))
         };
 
-        cfg.add_flag_write_hook("FPSCR.Z".to_string(), write_fpscr_z);
-        cfg.add_flag_read_hook("FPSCR.Z".to_string(), read_fpscr_z);
+        cfg.add_flag_write_hook("FPSCR.Z", write_fpscr_z);
+        cfg.add_flag_read_hook("FPSCR.Z", read_fpscr_z);
 
         let write_fpscr_c = |state: &mut GAState<C>, value: C::SmtExpression| {
             let value = value.resize_unsigned(1);
@@ -240,8 +241,8 @@ impl ArmV7EM {
             Ok(reg.slice(29, 29))
         };
 
-        cfg.add_flag_write_hook("FPSCR.C".to_string(), write_fpscr_c);
-        cfg.add_flag_read_hook("FPSCR.C".to_string(), read_fpscr_c);
+        cfg.add_flag_write_hook("FPSCR.C", write_fpscr_c);
+        cfg.add_flag_read_hook("FPSCR.C", read_fpscr_c);
 
         let write_fpscr_v = |state: &mut GAState<C>, value: C::SmtExpression| {
             let value = value.resize_unsigned(1);
@@ -256,8 +257,8 @@ impl ArmV7EM {
             Ok(reg.slice(28, 28))
         };
 
-        cfg.add_flag_write_hook("FPSCR.V".to_string(), write_fpscr_v);
-        cfg.add_flag_read_hook("FPSCR.V".to_string(), read_fpscr_v);
+        cfg.add_flag_write_hook("FPSCR.V", write_fpscr_v);
+        cfg.add_flag_read_hook("FPSCR.V", read_fpscr_v);
 
         let write_fpscr_rm = |state: &mut GAState<C>, value: C::SmtExpression| {
             let reg = state.memory.get_register("FPSCR")?;
@@ -279,17 +280,17 @@ impl ArmV7EM {
             Ok(reg.slice(22, 23).resize_unsigned(32))
         };
 
-        cfg.add_register_write_hook("FPSCR.RM".to_string(), write_fpscr_rm);
-        cfg.add_register_read_hook("FPSCR.RM".to_string(), read_fpscr_rm);
+        cfg.add_register_write_hook("FPSCR.RM", write_fpscr_rm);
+        cfg.add_register_read_hook("FPSCR.RM", read_fpscr_rm);
         let read_fpscr = |state: &mut GAState<C>| {
             let reg = state.memory.get_register("FPSCR")?;
             Ok(reg)
         };
-        cfg.add_register_read_hook("FPSCR".to_string(), read_fpscr);
+        cfg.add_register_read_hook("FPSCR", read_fpscr);
     }
 
     fn current_cond<C: crate::Composition>(state: &mut GAState<C>) -> (u8, Option<u64>) {
-        let it = state.get_register("ITSTATE.IT".to_string()).expect("Failed to read itstate");
+        let it = state.get_register("ITSTATE.IT").expect("Failed to read itstate");
         let it_3_0 = it.slice(0, 3);
         let pure_zeros = it._eq(&state.memory.from_u64(0, it.size()));
         let pure_zeros = pure_zeros.get_constant_bool();
@@ -331,12 +332,12 @@ impl ArmV7EM {
         }
 
         if let Some(1) = pure_zeros {
-            let _ = state.set_register("ITSTATE.IT".to_string(), state.memory.from_u64(0, 32));
+            let _ = state.set_register("ITSTATE.IT", state.memory.from_u64(0, 32));
             return;
         }
         let it_4_0 = it.slice(0, 4).shift(&state.memory.from_u64(1, 5), Shift::Lsl);
         let it = it.replace_part(0, it_4_0);
-        let _ = state.set_register("ITSTATE.IT".to_string(), it);
+        let _ = state.set_register("ITSTATE.IT", it);
     }
 }
 
@@ -348,7 +349,7 @@ impl<Override: ArchitectureOverride> Architecture<Override> for ArmV7EM {
         C: crate::Composition<ArchitectureOverride = Override>,
     {
         trace!("Setting XPSR to zeros");
-        let _ = state.set_register("XPSR".to_string(), state.memory.from_u64(0, 32));
+        let _ = state.set_register("XPSR", state.memory.from_u64(0, 32));
 
         let rm = state.get_register("FPSCR.RM").expect("RM read to be valid");
         let rm = rm.get_constant().unwrap_or(0b11);
@@ -419,8 +420,8 @@ impl<Override: ArchitectureOverride> Architecture<Override> for ArmV7EM {
                 * 8;
             let name = state.label_new_symbolic("any");
             if size == 0 {
-                let lr = state.get_register("LR".to_owned())?;
-                state.set_register("PC".to_owned(), lr)?;
+                let lr = state.get_register("LR")?;
+                state.set_register("PC", lr)?;
                 return Ok(());
             }
             let symb_value = state.memory.unconstrained(&name, size as u32);
@@ -437,19 +438,19 @@ impl<Override: ArchitectureOverride> Architecture<Override> for ArmV7EM {
                 Err(e) => return Err(e).context("While assigning new symbolic value"),
             };
 
-            let lr = state.get_register("LR".to_owned())?;
-            state.set_register("PC".to_owned(), lr)?;
+            let lr = state.get_register("LR")?;
+            state.set_register("PC", lr)?;
             Ok(())
         };
 
-        if cfg.add_pc_hook_regex(map, r"^symbolic_size$", PCHook::Intrinsic(symbolic_sized)).is_err() {
+        if cfg.add_pc_hook_regex(map, r"^symbolic_size$", &PCHook::Intrinsic(symbolic_sized)).is_err() {
             debug!("Could not add symoblic hook, must not contain any calls to `symbolic_size`");
         }
-        if cfg.add_pc_hook_regex(map, r"^symbolic_size<.+>$", PCHook::Intrinsic(symbolic_sized)).is_err() {
+        if cfg.add_pc_hook_regex(map, r"^symbolic_size<.+>$", &PCHook::Intrinsic(symbolic_sized)).is_err() {
             debug!("Could not add symoblic hook, must not contain any calls to `symbolic_size<.+>`");
         }
 
-        if cfg.add_pc_hook_regex(map, r"^HardFault.*$", PCHook::EndFailure("Hardfault")).is_err() {
+        if cfg.add_pc_hook_regex(map, r"^HardFault.*$", &PCHook::EndFailure("Hardfault")).is_err() {
             trace!("Could not add hardfault hook");
         }
         // §B1.4 Specifies that R[15] => Addr(Current instruction) + 4
@@ -480,27 +481,27 @@ impl<Override: ArchitectureOverride> Architecture<Override> for ArmV7EM {
 
         let read_sp = |state: &mut GAState<C>| {
             let two = state.memory.from_u64((!(0b11u32)) as u64, 32);
-            let sp = state.get_register("SP".to_owned()).unwrap();
+            let sp = state.get_register("SP").unwrap();
             let sp = sp.simplify();
             Ok(sp.and(&two))
         };
 
-        let write_pc = |state: &mut GAState<C>, value| state.set_register("PC".to_owned(), value);
+        let write_pc = |state: &mut GAState<C>, value| state.set_register("PC", value);
         let write_sp = |state: &mut GAState<C>, value: C::SmtExpression| {
-            //state.set_register("SP".to_string(),
+            //state.set_register("SP",
             // value.and(&state.memory.from_u64((!(0b11u32)) as u64, 32)))?; let
-            // sp = state.get_register("SP".to_owned()).unwrap(); let sp = sp.
+            // sp = state.get_register("SP").unwrap(); let sp = sp.
             // simplify();
-            state.set_register("SP".to_owned(), value)
+            state.set_register("SP", value)
         };
 
-        cfg.add_register_read_hook("PC+".to_string(), read_pc);
-        // cfg.add_register_read_hook("PRIMASK".to_string(), read_primask);
-        // cfg.add_register_write_hook("PRIMASK".to_string(), write_primask);
-        cfg.add_register_write_hook("PC+".to_owned(), write_pc);
-        cfg.add_register_read_hook("SP&".to_owned(), read_sp);
-        cfg.add_register_write_hook("SP&".to_owned(), write_sp);
-        cfg.add_register_read_hook("ANY".to_owned(), read_any);
+        cfg.add_register_read_hook("PC+", read_pc);
+        // cfg.add_register_read_hook("PRIMASK", read_primask);
+        // cfg.add_register_write_hook("PRIMASK", write_primask);
+        cfg.add_register_write_hook("PC+", write_pc);
+        cfg.add_register_read_hook("SP&", read_sp);
+        cfg.add_register_write_hook("SP&", write_sp);
+        cfg.add_register_read_hook("ANY", read_any);
 
         // let assume = |state: &mut GAState<C>| {
         //     // stop counting
@@ -515,14 +516,14 @@ impl<Override: ArchitectureOverride> Architecture<Override> for ArmV7EM {
         //     // state.constraints.push();
         //     // if !state.constraints.is_sat_with_constraint(&r0).is_ok_and(|el| el) {
         //     //     return ResultOrTerminate::Failure("Tried to assert unsatisfiable
-        //     // formula".to_string()); }
+        //     // formula"); }
         //     //
         //     // state.constraints.pop();
         //     state.constraints.assert(&r0);
         //
         //     // jump back to where the function was called from
-        //     // let lr = state.get_register("LR".to_owned()).unwrap();
-        //     // state.set_register("PC".to_owned(), lr)?;
+        //     // let lr = state.get_register("LR").unwrap();
+        //     // state.set_register("PC", lr)?;
         //     ResultOrTerminate::Result(Ok(()))
         // };
         // cfg.add_pc_precondition_regex(map, r"^assume$", assume);
@@ -536,7 +537,7 @@ impl<Override: ArchitectureOverride> Architecture<Override> for ArmV7EM {
             let value = state.memory.from_u64(0xffff_ffff, 32);
             Ok(value)
         };
-        cfg.add_memory_read_hook(0x4000c008, read_reset_done);
+        cfg.add_memory_read_hook(0x4000_c008, read_reset_done);
     }
 
     fn translate<C: crate::Composition>(buff: &[u8], state: &mut GAState<C>) -> Result<Instruction<C>, ArchError> {

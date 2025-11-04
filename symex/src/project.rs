@@ -9,7 +9,7 @@ use segments::Segments;
 use crate::{
     arch::ArchError,
     memory::MemoryError,
-    smt::{Context, ProgramMemory, SmtExpr, SmtMap, SmtSolver},
+    smt::{Context, ProgramMemory, SmtExpr, SmtSolver},
     Endianness,
     WordSize,
 };
@@ -338,6 +338,7 @@ impl<S: SmtSolver> ProgramMemory<S::Expression> for std::sync::Arc<std::boxed::B
     }
 }
 
+#[allow(clippy::missing_fields_in_debug)]
 impl<S: SmtSolver> Debug for Project<S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Project").field("word_size", &self.word_size).field("endianness", &self.endianness).finish()

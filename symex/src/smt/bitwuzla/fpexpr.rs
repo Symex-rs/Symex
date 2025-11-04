@@ -16,6 +16,7 @@ pub enum FpOrBv<R: Clone + Borrow<bitwuzla::Bitwuzla> + std::fmt::Debug> {
     Bv(BV<R>),
 }
 #[derive(Clone, Debug)]
+#[must_use]
 pub struct FpExpr {
     ctx: FpOrBv<Rc<Btor>>,
     ty: OperandType,
@@ -27,7 +28,7 @@ fn conv_ty(ty: &OperandType) -> Formats {
         OperandType::Binary32 => Formats::F32,
         OperandType::Binary64 => Formats::F64,
         OperandType::Binary128 => Formats::F128,
-        _ => unimplemented!("No translation for this"),
+        OperandType::Integral { size: _, signed: _ } => unimplemented!("No translation for this"),
     }
 }
 
@@ -44,10 +45,10 @@ fn conv_rm(rm: &RoundingMode) -> RM {
 
 impl FpExpr {
     pub fn unconstrained(ctx: Rc<Btor>, ty: &OperandType, name: Option<&str>) -> Self {
-        let cty = conv_ty(ty);
+        let converted_type = conv_ty(ty);
         Self {
             ctx: FpOrBv::Fp(
-                bitwuzla::FP::new(ctx, cty, name)
+                bitwuzla::FP::new(ctx, converted_type, name)
                     .map_err(|e| crate::GAError::SolverError(SolverError::Generic(format!("{e:?}"))))
                     .context("fp any")
                     .expect("Failed to create a new fp variable"),
@@ -56,7 +57,7 @@ impl FpExpr {
         }
     }
 
-    fn _compare(&self, other: &Self, cmp: general_assembly::extension::ieee754::ComparisonMode, _rm: RoundingMode) -> crate::Result<bitwuzla::Bool<Rc<Btor>>> {
+    fn _compare(&self, other: &Self, cmp: &ComparisonMode, _rm: RoundingMode) -> crate::Result<bitwuzla::Bool<Rc<Btor>>> {
         if other.ty != self.ty {
             return Err(crate::InternalError::TypeError).context(format!("While comparing a {:?} and a {:?}", self.ty, other.ty));
         }
@@ -284,7 +285,7 @@ impl SmtFPExpr for FpExpr {
                     ty: dest_ty,
                 })
             }
-            _ => {}
+            OperandType::Integral { size: _, signed: _ } => {}
         }
 
         let ctx = match signed {
@@ -303,7 +304,7 @@ impl<R: Clone + Borrow<bitwuzla::Bitwuzla> + std::fmt::Debug> Borrow<FP<R>> for 
     fn borrow(&self) -> &FP<R> {
         match self {
             Self::Fp(fp) => fp,
-            _ => panic!("Tried to use a bitvector as a floating pint value"),
+            Self::Bv(_) => panic!("Tried to use a bitvector as a floating pint value"),
         }
     }
 }

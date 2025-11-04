@@ -36,6 +36,7 @@ use crate::{
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize))]
+#[must_use]
 pub struct SubProgram {
     pub name: String,
     pub bounds: (u64, u64),
@@ -51,6 +52,7 @@ impl Hash for SubProgram {
 }
 
 #[derive(Clone, Debug)]
+#[must_use]
 pub struct SubProgramMap {
     pub index_1: HashMap<String, u64>,
     index_2: HashMap<u64, u64>,
@@ -99,6 +101,7 @@ impl SubProgramMap {
         }
     }
 
+    #[must_use]
     pub fn in_bounds(&self, pc: u64) -> Vec<SubProgram> {
         self.map
             .values()
@@ -108,6 +111,7 @@ impl SubProgramMap {
             .collect()
     }
 
+    #[must_use]
     pub fn get_all_names(&self) -> Vec<String> {
         let mut ret: Vec<String> = self.symtab.keys().cloned().collect::<Vec<_>>();
         ret.extend(self.index_1.keys().cloned());
@@ -121,27 +125,29 @@ impl SubProgramMap {
         self.counter += 1;
     }
 
+    #[must_use]
     pub fn get_by_name(&self, name: &str) -> Option<&SubProgram> {
-        let idx = match self.index_1.get(name) {
-            Some(val) => val,
-            None => return self.symtab.get(name),
+        let Some(idx) = self.index_1.get(name) else {
+            return self.symtab.get(name);
         };
         self.map.get(idx)
     }
 
+    #[must_use]
     pub fn get_by_address(&self, address: &u64) -> Option<&SubProgram> {
         let idx = self.index_2.get(&(*address & ((u64::MAX >> 1) << 1)))?;
         self.map.get(idx)
     }
 
+    #[must_use]
     pub fn get_by_regex(&self, pattern: &'static str) -> Option<&SubProgram> {
         let regex = Regex::new(pattern).ok()?;
-        for (idx, prog) in self.index_1.iter() {
+        for (idx, prog) in &self.index_1 {
             if regex.is_match(idx) {
                 return self.map.get(prog);
             }
         }
-        for (idx, prog) in self.symtab.iter() {
+        for (idx, prog) in &self.symtab {
             if regex.is_match(idx) {
                 return Some(prog);
             }
@@ -149,13 +155,13 @@ impl SubProgramMap {
         None
     }
 
+    #[must_use]
     pub fn get_all_by_regex(&self, pattern: &'static str) -> Vec<&SubProgram> {
-        let regex = match Regex::new(pattern) {
-            Ok(val) => val,
-            Err(_) => return vec![],
+        let Ok(regex) = Regex::new(pattern) else {
+            return vec![];
         };
         let mut ret = HashSet::new();
-        for (idx, prog) in self.index_1.iter() {
+        for (idx, prog) in &self.index_1 {
             if regex.is_match(idx) {
                 if let Some(val) = self.map.get(prog) {
                     trace!("[{pattern}] :Matched  {val:?}");
@@ -166,7 +172,7 @@ impl SubProgramMap {
         if !ret.is_empty() {
             return ret.into_iter().collect::<Vec<_>>();
         }
-        for (idx, prog) in self.symtab.iter() {
+        for (idx, prog) in &self.symtab {
             if regex.is_match(idx) {
                 trace!("[{pattern}]2 : Matched  {prog:?}");
                 ret.insert(prog);
@@ -175,33 +181,8 @@ impl SubProgramMap {
         ret.into_iter().collect::<Vec<_>>()
     }
 
-    // fn process_unit<R: Reader>(line_info: &DebugLine<R>, target_pc: u64) ->
-    // Option<(String, u32)> {     let mut entry_pc = 0;
-    //     let mut entry_line = 1;
-    //     let mut current_file = Cow::Borrowed("");
-    //     let (line_program, line_sequence): (CompleteLineProgram<R, _>,
-    // Vec<LineSequence<R>>) = line_info.program(0, 32, None,
-    // None).ok()?.sequences().ok()?;
-    //
-    //     for instruction in line_sequence {
-    //         // QUESTION: Is this correct?
-    //         //
-    //         // PROCEDURE: If this is not correct, please correct it.
-    //         if !(instruction.start..instruction.end).contains(&target_pc) {
-    //             continue;
-    //         }
-    //
-    //         let prog: CompleteLineProgram<R, <R as Reader>::Offset> =
-    // line_program.resume_from(&instruction);
-    //
-    //         todo!(" Get the line number, file name `with absolute path`");
-    //     }
-    //
-    //     None
-    // }
-
-    pub fn new<R: Reader>(debug_info: &DebugInfo<R>, debug_abbrev: &DebugAbbrev<R>, debug_str: &DebugStr<R>, _lines: &DebugLine<R>) -> SubProgramMap {
-        let mut ret: SubProgramMap = SubProgramMap::_new();
+    pub fn new<R: Reader>(debug_info: &DebugInfo<R>, debug_abbrev: &DebugAbbrev<R>, debug_str: &DebugStr<R>, _lines: &DebugLine<R>) -> Self {
+        let mut ret = Self::_new();
         let mut units = debug_info.units();
         while let Some(unit) = units.next().unwrap() {
             let abbrev = unit.abbreviations(debug_abbrev).unwrap();
@@ -213,14 +194,12 @@ impl SubProgramMap {
                     // is not a function continue the search
                     continue;
                 }
-                let attr = match entry.attr_value(DW_AT_name).unwrap() {
-                    Some(a) => a,
-                    None => continue,
+                let Some(attr) = entry.attr_value(DW_AT_name).unwrap() else {
+                    continue;
                 };
 
-                let entry_name = match attr {
-                    AttributeValue::DebugStrRef(s) => s,
-                    _ => continue,
+                let AttributeValue::DebugStrRef(entry_name) = attr else {
+                    continue;
                 };
                 let entry_name = debug_str.get_str(entry_name).unwrap();
                 let name = entry_name.to_string().unwrap().to_string();
@@ -244,7 +223,7 @@ impl SubProgramMap {
                 } & ((u64::MAX >> 1) << 1);
                 let file = match entry.attr_value(DW_AT_decl_file).unwrap() {
                     Some(AttributeValue::String(s)) => s.to_string().unwrap().to_string(),
-                    _ => "".to_string(),
+                    _ => String::new(),
                 };
                 let line = match entry.attr_value(DW_AT_decl_line).unwrap() {
                     Some(AttributeValue::Data1(v)) => v as usize,
@@ -284,10 +263,11 @@ pub struct LineMap {
     map: Option<&'static HashMap<u64, LineInfo>>,
 }
 impl LineMap {
-    pub(crate) fn empty() -> Self {
+    pub(crate) const fn empty() -> Self {
         Self { map: None }
     }
 
+    #[must_use]
     pub fn lookup(&self, address: u64) -> Option<&LineInfo> {
         let map = self.map?;
         map.get(&address)
@@ -334,12 +314,7 @@ pub(crate) fn line_program(object: &object::File<'_>, endian: gimli::RunTimeEndi
         // Get the line program for the compilation unit.
         if let Some(program) = unit.line_program.clone() {
             // NOTE: Omitted due to size for now.
-            let comp_dir = if let Some(_dir) = unit.comp_dir {
-                // std::path::PathBuf::from(dir.to_string_lossy().into_owned())
-                std::path::PathBuf::new()
-            } else {
-                std::path::PathBuf::new()
-            };
+            let comp_dir = std::path::PathBuf::new();
 
             // Iterate over the line program rows.
             let mut rows = program.rows();
@@ -423,193 +398,8 @@ pub struct CallStack {
     pub stack_trace: Vec<(CallFrame, Vec<(String, String)>)>,
 }
 
-// #[derive(Clone)]
-// enum Either<A, B, C> {
-//     Const(C),
-//     FP(B),
-//     BV(A),
-// }
-//
-// pub struct CallStackBuilder<'ctx, C: Composition> {
-//     addr: BaseAddresses,
-//     ctx: UnwindContext<usize>,
-//     state: &'ctx mut GAState<C>,
-//     debug_data: &'ctx DebugData,
-//     pc: u64,
-//     arch: &'ctx SupportedArchitecture<C::ArchitectureOverride>,
-//     registers: HashMap<String, Either<C::SmtExpression, C::SmtFPExpression,
-// u64>>,     frames: Vec<CF<C>>,
-// }
-//
-// impl<'ctx, C: Composition> CallStackBuilder<'ctx, C> {
-//     fn build(state: &'ctx mut GAState<C>, debug_data: &'ctx DebugData, arch:
-// &'ctx SupportedArchitecture<C::ArchitectureOverride>) {         let addr =
-// gimli::BaseAddresses::default();         let ctx =
-// gimli::UnwindContext::new();
-//
-//         let mut b = Self {
-//             addr,
-//             ctx,
-//             pc: state.last_pc.clone(),
-//             state,
-//             debug_data,
-//             arch,
-//             registers: HashMap::new(),
-//             frames: Vec::new(),
-//         };
-//         b.build_recursive(1);
-//     }
-//
-//     fn build_recursive(&mut self, mut depth: usize) {
-//         if depth == 0 {
-//             return;
-//         }
-//         depth -= 1;
-//         let pc = self.pc;
-//         let unwind_info = match self
-//             .debug_data
-//             .debug_frame
-//             .unwind_info_for_address(&mut self.addr, &mut self.ctx, pc,
-// gimli::DebugFrame::cie_from_offset)         {
-//             Ok(v) => v,
-//             Err(e) => {
-//                 return;
-//             }
-//         };
-//
-//         let base = match unwind_info.cfa() {
-//             CfaRule::RegisterAndOffset { register, offset } => {
-//                 let register = register.0;
-//                 let reg_name = self.arch.register_number_to_name(register as
-// u64).expect("TODO, must return None here");                 self.state
-//                     .get_register(reg_name)
-//                     .expect("Register to exist in lookup")
-//                     .get_constant()
-//                     .expect("Offset registers to be of known value.") as i64
-//                     + offset
-//             }
-//             CfaRule::Expression(expr) => {
-//                 unimplemented!()
-//             }
-//         } as u64;
-//         for (register, ref rule) in unwind_info.registers() {
-//             let name = self.arch.register_number_to_name(register.0 as
-// u64).expect("Register name to exist");             let val:
-// Either<C::SmtExpression, C::SmtFPExpression, u64> = match rule {
-// RegisterRule::Undefined => {                     if name == "PC" {
-//                         Either::Const(self.pc)
-//                     } else if name == "SP" {
-//                         Either::Const(base)
-//                     } else {
-//                         continue;
-//                     }
-//                 }
-//                 RegisterRule::SameValue => self
-//                     .registers
-//                     .get(&name)
-//                     .cloned()
-//
-// .unwrap_or(Either::BV(self.state.get_register(&name).expect("Register to be
-// availiable"))),                 RegisterRule::Offset(o) => {
-//                     let addr = self.state.memory.from_u64((base as i64 + o)
-// as u64, self.arch.word_size() as u32);
-// Either::BV(self.state.memory.get(&addr, self.arch.word_size() as
-// u32).expect("Reading to be possible"))                 }
-//                 RegisterRule::ValOffset(o) => Either::Const((o + base as i64)
-// as u64),                 RegisterRule::Register(r) => {
-//                     let name = self.arch.register_number_to_name(r.0 as
-// u64).expect("Register name to exist");                     self.registers
-//                         .get(&name)
-//                         .cloned()
-//
-// .unwrap_or(Either::BV(self.state.get_register(&name).expect("Register to be
-// availiable")))                 }
-//                 RegisterRule::Constant(c) => Either::Const(*c),
-//                 _ => unimplemented!("Return None here instead"),
-//             };
-//             self.registers.insert(name, val);
-//         }
-//         let frame = CF {
-//             pc,
-//             base,
-//             registers: self.registers.clone(),
-//         };
-//         self.frames.push(frame);
-//         self.pc = self.registers.get("LR").map(|el|
-// el.get_constant()).flatten().expect("LR to be constant");
-//
-//         self.build_recursive(depth);
-//     }
-// }
-// impl<BV: SmtExpr, FP: SmtFPExpr> Either<BV, FP, u64> {
-//     fn get_constant(&self) -> Option<u64> {
-//         match self {
-//             Self::BV(b) => b.get_constant(),
-//             Self::Const(c) => Some(*c),
-//             Self::FP(f) => f.to_bv(RoundingMode::TiesTowardZero,
-// false).ok().map(|el| el.get_constant()).flatten(),         }
-//     }
-//
-//     fn get_a_constant_constrained(&self, constraints: &[BV]) -> Option<u64> {
-//         match self {
-//             Self::BV(b) => b.get_a_solution(constraints),
-//             Self::Const(c) => Some(*c),
-//             Self::FP(f) => f.to_bv(RoundingMode::TiesTowardZero,
-// false).ok().map(|el| el.get_constant()).flatten(),         }
-//     }
-//
-//     fn get_a_constant(&self) -> Option<u64> {
-//         match self {
-//             Self::BV(b) => b.get_a_solution(&[]),
-//             Self::Const(c) => Some(*c),
-//             Self::FP(f) => f.to_bv(RoundingMode::TiesTowardZero,
-// false).ok().map(|el| el.get_constant()).flatten(),         }
-//     }
-// }
-//
-// struct CF<C: Composition> {
-//     pc: u64,
-//     registers: HashMap<String, Either<C::SmtExpression, C::SmtFPExpression,
-// u64>>,     base: u64,
-// }
-//
-// impl<C: Composition> CF<C> {
-//     fn get_stack_frame(
-//         &self,
-//         arch: &SupportedArchitecture<C::ArchitectureOverride>,
-//         dap: &mut DAP<'_, C::Memory, C::SmtExpression>,
-//         constraints: &[C::SmtExpression],
-//         dwarf: &Dwarf<EndianSlice<'static, RunTimeEndian>>,
-//         debug_frame: &DebugFrame<EndianSlice<'static, RunTimeEndian>>,
-//     ) -> Option<StackFrame<EndianSlice<'static, RunTimeEndian>>> {
-//         let mut register_map = std::collections::HashMap::new();
-//         self.registers.iter().for_each(|(k, v)| {
-//             let v = v.get_a_constant_constrained(constraints).expect("Formula
-// to be SAT") as u32;             let reg =
-// arch.register_name_to_number(k).expect("Registers to be named") as u16;
-//             register_map.insert(reg, v);
-//         });
-//         let mut registers = rust_debug::registers::Registers::default();
-//         registers.registers = register_map;
-//         // TODO: Make generic!
-//         registers.link_register = arch.register_name_to_number("LR").map(|el|
-// el as usize);         registers.program_counter_register =
-// arch.register_name_to_number("PC").map(|el| el as usize);         registers.
-// stack_pointer_register = arch.register_name_to_number("SP").map(|el| el as
-// usize);
-//
-//         let call_trace =
-// rust_debug::call_stack::unwind_call_stack(registers.clone(), dap,
-// debug_frame).expect("Call stack to be traceable");         todo!()
-//     }
-// }
-
 impl DebugData {
-    // fn unwind_symbolic_rec(&self, base_address: gimli::BaseAddresses, ctx: &mut
-    // UnwindContext) {     self.debug_frame.unwind_info_for_address(&
-    // base_address, ctx, address, get_cie) }
-
-    pub fn unwind_symbolic(&self) {}
+    pub const fn unwind_symbolic(&self) {}
 
     pub(crate) fn new(object: &'static object::File<'static>, endian: gimli::RunTimeEndian) -> Result<Self, Box<dyn std::error::Error>> {
         let load_section = |id: gimli::SectionId| -> Result<std::borrow::Cow<'_, [u8]>, Box<dyn std::error::Error>> {
@@ -699,7 +489,7 @@ impl DebugData {
                     .map(|el| {
                         (
                             el.name.clone().unwrap_or("Unnamed arguement".to_string()),
-                            el.value.clone().to_value().map(|el| el.to_string()).unwrap_or("Unable to get value".to_string()),
+                            el.value.clone().to_value().map(|el| el.to_string()).unwrap_or_else(|| "Unable to get value".to_string()),
                         )
                     })
                     .collect::<_>();
@@ -713,7 +503,7 @@ impl DebugData {
     }
 }
 
-impl<'a, M, E: SmtExpr> MemoryAccess for DAP<'a, M, E>
+impl<M, E: SmtExpr> MemoryAccess for DAP<'_, M, E>
 where
     M: SmtMap<Expression = E>,
 {

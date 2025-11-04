@@ -113,6 +113,7 @@ pub trait HookBuilder<C: Composition> {
 pub trait HookContainter<C: Composition>: HookBuilder<C> {}
 
 #[derive(Debug, Clone)]
+#[must_use]
 pub struct PrioriHookContainer<C: Composition> {
     register_read_hook: HashMap<String, RegisterReadHook<C>>,
 
@@ -150,6 +151,7 @@ pub struct PrioriHookContainer<C: Composition> {
 }
 
 #[derive(Debug, Clone)]
+#[must_use]
 pub struct HookContainer<C: Composition> {
     register_read_hook: HashMap<String, RegisterReadHook<C>>,
 
@@ -231,19 +233,19 @@ impl<C: Composition> HookContainer<C> {
         }
 
         for (reg, hook) in other.register_read_hook {
-            self.add_register_read_hook(reg, hook);
+            self.add_register_read_hook(&reg, hook);
         }
 
         for (reg, hook) in other.register_write_hook {
-            self.add_register_write_hook(reg, hook);
+            self.add_register_write_hook(&reg, hook);
         }
 
         for (reg, hook) in other.fp_register_read_hook {
-            self.add_fp_register_read_hook(reg, hook);
+            self.add_fp_register_read_hook(&reg, hook);
         }
 
         for (reg, hook) in other.fp_register_write_hook {
-            self.add_fp_register_write_hook(reg, hook);
+            self.add_fp_register_write_hook(&reg, hook);
         }
 
         for (range, hook) in other.range_memory_read_hook {
@@ -334,7 +336,7 @@ impl<C: Composition> HookContainer<C> {
     /// ## NOTE
     ///
     /// If a hook already exists for this register it will be overwritten.
-    pub fn add_flag_read_hook(&mut self, register: impl ToString, hook: RegisterReadHook<C>) -> &mut Self {
+    pub fn add_flag_read_hook(&mut self, register: &(impl ToString + ?Sized), hook: RegisterReadHook<C>) -> &mut Self {
         self.flag_read_hook.insert(register.to_string(), hook);
         self
     }
@@ -344,7 +346,7 @@ impl<C: Composition> HookContainer<C> {
     /// ## NOTE
     ///
     /// If a hook already exists for this register it will be overwritten.
-    pub fn add_flag_write_hook(&mut self, register: impl ToString, hook: RegisterWriteHook<C>) -> &mut Self {
+    pub fn add_flag_write_hook(&mut self, register: &(impl ToString + ?Sized), hook: RegisterWriteHook<C>) -> &mut Self {
         self.flag_write_hook.insert(register.to_string(), hook);
         self
     }
@@ -354,7 +356,7 @@ impl<C: Composition> HookContainer<C> {
     /// ## NOTE
     ///
     /// If a hook already exists for this register it will be overwritten.
-    pub fn add_register_read_hook(&mut self, register: impl ToString, hook: RegisterReadHook<C>) -> &mut Self {
+    pub fn add_register_read_hook(&mut self, register: &(impl ToString + ?Sized), hook: RegisterReadHook<C>) -> &mut Self {
         self.register_read_hook.insert(register.to_string(), hook);
         self
     }
@@ -364,7 +366,7 @@ impl<C: Composition> HookContainer<C> {
     /// ## NOTE
     ///
     /// If a hook already exists for this register it will be overwritten.
-    pub fn add_register_write_hook(&mut self, register: impl ToString, hook: RegisterWriteHook<C>) -> &mut Self {
+    pub fn add_register_write_hook(&mut self, register: &(impl ToString + ?Sized), hook: RegisterWriteHook<C>) -> &mut Self {
         self.register_write_hook.insert(register.to_string(), hook);
         self
     }
@@ -374,7 +376,7 @@ impl<C: Composition> HookContainer<C> {
     /// ## NOTE
     ///
     /// If a hook already exists for this register it will be overwritten.
-    pub fn add_fp_register_write_hook(&mut self, register: impl ToString, hook: FpRegisterWriteHook<C>) -> &mut Self {
+    pub fn add_fp_register_write_hook(&mut self, register: &(impl ToString + ?Sized), hook: FpRegisterWriteHook<C>) -> &mut Self {
         self.fp_register_write_hook.insert(register.to_string(), hook);
         self
     }
@@ -384,7 +386,7 @@ impl<C: Composition> HookContainer<C> {
     /// ## NOTE
     ///
     /// If a hook already exists for this register it will be overwritten.
-    pub fn add_fp_register_read_hook(&mut self, register: impl ToString, hook: FpRegisterReadHook<C>) -> &mut Self {
+    pub fn add_fp_register_read_hook(&mut self, register: &(impl ToString + ?Sized), hook: FpRegisterReadHook<C>) -> &mut Self {
         self.fp_register_read_hook.insert(register.to_string(), hook);
         self
     }
@@ -458,7 +460,7 @@ impl<C: Composition> HookContainer<C> {
     }
 
     /// Adds a pc hook via regex matching in the dwarf data.
-    pub fn add_pc_hook_regex(&mut self, map: &SubProgramMap, pattern: &'static str, hook: PCHook<C>) -> Result<()> {
+    pub fn add_pc_hook_regex(&mut self, map: &SubProgramMap, pattern: &'static str, hook: &PCHook<C>) -> Result<()> {
         let mut added = false;
         // println!("Looking in {map:?}");
         for program in map.get_all_by_regex(pattern) {
@@ -495,10 +497,12 @@ impl<C: Composition> HookContainer<C> {
         self.privelege_map.iter().any(|(low, high)| (*low..=*high).contains(&pc))
     }
 
-    pub fn allow_access(&mut self, ctx: &mut C::SMT, program_memory: &C::ProgramMemory, addresses: Vec<(u64, C::SmtExpression, C::SmtExpression)>) {
+    pub fn allow_access(&mut self, ctx: &mut C::SMT, program_memory: &C::ProgramMemory, addresses: &[(u64, C::SmtExpression, C::SmtExpression)]) {
+        use crate::smt::Lambda;
+
         self.strict = true;
         let mut word_size = 32;
-        for el in &addresses {
+        for el in addresses {
             let lower = el.1.get_constant().expect("Addresses to be constants");
             let upper = el.2.get_constant().expect("Addresses to be constants");
             word_size = el.1.size();
@@ -508,17 +512,14 @@ impl<C: Composition> HookContainer<C> {
         for (lower, upper) in program_memory.read_only_regions() {
             self.great_filter_const_read.push((0, lower, upper));
         }
-        use crate::smt::Lambda;
         let new_expr = ctx.from_bool(true);
-        let address_iter = addresses.clone();
         let regions = program_memory
             .read_only_regions()
             .map(|(low, high)| (ctx.from_u64(low, word_size), ctx.from_u64(high, word_size)))
             .collect::<Vec<_>>();
-        let ctx_clone = ctx.clone();
-        let great_filter_read = <C::SMT as SmtSolver>::BinaryLambda::new(ctx, word_size, move |(address, priority)| {
+        let great_filter_read = <C::SMT as SmtSolver>::BinaryLambda::new(ctx, word_size, move |(address, _priority)| {
             let mut new_expr = new_expr.clone();
-            for (idx, (prio, lower, upper)) in address_iter.iter().enumerate() {
+            for (_prio, lower, upper) in addresses {
                 new_expr = new_expr.and(&address.ult(lower).or(&address.ugt(upper)));
             }
             for (lower, upper) in &regions {
@@ -530,11 +531,10 @@ impl<C: Composition> HookContainer<C> {
         self.great_filter_read = Some(great_filter_read);
 
         let new_expr = ctx.from_bool(true);
-        let address_iter = addresses.clone();
-        let ctx_clone = ctx.clone();
-        let great_filter_write = <C::SMT as SmtSolver>::BinaryLambda::new(ctx, word_size, move |(address, priority)| {
+        let address_iter = addresses;
+        let great_filter_write = <C::SMT as SmtSolver>::BinaryLambda::new(ctx, word_size, move |(address, _priority)| {
             let mut new_expr = new_expr.clone();
-            for (idx, (prio, lower, upper)) in address_iter.iter().enumerate() {
+            for (_prio, lower, upper) in address_iter {
                 new_expr = new_expr.and(&address.ult(lower).or(&address.ugt(upper)));
             }
             new_expr
@@ -543,7 +543,7 @@ impl<C: Composition> HookContainer<C> {
         self.great_filter_write = Some(great_filter_write);
         let new_expr = ctx.from_u64(0, word_size);
         let ctx_clone = ctx.clone();
-        let address_iter = addresses.clone();
+        let address_iter = addresses;
         let regions = program_memory
             .regions()
             .map(|(low, high)| (ctx.from_u64(low, word_size), ctx.from_u64(high, word_size)))
@@ -563,8 +563,7 @@ impl<C: Composition> HookContainer<C> {
         self.region_lookup = Some(region_lookup);
     }
 
-    pub fn could_possibly_be_invalid_read(&self, ctx: &mut C::Memory, pre_condition: C::SmtExpression, addr: C::SmtExpression) -> C::SmtExpression {
-        let mut new_expr = pre_condition.clone();
+    pub fn could_possibly_be_invalid_read(&self, ctx: &mut C::Memory, mut new_expr: C::SmtExpression, addr: C::SmtExpression) -> C::SmtExpression {
         let prio = ctx.from_u64(self.priority, addr.size());
         if let Some(filter) = &self.great_filter_read {
             let op = filter.apply((addr, prio));
@@ -573,8 +572,7 @@ impl<C: Composition> HookContainer<C> {
         new_expr
     }
 
-    pub fn could_possibly_be_invalid_read_const(&self, pre_condition: bool, addr: u64) -> bool {
-        let mut new_expr = pre_condition.clone();
+    pub fn could_possibly_be_invalid_read_const(&self, mut new_expr: bool, addr: u64) -> bool {
         let filter = self.sufficient_priority();
         for (_prio, lower, upper) in self.great_filter_const_read.iter().filter(filter) {
             // println!("Checking {lower:#x} <= {addr:#x} <= {upper:#x} @ {prio}");
@@ -584,8 +582,7 @@ impl<C: Composition> HookContainer<C> {
         new_expr
     }
 
-    pub fn could_possibly_be_invalid_write(&self, ctx: &mut C::Memory, pre_condition: C::SmtExpression, addr: C::SmtExpression) -> C::SmtExpression {
-        let mut new_expr = pre_condition.clone();
+    pub fn could_possibly_be_invalid_write(&self, ctx: &mut C::Memory, mut new_expr: C::SmtExpression, addr: C::SmtExpression) -> C::SmtExpression {
         let prio = ctx.from_u64(self.priority, addr.size());
         if let Some(filter) = &self.great_filter_write {
             let op = filter.apply((addr, prio));
@@ -616,7 +613,7 @@ impl<C: Composition> HookContainer<C> {
         move |t| prio >= t.0
     }
 
-    pub fn is_strict(&self) -> bool {
+    pub const fn is_strict(&self) -> bool {
         self.strict
     }
 
@@ -681,7 +678,7 @@ impl<C: Composition> PrioriHookContainer<C> {
     /// ## NOTE
     ///
     /// If a hook already exists for this register it will be overwritten.
-    pub fn add_flag_read_hook(&mut self, register: impl ToString, hook: RegisterReadHook<C>) -> &mut Self {
+    pub fn add_flag_read_hook(&mut self, register: &(impl ToString + ?Sized), hook: RegisterReadHook<C>) -> &mut Self {
         self.flag_read_hook.insert(register.to_string(), hook);
         self
     }
@@ -691,7 +688,7 @@ impl<C: Composition> PrioriHookContainer<C> {
     /// ## NOTE
     ///
     /// If a hook already exists for this register it will be overwritten.
-    pub fn add_flag_write_hook(&mut self, register: impl ToString, hook: RegisterWriteHook<C>) -> &mut Self {
+    pub fn add_flag_write_hook(&mut self, register: &(impl ToString + ?Sized), hook: RegisterWriteHook<C>) -> &mut Self {
         self.flag_write_hook.insert(register.to_string(), hook);
         self
     }
@@ -701,7 +698,7 @@ impl<C: Composition> PrioriHookContainer<C> {
     /// ## NOTE
     ///
     /// If a hook already exists for this register it will be overwritten.
-    pub fn add_register_read_hook(&mut self, register: impl ToString, hook: RegisterReadHook<C>) -> &mut Self {
+    pub fn add_register_read_hook(&mut self, register: &(impl ToString + ?Sized), hook: RegisterReadHook<C>) -> &mut Self {
         self.register_read_hook.insert(register.to_string(), hook);
         self
     }
@@ -711,7 +708,7 @@ impl<C: Composition> PrioriHookContainer<C> {
     /// ## NOTE
     ///
     /// If a hook already exists for this register it will be overwritten.
-    pub fn add_register_write_hook(&mut self, register: impl ToString, hook: RegisterWriteHook<C>) -> &mut Self {
+    pub fn add_register_write_hook(&mut self, register: &(impl ToString + ?Sized), hook: RegisterWriteHook<C>) -> &mut Self {
         self.register_write_hook.insert(register.to_string(), hook);
         self
     }
@@ -721,7 +718,7 @@ impl<C: Composition> PrioriHookContainer<C> {
     /// ## NOTE
     ///
     /// If a hook already exists for this register it will be overwritten.
-    pub fn add_fp_register_write_hook(&mut self, register: impl ToString, hook: FpRegisterWriteHook<C>) -> &mut Self {
+    pub fn add_fp_register_write_hook(&mut self, register: &(impl ToString + ?Sized), hook: FpRegisterWriteHook<C>) -> &mut Self {
         self.fp_register_write_hook.insert(register.to_string(), hook);
         self
     }
@@ -731,7 +728,7 @@ impl<C: Composition> PrioriHookContainer<C> {
     /// ## NOTE
     ///
     /// If a hook already exists for this register it will be overwritten.
-    pub fn add_fp_register_read_hook(&mut self, register: impl ToString, hook: FpRegisterReadHook<C>) -> &mut Self {
+    pub fn add_fp_register_read_hook(&mut self, register: &(impl ToString + ?Sized), hook: FpRegisterReadHook<C>) -> &mut Self {
         self.fp_register_read_hook.insert(register.to_string(), hook);
         self
     }
@@ -805,7 +802,7 @@ impl<C: Composition> PrioriHookContainer<C> {
     }
 
     /// Adds a pc hook via regex matching in the dwarf data.
-    pub fn add_pc_hook_regex(&mut self, map: &SubProgramMap, pattern: &'static str, hook: PCHook<C>) -> Result<()> {
+    pub fn add_pc_hook_regex(&mut self, map: &SubProgramMap, pattern: &'static str, hook: &PCHook<C>) -> Result<()> {
         let mut added = false;
         // println!("Looking in {map:?}");
         for program in map.get_all_by_regex(pattern) {
@@ -838,6 +835,7 @@ impl<C: Composition> PrioriHookContainer<C> {
         Ok(())
     }
 
+    #[must_use]
     pub fn is_strict(&self) -> bool {
         self.strict
     }
@@ -924,20 +922,20 @@ impl<C: Composition> HookContainer<C> {
     }
 
     /// Disables the memory protection.
-    pub fn disable_memory_protection(&mut self) {
+    pub const fn disable_memory_protection(&mut self) {
         self.strict = false;
     }
 
     /// Enables the memory protection.
-    pub fn enable_memory_protection(&mut self) {
+    pub const fn enable_memory_protection(&mut self) {
         self.strict = true;
     }
 
-    pub fn reader<'a>(&'a mut self, memory: &'a mut C::Memory) -> Reader<'a, C> {
+    pub const fn reader<'a>(&'a mut self, memory: &'a mut C::Memory) -> Reader<'a, C> {
         Reader { memory, container: self }
     }
 
-    pub fn writer<'a>(&'a mut self, memory: &'a mut C::Memory) -> Writer<'a, C> {
+    pub const fn writer<'a>(&'a mut self, memory: &'a mut C::Memory) -> Writer<'a, C> {
         Writer { memory, container: self }
     }
 
@@ -1099,11 +1097,11 @@ impl<'a, C: Composition> Reader<'a, C> {
             // debug!("Address {caddr} had a hooks : {:?}", ret);
             return ResultOrHook::Hooks(ret.collect());
         }
-        let res = match self.memory.get_from_const_address(caddr, size) {
+        let result = match self.memory.get_from_const_address(caddr, size) {
             ResultOrTerminate::Failure(f) => return ResultOrHook::EndFailure(f),
             ResultOrTerminate::Result(r) => r.context("While reading from a static address"),
         };
-        ResultOrHook::Result(res)
+        ResultOrHook::Result(result)
     }
 
     #[allow(clippy::if_same_then_else)]
@@ -1146,32 +1144,32 @@ impl<'a, C: Composition> Reader<'a, C> {
 
         if let Some(hook) = self.container.single_memory_read_hook.get(&caddr) {
             debug!("Address {caddr} had a hook : {:?}", hook);
-            let mut ret = self
+            let mut return_value = self
                 .container
                 .range_memory_read_hook
                 .iter()
                 .filter(|el| ((el.0 .0)..=(el.0 .1)).contains(&caddr))
                 .map(|el| el.1)
                 .collect::<Vec<_>>();
-            ret.push(*hook);
-            return ResultOrHook::Hooks(ret.clone());
+            return_value.push(*hook);
+            return ResultOrHook::Hooks(return_value.clone());
         }
 
-        let mut ret = self
+        let mut return_value = self
             .container
             .range_memory_read_hook
             .iter()
             .filter(|el| ((el.0 .0)..=(el.0 .1)).contains(&caddr))
             .map(|el| el.1)
             .peekable();
-        if !ret.peek().is_none() {
-            return ResultOrHook::Hooks(ret.collect());
+        if !return_value.peek().is_none() {
+            return ResultOrHook::Hooks(return_value.collect());
         }
-        let res = match self.memory.get_from_const_address(caddr, size) {
+        let result = match self.memory.get_from_const_address(caddr, size) {
             ResultOrTerminate::Failure(f) => return ResultOrHook::EndFailure(f),
             ResultOrTerminate::Result(r) => r.context("While reading from a static address"),
         };
-        ResultOrHook::Result(res)
+        ResultOrHook::Result(result)
     }
 
     pub fn read_register(&mut self, id: &String) -> ResultOrHook<std::result::Result<C::SmtExpression, MemoryError>, RegisterReadHook<C>> {
@@ -1438,21 +1436,21 @@ impl<C: Composition> HookContainer<C> {
     }
 
     pub fn add_rust_hooks(&mut self, map: &SubProgramMap) {
-        let _ = self.add_pc_hook_regex(map, r"^panic.*", PCHook::EndFailure("panic"));
-        let _ = self.add_pc_hook_regex(map, r"^panic_cold_explicit$", PCHook::EndFailure("explicit panic"));
+        let _ = self.add_pc_hook_regex(map, r"^panic.*", &PCHook::EndFailure("panic"));
+        let _ = self.add_pc_hook_regex(map, r"^panic_cold_explicit$", &PCHook::EndFailure("explicit panic"));
         let _ = self.add_pc_hook_regex(
             map,
             r"^unwrap_failed$",
-            PCHook::EndFailure(
+            &PCHook::EndFailure(
                 "unwrap
         failed",
             ),
         );
-        let _ = self.add_pc_hook_regex(map, r"^panic_bounds_check$", PCHook::EndFailure("(panic) bounds check failed"));
+        let _ = self.add_pc_hook_regex(map, r"^panic_bounds_check$", &PCHook::EndFailure("(panic) bounds check failed"));
         let _ = self.add_pc_hook_regex(
             map,
             r"^unreachable_unchecked$",
-            PCHook::EndFailure("reached a unreachable unchecked call, undefined behavior"),
+            &PCHook::EndFailure("reached a unreachable unchecked call, undefined behavior"),
         );
     }
 
@@ -1483,11 +1481,11 @@ impl<C: Composition> HookContainer<C> {
             Ok(())
         };
 
-        let _ = ret.add_pc_hook_regex(map, r"^suppress_path$", PCHook::Suppress);
-        let _ = ret.add_pc_hook_regex(map, r"^start_cyclecount$", PCHook::Intrinsic(start_cyclecount));
-        let _ = ret.add_pc_hook_regex(map, r"^end_cyclecount$", PCHook::Intrinsic(end_cyclecount));
+        let _ = ret.add_pc_hook_regex(map, r"^suppress_path$", &PCHook::Suppress);
+        let _ = ret.add_pc_hook_regex(map, r"^start_cyclecount$", &PCHook::Intrinsic(start_cyclecount));
+        let _ = ret.add_pc_hook_regex(map, r"^end_cyclecount$", &PCHook::Intrinsic(end_cyclecount));
 
-        ret.add_pc_hook(0xfffffffe, PCHook::EndSuccess);
+        ret.add_pc_hook(0xffff_fffe, PCHook::EndSuccess);
         Ok(ret)
     }
 }

@@ -87,7 +87,7 @@ impl<C: Composition> SymexArbiter<C> {
             self.project.clone(),
             &self.ctx,
             function,
-            0xfffffffe,
+            0xffff_fffe,
             self.state_container.clone(),
             intermediate_hooks,
             self.architecture.clone(),
@@ -118,7 +118,7 @@ impl<C: Composition> SymexArbiter<C> {
             })
             .collect::<Vec<_>>();
 
-        intermediate_hooks.allow_access(&mut self.ctx, &self.project, allowed);
+        intermediate_hooks.allow_access(&mut self.ctx, &self.project, &allowed);
         if let Some(hooks) = hooks {
             intermediate_hooks.add_all(hooks);
         }
@@ -127,7 +127,7 @@ impl<C: Composition> SymexArbiter<C> {
             self.project.clone(),
             &self.ctx,
             function,
-            0xfffffffe,
+            0xffff_fffe,
             self.state_container.clone(),
             intermediate_hooks,
             self.architecture.clone(),
@@ -151,7 +151,7 @@ impl<C: Composition> SymexArbiter<C> {
             self.project.clone(),
             &self.ctx,
             function,
-            0xfffffffe,
+            0xffff_fffe,
             self.state_container.clone(),
             intermediate_hooks,
             self.architecture.clone(),
@@ -170,7 +170,7 @@ impl<C: Composition> SymexArbiter<C> {
             self.ctx.clone(),
             self.project.clone(),
             hooks,
-            0xfffffffe,
+            0xffff_fffe,
             pc,
             self.state_container.clone(),
             self.architecture.clone(),
@@ -194,7 +194,7 @@ impl<C: Composition> SymexArbiter<C> {
             self.ctx.clone(),
             self.project.clone(),
             hooks,
-            0xfffffffe,
+            0xffff_fffe,
             pc,
             self.state_container.clone(),
             self.architecture.clone(),

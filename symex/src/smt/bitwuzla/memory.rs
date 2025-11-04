@@ -18,6 +18,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone)]
+#[must_use]
 pub struct ArrayMemory {
     /// Reference to the context so new symbols can be created.
     pub ctx: Rc<Btor>,
@@ -40,13 +41,13 @@ impl ArrayMemory {
     pub fn read(&self, addr: &BitwuzlaExpr, bits: u32) -> Result<BitwuzlaExpr, MemoryError> {
         assert_eq!(addr.size(), self.ptr_size, "passed wrong sized address");
 
-        let value = self.internal_read(addr, bits, self.ptr_size)?;
+        let value = self.internal_read(addr, bits, self.ptr_size);
         Ok(value)
     }
 
-    pub fn write(&mut self, addr: &BitwuzlaExpr, value: BitwuzlaExpr) -> Result<(), MemoryError> {
+    pub fn write(&mut self, addr: &BitwuzlaExpr, value: BitwuzlaExpr) {
         assert_eq!(addr.size(), self.ptr_size, "passed wrong sized address");
-        self.internal_write(addr, value, self.ptr_size)
+        self.internal_write(addr, value, self.ptr_size);
     }
 
     /// Creates a new memory containing only uninitialized memory.
@@ -67,16 +68,16 @@ impl ArrayMemory {
     }
 
     /// Writes an u8 value to the given address.
-    fn write_u8(&mut self, addr: &BitwuzlaExpr, val: BitwuzlaExpr) {
+    fn write_u8(&mut self, addr: &BitwuzlaExpr, val: &BitwuzlaExpr) {
         self.memory = self.memory.write(&addr.0, &val.0);
     }
 
-    /// Reads `bits` from `addr.
+    /// Reads `bits` from `addr`.
     ///
     /// If the number of bits are less than `BITS_IN_BYTE` then individual bits
     /// can be read, but if the number of bits exceed `BITS_IN_BYTE` then
     /// full bytes must be read.
-    fn internal_read(&self, addr: &BitwuzlaExpr, bits: u32, ptr_size: u32) -> Result<BitwuzlaExpr, MemoryError> {
+    fn internal_read(&self, addr: &BitwuzlaExpr, bits: u32, ptr_size: u32) -> BitwuzlaExpr {
         let value = if bits < BITS_IN_BYTE {
             self.read_u8(addr).slice(0, bits - 1)
         } else {
@@ -99,10 +100,10 @@ impl ArrayMemory {
             }
         };
 
-        Ok(value)
+        value
     }
 
-    fn internal_write(&mut self, addr: &BitwuzlaExpr, value: BitwuzlaExpr, ptr_size: u32) -> Result<(), MemoryError> {
+    fn internal_write(&mut self, addr: &BitwuzlaExpr, value: BitwuzlaExpr, ptr_size: u32) {
         // Check if we should zero extend the value (if it less than 8-bits).
         let value = if value.size() < BITS_IN_BYTE { value.zero_ext(BITS_IN_BYTE) } else { value };
 
@@ -121,10 +122,8 @@ impl ArrayMemory {
                 Endianness::Big => BitwuzlaExpr(BV::from_u64(self.ctx.clone(), (num_bytes - 1 - n) as u64, ptr_size as u64)),
             };
             let addr = addr.add(&offset);
-            self.write_u8(&addr, byte);
+            self.write_u8(&addr, &byte);
         }
-
-        Ok(())
     }
 }
 
@@ -243,7 +242,8 @@ impl<State: UserStateContainer> SmtMap for BitwuzlaMemory<State> {
             }
             // todo!("Handle non static program memory writes");
         }
-        Ok(self.ram.write(idx, value)?)
+        self.ram.write(idx, value);
+        Ok(())
     }
 
     fn get_pc(&self) -> Result<Self::Expression, crate::smt::MemoryError> {
@@ -455,7 +455,7 @@ impl<State: UserStateContainer> SmtMap for BitwuzlaMemory<State> {
     }
 
     fn set_cycle_count(&mut self, value: u64) {
-        self.cycles = value
+        self.cycles = value;
     }
 
     fn get_registers(&mut self) -> HashMap<String, Self::Expression> {
@@ -472,32 +472,32 @@ impl<State: UserStateContainer> SmtMap for BitwuzlaMemory<State> {
 impl<State: UserStateContainer> Display for BitwuzlaMemory<State> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("\tVariables:\r\n")?;
-        for (key, value) in self.variables.iter() {
+        for (key, value) in &self.variables {
             write!(f, "\t\t{key} : {}\r\n", match value.get_constant() {
                 Some(_value) => value.to_binary_string(),
-                _ => strip(format!("{:?}", value)),
+                _ => strip(format!("{value:?}")),
             })?;
         }
         f.write_str("\tFP Variables:\r\n")?;
-        for (key, value) in self.fp_variables.iter() {
+        for (key, value) in &self.fp_variables {
             write!(f, "\t\t{key} : {}\r\n", match value.get_const() {
                 Some(value) => value.to_string(),
-                _ => strip(format!("{:?}", value)),
+                _ => strip(format!("{value:?}")),
             })?;
         }
         f.write_str("\tRegister file:\r\n")?;
-        for (key, value) in self.register_file.iter() {
+        for (key, value) in &self.register_file {
             write!(f, "\t\t{key} : {}\r\n", match value.get_constant() {
                 Some(_value) => value.to_binary_string(),
-                _ => strip(format!("{:?}", value)),
+                _ => strip(format!("{value:?}")),
             })?;
         }
         f.write_str("\tFlags:\r\n")?;
 
-        for (key, value) in self.flags.iter() {
+        for (key, value) in &self.flags {
             write!(f, "\t\t{key} : {}\r\n", match value.get_constant() {
                 Some(_value) => value.to_binary_string(),
-                _ => strip(format!("{:?}", value)),
+                _ => strip(format!("{value:?}")),
             })?;
         }
         Ok(())

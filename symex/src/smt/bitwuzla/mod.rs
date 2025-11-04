@@ -1,3 +1,4 @@
+#![allow(clippy::used_underscore_items)]
 use std::{ffi::CStr, rc::Rc};
 
 use bitwuzla::{option::ModelGen, SolverResult, BV};
@@ -20,7 +21,7 @@ pub struct Bitwuzla {
 unsafe extern "C" fn abort_callback(data: *const std::os::raw::c_char) {
     let data = unsafe { CStr::from_ptr(data) };
     match data.to_str() {
-        Ok(val) => eprintln!("Bitwuzla failed internally with message {}", val),
+        Ok(val) => eprintln!("Bitwuzla failed internally with message {val}"),
         Err(_) => eprintln!("Bitwuzla failed internally with invalid cstring message"),
     }
 
@@ -36,7 +37,7 @@ impl super::Lambda for bitwuzla::lambda::Lambda<Rc<bitwuzla::Bitwuzla>, 1> {
     }
 
     fn new<F: Fn(Self::Argument) -> BitwuzlaExpr>(smt: &mut Self::SMT, width: u32, f: F) -> Self {
-        bitwuzla::lambda::Lambda::new(smt.ctx.clone(), width as u64, |args| {
+        Self::new(smt.ctx.clone(), width as u64, |args| {
             let val = args[0].clone();
             f(BitwuzlaExpr(val)).0
         })
@@ -48,11 +49,11 @@ impl super::Lambda for bitwuzla::lambda::Lambda<Rc<bitwuzla::Bitwuzla>, 2> {
     type SMT = Bitwuzla;
 
     fn apply(&self, args: Self::Argument) -> BitwuzlaExpr {
-        BitwuzlaExpr(self.apply(&[args.0 .0.clone(), args.1 .0.clone()]))
+        BitwuzlaExpr(self.apply(&[args.0 .0.clone(), args.1 .0]))
     }
 
     fn new<F: Fn(Self::Argument) -> BitwuzlaExpr>(smt: &mut Self::SMT, width: u32, f: F) -> Self {
-        bitwuzla::lambda::Lambda::new(smt.ctx.clone(), width as u64, |args| {
+        Self::new(smt.ctx.clone(), width as u64, |args| {
             let val1 = args[0].clone();
             let val2 = args[0].clone();
             f((BitwuzlaExpr(val1), BitwuzlaExpr(val2))).0
@@ -163,7 +164,7 @@ impl SmtSolver for Bitwuzla {
 }
 
 impl Bitwuzla {
-    fn _check_sat_result(&self, sat_result: SolverResult) -> Result<bool, SolverError> {
+    const fn _check_sat_result(sat_result: SolverResult) -> Result<bool, SolverError> {
         match sat_result {
             SolverResult::Sat => Ok(true),
             SolverResult::Unsat => Ok(false),
@@ -174,7 +175,7 @@ impl Bitwuzla {
     pub fn _get_value(&self, expr: &BitwuzlaExpr) -> Result<BitwuzlaExpr, SolverError> {
         let expr = expr.clone().simplify();
         if expr.get_constant().is_some() {
-            return Ok(expr.clone());
+            return Ok(expr);
         }
 
         //self.ctx.set_opt(BtorOption::ModelGen(ModelGen::All));
@@ -333,7 +334,6 @@ impl Bitwuzla {
         //self.ctx.set_opt(BtorOption::ModelGen(ModelGen::Disabled));
     }
 
-    #[must_use]
     /// Create a new uninitialized expression of size `bits`.
     pub fn _unconstrained(&self, bits: u32, name: &str) -> BitwuzlaExpr {
         assert!(bits != 0, "Tried to create a 0 width unconstrained value");
@@ -342,37 +342,31 @@ impl Bitwuzla {
         ret
     }
 
-    #[must_use]
     /// Create a new expression set equal to `1` of size `bits`.
     pub fn _one(&self, bits: u32) -> BitwuzlaExpr {
         BitwuzlaExpr(BV::from_u64(self.ctx.clone(), 1, bits as u64))
     }
 
-    #[must_use]
     /// Create a new expression set to zero of size `bits`.
     pub fn _zero(&self, bits: u32) -> BitwuzlaExpr {
         BitwuzlaExpr(BV::zero(self.ctx.clone(), bits as u64))
     }
 
-    #[must_use]
     /// Create a new expression from a boolean value.
     pub fn _from_bool(&self, value: bool) -> BitwuzlaExpr {
         BitwuzlaExpr(BV::from_bool(self.ctx.clone(), value))
     }
 
-    #[must_use]
     /// Create a new expression from an `u64` value of size `bits`.
     pub fn _from_u64(&self, value: u64, bits: u32) -> BitwuzlaExpr {
         BitwuzlaExpr(BV::from_u64(self.ctx.clone(), value, bits as u64))
     }
 
-    #[must_use]
     /// Create an expression of size `bits` from a binary string.
     pub fn _from_binary_string(&self, bits: &str) -> BitwuzlaExpr {
         BitwuzlaExpr(BV::from_binary_str(self.ctx.clone(), bits))
     }
 
-    #[must_use]
     /// Creates an expression of size `bits` containing the maximum unsigned
     /// value.
     pub fn _unsigned_max(&self, bits: u32) -> BitwuzlaExpr {
@@ -384,7 +378,6 @@ impl Bitwuzla {
         self._from_binary_string(&s)
     }
 
-    #[must_use]
     /// Create an expression of size `bits` containing the maximum signed value.
     ///
     ///
@@ -402,7 +395,6 @@ impl Bitwuzla {
         self._from_binary_string(&s)
     }
 
-    #[must_use]
     /// Create an expression of size `bits` containing the minimum signed value.
     ///
     ///
@@ -548,11 +540,11 @@ mod test_smt_expr {
         let a = smt.from_u64(0, 1);
         let b = smt.from_u64(1, 1);
         assert!(SmtExpr::_eq(&a, &b).get_constant() == Some(0));
-        let a = smt.from_u64(0b101011010011, 32);
-        let b = smt.from_u64(0b011011010011, 32);
+        let a = smt.from_u64(0b1010_1101_0011, 32);
+        let b = smt.from_u64(0b0110_1101_0011, 32);
         assert!(SmtExpr::_eq(&a, &b).get_constant() == Some(0));
-        let a = smt.from_u64(0b101011010011, 32);
-        let b = smt.from_u64(0b101011010011, 32);
+        let a = smt.from_u64(0b1010_1101_0011, 32);
+        let b = smt.from_u64(0b1010_1101_0011, 32);
         assert!(SmtExpr::_eq(&a, &b).get_constant() == Some(1));
     }
 
@@ -568,11 +560,11 @@ mod test_smt_expr {
         let a = smt.from_u64(0, 1);
         let b = smt.from_u64(1, 1);
         assert!(SmtExpr::_ne(&a, &b).get_constant() == Some(1));
-        let a = smt.from_u64(0b101011010011, 32);
-        let b = smt.from_u64(0b011011010011, 32);
+        let a = smt.from_u64(0b1010_1101_0011, 32);
+        let b = smt.from_u64(0b0110_1101_0011, 32);
         assert!(SmtExpr::_ne(&a, &b).get_constant() == Some(1));
-        let a = smt.from_u64(0b101011010011, 32);
-        let b = smt.from_u64(0b101011010011, 32);
+        let a = smt.from_u64(0b1010_1101_0011, 32);
+        let b = smt.from_u64(0b1010_1101_0011, 32);
         assert!(SmtExpr::_ne(&a, &b).get_constant() == Some(0));
     }
 
@@ -588,11 +580,11 @@ mod test_smt_expr {
         let a = smt.from_u64(0, 1);
         let b = smt.from_u64(1, 1);
         assert!(SmtExpr::ugt(&a, &b).get_constant() == Some(0));
-        let a = smt.from_u64(0b101011010011, 32);
-        let b = smt.from_u64(0b011011010011, 32);
+        let a = smt.from_u64(0b1010_1101_0011, 32);
+        let b = smt.from_u64(0b0110_1101_0011, 32);
         assert!(SmtExpr::ugt(&a, &b).get_constant() == Some(1));
-        let a = smt.from_u64(0b101011010011, 32);
-        let b = smt.from_u64(0b101011010011, 32);
+        let a = smt.from_u64(0b1010_1101_0011, 32);
+        let b = smt.from_u64(0b1010_1101_0011, 32);
         assert!(SmtExpr::ugt(&a, &b).get_constant() == Some(0));
     }
 
@@ -608,11 +600,11 @@ mod test_smt_expr {
         let a = smt.from_u64(0, 1);
         let b = smt.from_u64(1, 1);
         assert!(SmtExpr::ugte(&a, &b).get_constant() == Some(0));
-        let a = smt.from_u64(0b101011010011, 32);
-        let b = smt.from_u64(0b011011010011, 32);
+        let a = smt.from_u64(0b1010_1101_0011, 32);
+        let b = smt.from_u64(0b0110_1101_0011, 32);
         assert!(SmtExpr::ugte(&a, &b).get_constant() == Some(1));
-        let a = smt.from_u64(0b101011010011, 32);
-        let b = smt.from_u64(0b101011010011, 32);
+        let a = smt.from_u64(0b1010_1101_0011, 32);
+        let b = smt.from_u64(0b1010_1101_0011, 32);
         assert!(SmtExpr::ugte(&a, &b).get_constant() == Some(1));
     }
 }
@@ -620,7 +612,7 @@ mod test_smt_expr {
 #[cfg(test)]
 mod test {
 
-    use std::u32;
+    use std::{sync::Arc, u32};
 
     use general_assembly::{
         condition::Condition,
@@ -662,8 +654,7 @@ mod test {
     #[test]
     fn test_count_ones_concrete() {
         let ctx = Bitwuzla::new();
-        let project = Box::new(Project::manual_project(vec![], 0, 0, WordSize::Bit32, Endianness::Little, HashMap::new()));
-        let project = Box::leak(project);
+        let project = Arc::new(Box::new(Project::manual_project(vec![], 0, 0, WordSize::Bit32, Endianness::Little, HashMap::new())));
         let state = GAState::<DefaultComposition>::create_test_state(
             project,
             ctx.clone(),
@@ -688,8 +679,7 @@ mod test {
     #[test]
     fn test_count_ones_symbolic() {
         let ctx = Bitwuzla::new();
-        let project = Box::new(Project::manual_project(vec![], 0, 0, WordSize::Bit32, Endianness::Little, HashMap::new()));
-        let project = Box::leak(project);
+        let project = Arc::new(Box::new(Project::manual_project(vec![], 0, 0, WordSize::Bit32, Endianness::Little, HashMap::new())));
         let state = GAState::<DefaultComposition>::create_test_state(
             project,
             ctx.clone(),
@@ -716,8 +706,7 @@ mod test {
     #[test]
     fn test_count_zeroes_concrete() {
         let ctx = Bitwuzla::new();
-        let project = Box::new(Project::manual_project(vec![], 0, 0, WordSize::Bit32, Endianness::Little, HashMap::new()));
-        let project = Box::leak(project);
+        let project = Arc::new(Box::new(Project::manual_project(vec![], 0, 0, WordSize::Bit32, Endianness::Little, HashMap::new())));
         let state = GAState::<DefaultComposition>::create_test_state(
             project,
             ctx.clone(),
@@ -742,8 +731,7 @@ mod test {
     #[test]
     fn test_count_leading_ones_concrete() {
         let ctx = Bitwuzla::new();
-        let project = Box::new(Project::manual_project(vec![], 0, 0, WordSize::Bit32, Endianness::Little, HashMap::new()));
-        let project = Box::leak(project);
+        let project = Arc::new(Box::new(Project::manual_project(vec![], 0, 0, WordSize::Bit32, Endianness::Little, HashMap::new())));
         let state = GAState::<DefaultComposition>::create_test_state(
             project,
             ctx.clone(),
@@ -768,8 +756,7 @@ mod test {
     #[test]
     fn test_count_leading_zeroes_concrete() {
         let ctx = Bitwuzla::new();
-        let project = Box::new(Project::manual_project(vec![], 0, 0, WordSize::Bit32, Endianness::Little, HashMap::new()));
-        let project = Box::leak(project);
+        let project = Arc::new(Box::new(Project::manual_project(vec![], 0, 0, WordSize::Bit32, Endianness::Little, HashMap::new())));
         let state = GAState::<DefaultComposition>::create_test_state(
             project,
             ctx.clone(),
@@ -794,8 +781,7 @@ mod test {
     #[test]
     fn test_add_with_carry() {
         let ctx = Bitwuzla::new();
-        let project = Box::new(Project::manual_project(vec![], 0, 0, WordSize::Bit32, Endianness::Little, HashMap::new()));
-        let project = Box::leak(project);
+        let project = Arc::new(Box::new(Project::manual_project(vec![], 0, 0, WordSize::Bit32, Endianness::Little, HashMap::new())));
         let state = GAState::<DefaultComposition>::create_test_state(
             project,
             ctx.clone(),
@@ -866,10 +852,9 @@ mod test {
 
     fn setup_test_vm() -> VM<DefaultCompositionNoLogger> {
         let ctx = Bitwuzla::new();
-        let project_global = Box::new(Project::manual_project(vec![], 0, 0, WordSize::Bit32, Endianness::Little, HashMap::new()));
-        let project: &'static Project = Box::leak(project_global);
+        let project = Arc::new(Box::new(Project::manual_project(vec![], 0, 0, WordSize::Bit32, Endianness::Little, HashMap::new())));
         let state = GAState::<DefaultCompositionNoLogger>::create_test_state(
-            project,
+            project.clone(),
             ctx.clone(),
             ctx.clone(),
             0,
@@ -884,7 +869,7 @@ mod test {
     #[test]
     fn test_fp_div_un_even_ties_to_even_explicit() {
         let mut vm = setup_test_vm();
-        let project = vm.project;
+        let project = vm.project.clone();
         let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
         let operand_r0 = Operand::Register("R0".to_owned());
 
@@ -999,7 +984,7 @@ mod test {
     #[test]
     fn test_fp_div_un_even_ties_to_even_system_level() {
         let mut vm = setup_test_vm();
-        let project = vm.project;
+        let project = vm.project.clone();
         let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
         let operand_r0 = Operand::Register("R0".to_owned());
 
@@ -1115,7 +1100,7 @@ mod test {
     #[test]
     fn test_fp_div_mul() {
         let mut vm = setup_test_vm();
-        let project = vm.project;
+        let project = vm.project.clone();
         let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
         let operand_r0 = Operand::Register("R0".to_owned());
 
@@ -1285,7 +1270,7 @@ mod test {
     #[test]
     fn test_fp_non_computational() {
         let mut vm = setup_test_vm();
-        let project = vm.project;
+        let project = vm.project.clone();
         let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
         let operand_r0 = Operand::Register("R0".to_owned());
 
@@ -1450,7 +1435,7 @@ mod test {
     #[test]
     fn test_fp_compare() {
         let mut vm = setup_test_vm();
-        let project = vm.project;
+        let project = vm.project.clone();
         let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
         let operand_r0 = Operand::Register("R0".to_owned());
 
@@ -1755,7 +1740,7 @@ mod test {
     #[test]
     fn test_fp_load_store_address() {
         let mut vm = setup_test_vm();
-        let project = vm.project;
+        let project = vm.project.clone();
         let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
         let operand_r0 = Operand::Register("R0".to_owned());
 
@@ -1832,7 +1817,7 @@ mod test {
     #[test]
     fn test_fp_load_store_register() {
         let mut vm = setup_test_vm();
-        let project = vm.project;
+        let project = vm.project.clone();
         let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
         let operand_r0 = Operand::Register("R0".to_owned());
         let operand_r1 = Operand::Register("R1".to_owned());
@@ -1956,7 +1941,7 @@ mod test {
     #[test]
     fn test_fp_sqrt() {
         let mut vm = setup_test_vm();
-        let project = vm.project;
+        let project = vm.project.clone();
         let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
         let operand_r0 = Operand::Register("R0".to_owned());
 
@@ -2034,7 +2019,7 @@ mod test {
     #[test]
     fn test_fp_fma() {
         let mut vm = setup_test_vm();
-        let project = vm.project;
+        let project = vm.project.clone();
         let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
         let operand_r0 = Operand::Register("R0".to_owned());
         let operand_r1 = Operand::Register("R1".to_owned());
@@ -2181,7 +2166,7 @@ mod test {
     #[test]
     fn test_fp_abs() {
         let mut vm = setup_test_vm();
-        let project = vm.project;
+        let project = vm.project.clone();
         let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
         let operand_r0 = Operand::Register("R0".to_owned());
 
@@ -2329,7 +2314,7 @@ mod test {
     #[test]
     fn test_fp_div_un_even() {
         let mut vm = setup_test_vm();
-        let project = vm.project;
+        let project = vm.project.clone();
         let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
         let operand_r0 = Operand::Register("R0".to_owned());
 
@@ -2444,7 +2429,7 @@ mod test {
     #[test]
     fn test_fp_mul() {
         let mut vm = setup_test_vm();
-        let project = vm.project;
+        let project = vm.project.clone();
         let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
         let operand_r0 = Operand::Register("R0".to_owned());
 
@@ -2559,7 +2544,7 @@ mod test {
     #[test]
     fn test_fp_sub() {
         let mut vm = setup_test_vm();
-        let project = vm.project;
+        let project = vm.project.clone();
         let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
         let operand_r0 = Operand::Register("R0".to_owned());
 
@@ -2674,7 +2659,7 @@ mod test {
     #[test]
     fn test_fp_add() {
         let mut vm = setup_test_vm();
-        let project = vm.project;
+        let project = vm.project.clone();
         let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
         let operand_r0 = Operand::Register("R0".to_owned());
 
@@ -2789,7 +2774,7 @@ mod test {
     #[test]
     fn test_move() {
         let mut vm = setup_test_vm();
-        let project = vm.project;
+        let project = vm.project.clone();
         let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
         let operand_r0 = Operand::Register("R0".to_owned());
 
@@ -2843,7 +2828,7 @@ mod test {
     #[test]
     fn test_add_vm() {
         let mut vm = setup_test_vm();
-        let project = vm.project;
+        let project = vm.project.clone();
         let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
         let r0 = Operand::Register("R0".to_owned());
@@ -2900,7 +2885,7 @@ mod test {
     #[test]
     fn test_adc() {
         let mut vm = setup_test_vm();
-        let project = vm.project;
+        let project = vm.project.clone();
         let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
         let imm_42 = Operand::Immediate(DataWord::Word32(42));
@@ -2954,7 +2939,7 @@ mod test {
     #[test]
     fn test_sub() {
         let mut vm = setup_test_vm();
-        let project = vm.project;
+        let project = vm.project.clone();
         let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
         let r0 = Operand::Register("R0".to_owned());
@@ -3011,7 +2996,7 @@ mod test {
     #[test]
     fn test_mul() {
         let mut vm = setup_test_vm();
-        let project = vm.project;
+        let project = vm.project.clone();
         let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
         let r0 = Operand::Register("R0".to_owned());
@@ -3068,7 +3053,7 @@ mod test {
     #[test]
     fn test_set_v_flag() {
         let mut vm = setup_test_vm();
-        let project = vm.project;
+        let project = vm.project.clone();
         let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
 
         let imm_42 = Operand::Immediate(DataWord::Word32(42));
@@ -3116,7 +3101,7 @@ mod test {
     #[test]
     fn test_conditional_execution() {
         let mut vm = setup_test_vm();
-        let project = vm.project;
+        let project = vm.project.clone();
         let mut executor = GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm, project);
         let imm_0 = Operand::Immediate(DataWord::Word32(0));
         let imm_1 = Operand::Immediate(DataWord::Word32(1));
@@ -3178,7 +3163,7 @@ mod test {
         //let mut vm = setup_test_vm();
         //let i = i.local_into();
         //let f = f.local_into();
-        //let project = vm.project;
+        //let project = vm.project.clone();
         //let mut executor =
         // GAExecutor::from_state(vm.paths.get_path().unwrap().state, &mut vm,
         // project);

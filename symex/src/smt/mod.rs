@@ -11,18 +11,16 @@ use crate::{
     executor::ResultOrTerminate,
     memory::MemoryError as MemoryFileError,
     project::dwarf_helper::SubProgramMap,
-    Composition,
     Endianness,
     UserStateContainer,
 };
 
 #[cfg(feature = "bitwuzla")]
 pub mod bitwuzla;
-#[cfg(feature = "z3")]
-pub mod z3;
-//pub mod deterministic;
 #[cfg(feature = "boolector")]
 pub mod smt_boolector;
+#[cfg(feature = "z3")]
+pub mod z3;
 
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 pub enum SolverError {
@@ -99,7 +97,6 @@ pub trait ProgramMemory<E: SmtExpr>: Debug + Clone {
         self.get_ptr_size()
     }
 
-    #[must_use]
     /// Returns the availiable sub programs.
     fn borrow_symtab(&self) -> &SubProgramMap;
 
@@ -725,6 +722,6 @@ impl<T: SmtMap> Context for T {
     type Expr = <Self as SmtMap>::Expression;
 
     fn new_from_u64(&self, val: u64, bits: u32) -> Self::Expr {
-        <Self as SmtMap>::from_u64(&self, val, bits)
+        <Self as SmtMap>::from_u64(self, val, bits)
     }
 }

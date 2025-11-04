@@ -27,12 +27,12 @@ general_assembly = { path = "../symex/general_assembly" }
 
 # SMT-backends
 boolector = { git = "https://github.com/ivajon/boolector-rs.git", optional = true }
-bitwuzla = { git = "https://github.com/ivajon/boolector-rs.git", branch = "bitwuzla", optional = true}
+bitwuzla = { git = "https://github.com/ivajon/boolector-rs.git", branch = "bitwuzla", optional = true, features=["vendor-cadical"]}
 
 
 # Parsing-backends.
 armv6-m-instruction-parser = "0.3.0-rc1"
-disarmv7 = { git = "https://github.com/ivajon/disarmv7", branch = "floats" }
+disarmv7 = { git = "https://github.com/ivajon/disarmv7" }
 hashbrown = "0.15.2"
 kd-tree = "0.6.0"
 fst = "0.4.7"

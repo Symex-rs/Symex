@@ -7,15 +7,15 @@ use crate::{
     smt::{SmtExpr, SmtMap},
 };
 
+#[allow(clippy::match_same_arms, clippy::too_many_lines)]
 pub(crate) fn cycle_count_m0plus_core<C: crate::Composition>(operation: &Operation) -> CycleCount<C> {
     // SIO based on the rp2040 make this configurable later
     let address_max_cycle_function = |state: &mut GAState<C>| {
-        let address = match state.memory.get_register("LastAddr").unwrap().get_constant() {
-            Some(v) => v,
-            None => return 2,
+        let Some(address) = state.memory.get_register("LastAddr").unwrap().get_constant() else {
+            return 2;
         };
 
-        if (0xd0000000..=0xdfffffff).contains(&address) {
+        if (0xd000_0000..=0xdfff_ffff).contains(&address) {
             1
         } else {
             2
@@ -134,7 +134,7 @@ pub(crate) fn cycle_count_m0plus_core<C: crate::Composition>(operation: &Operati
     }
 }
 
-#[allow(dead_code)]
+#[allow(dead_code, clippy::match_same_arms, clippy::too_many_lines)]
 pub(crate) fn cycle_count_m0_core<C: crate::Composition>(operation: &Operation) -> CycleCount<C> {
     match operation {
         Operation::ADCReg { m: _, n: _, d: _ } => CycleCount::Value(1),
