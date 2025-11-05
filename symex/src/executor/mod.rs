@@ -18,6 +18,7 @@ use vm::VM;
 use crate::{
     arch::InterfaceRegister,
     debug,
+    executor::memory_interface::MemoryFilter,
     logging::Logger,
     path_selection::{Path, PathSelector},
     smt::{Lambda, ProgramMemory, SmtExpr, SmtMap, SmtSolver, SolverError},
@@ -30,6 +31,7 @@ use crate::{
 mod extension;
 pub mod hooks;
 pub mod instruction;
+pub mod memory_interface;
 pub mod state;
 mod util;
 pub mod vm;
@@ -748,9 +750,9 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
                 debug!("Address {:?} non deterministic!", address);
 
                 'bucket: {
-                    if let Some(lookup) = self.state.hooks.section_lookup() {
+                    if let Some(lookup) = self.state.memory_filter.section_lookup() {
                         let potential_bucket_idx: C::SmtExpression = lookup.apply(address.clone());
-                        let sols = self.state.hooks.great_filter_const_read.len() + 1;
+                        let sols = self.state.memory_filter.number_of_regions();
                         let bucket_idx = match self.state.constraints.get_values(&potential_bucket_idx, sols as u32) {
                             Ok(val) => val,
                             Err(err) => {

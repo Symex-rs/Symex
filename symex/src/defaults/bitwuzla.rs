@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 use super::logger::SimplePathLogger;
 use crate::{
     arch::NoArchitectureOverride,
+    executor::memory_interface::MemoryBucketingFilter,
     logging::NoLogger,
     manager::SymexArbiter,
     path_selection::DFSPathSelection,
@@ -26,16 +27,13 @@ impl Composition for DefaultComposition {
     type ArchitectureOverride = NoArchitectureOverride;
     type Logger = SimplePathLogger;
     type Memory = BitwuzlaMemory<()>;
+    type MemoryFilter = MemoryBucketingFilter<Self>;
     type PathSelector = DFSPathSelection<Self>;
     type ProgramMemory = std::sync::Arc<Project<Self::SMT>>;
     type SMT = Bitwuzla;
     type SmtExpression = BitwuzlaExpr;
     type SmtFPExpression = FpExpr;
     type StateContainer = ();
-
-    fn logger<'a>() -> &'a mut Self::Logger {
-        todo!()
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -46,16 +44,13 @@ impl Composition for DefaultCompositionNoLogger {
     type ArchitectureOverride = NoArchitectureOverride;
     type Logger = NoLogger;
     type Memory = BitwuzlaMemory<()>;
+    type MemoryFilter = MemoryBucketingFilter<Self>;
     type PathSelector = DFSPathSelection<Self>;
     type ProgramMemory = std::sync::Arc<Project<Self::SMT>>;
     type SMT = Bitwuzla;
     type SmtExpression = BitwuzlaExpr;
     type SmtFPExpression = FpExpr;
     type StateContainer = ();
-
-    fn logger<'a>() -> &'a mut Self::Logger {
-        todo!()
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -67,14 +62,11 @@ impl<State: UserStateContainer> Composition for UserState<State> {
     type ArchitectureOverride = NoArchitectureOverride;
     type Logger = SimplePathLogger;
     type Memory = BitwuzlaMemory<State>;
+    type MemoryFilter = MemoryBucketingFilter<Self>;
     type PathSelector = DFSPathSelection<Self>;
     type ProgramMemory = std::sync::Arc<Project<Self::SMT>>;
     type SMT = Bitwuzla;
     type SmtExpression = BitwuzlaExpr;
     type SmtFPExpression = FpExpr;
     type StateContainer = State;
-
-    fn logger<'a>() -> &'a mut Self::Logger {
-        todo!()
-    }
 }

@@ -11,7 +11,7 @@ use crate::{
     logging::Logger,
     path_selection::PathSelector,
     project::dwarf_helper::{DebugData, LineMap, SubProgram, SubProgramMap},
-    smt::{ProgramMemory, SmtExpr, SmtMap, SmtSolver},
+    smt::{SmtExpr, SmtMap},
     Composition,
     GAError,
 };
@@ -85,47 +85,7 @@ impl<C: Composition> SymexArbiter<C> {
 
         let vm = VM::new(
             self.project.clone(),
-            &self.ctx,
-            function,
-            0xffff_fffe,
-            self.state_container.clone(),
-            intermediate_hooks,
-            self.architecture.clone(),
-            self.logger.clone(),
-            self.line_map.clone(),
-            self.debug_data.clone(),
-        )?;
-        Ok(Runner { vm, path_idx: 0 })
-    }
-
-    pub fn run_with_strict_memory(
-        &mut self,
-        function: &SubProgram,
-        ranges: &[MemoryRegion],
-        hooks: Option<PrioriHookContainer<C>>,
-        language: &LangagueHooks,
-    ) -> crate::Result<Runner<C>> {
-        let mut intermediate_hooks = self.hooks.clone();
-        intermediate_hooks.add_language_hooks(&self.symbol_lookup, language);
-        let allowed = ranges
-            .iter()
-            .map(|MemoryRegion { priority, start, end }| {
-                (
-                    *priority,
-                    self.ctx.from_u64(*start, self.project.get_ptr_size()),
-                    self.ctx.from_u64(*end, self.project.get_ptr_size()),
-                )
-            })
-            .collect::<Vec<_>>();
-
-        intermediate_hooks.allow_access(&mut self.ctx, &self.project, &allowed);
-        if let Some(hooks) = hooks {
-            intermediate_hooks.add_all(hooks);
-        }
-
-        let vm = VM::new(
-            self.project.clone(),
-            &self.ctx,
+            &mut self.ctx,
             function,
             0xffff_fffe,
             self.state_container.clone(),
@@ -146,7 +106,7 @@ impl<C: Composition> SymexArbiter<C> {
         intermediate_hooks.add_language_hooks(&self.symbol_lookup, language);
         let vm = VM::new(
             self.project.clone(),
-            &self.ctx,
+            &mut self.ctx,
             function,
             0xffff_fffe,
             self.state_container.clone(),
@@ -162,9 +122,10 @@ impl<C: Composition> SymexArbiter<C> {
     pub fn run_from_pc(&mut self, pc: u64, language: &LangagueHooks) -> crate::Result<Runner<C>> {
         let mut hooks = self.hooks.clone();
         hooks.add_language_hooks(&self.symbol_lookup, language);
+        let ctx_clone = self.ctx.clone();
         let state = GAState::new(
-            &self.ctx,
-            self.ctx.clone(),
+            &mut self.ctx,
+            ctx_clone,
             self.project.clone(),
             hooks,
             0xffff_fffe,
@@ -186,9 +147,10 @@ impl<C: Composition> SymexArbiter<C> {
         if let Some(new_hooks) = add_hooks {
             hooks.add_all(new_hooks);
         }
+        let ctx_clone = self.ctx.clone();
         let state = GAState::new(
-            &self.ctx,
-            self.ctx.clone(),
+            &mut self.ctx,
+            ctx_clone,
             self.project.clone(),
             hooks,
             0xffff_fffe,

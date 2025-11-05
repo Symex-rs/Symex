@@ -5,6 +5,7 @@ use general_assembly::extension::ieee754::OperandType;
 use super::logger::SimplePathLogger;
 use crate::{
     arch::NoArchitectureOverride,
+    executor::memory_interface::MemoryBucketingFilter,
     logging::NoLogger,
     manager::SymexArbiter,
     path_selection::DFSPathSelection,
@@ -25,16 +26,13 @@ impl Composition for DefaultComposition {
     type ArchitectureOverride = NoArchitectureOverride;
     type Logger = SimplePathLogger;
     type Memory = BoolectorMemory<()>;
+    type MemoryFilter = MemoryBucketingFilter<Self>;
     type PathSelector = DFSPathSelection<Self>;
     type ProgramMemory = Arc<Project<Boolector>>;
     type SMT = Boolector;
     type SmtExpression = BoolectorExpr;
     type SmtFPExpression = (BoolectorExpr, OperandType);
     type StateContainer = ();
-
-    fn logger<'a>() -> &'a mut Self::Logger {
-        todo!()
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -47,16 +45,13 @@ impl Composition for DefaultCompositionNoLogger {
     type ArchitectureOverride = NoArchitectureOverride;
     type Logger = NoLogger;
     type Memory = BoolectorMemory<()>;
+    type MemoryFilter = MemoryBucketingFilter<Self>;
     type PathSelector = DFSPathSelection<Self>;
     type ProgramMemory = Arc<Project<Boolector>>;
     type SMT = Boolector;
     type SmtExpression = BoolectorExpr;
     type SmtFPExpression = (BoolectorExpr, OperandType);
     type StateContainer = ();
-
-    fn logger<'a>() -> &'a mut Self::Logger {
-        todo!()
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -68,14 +63,11 @@ impl<State: UserStateContainer> Composition for UserState<State> {
     type ArchitectureOverride = NoArchitectureOverride;
     type Logger = SimplePathLogger;
     type Memory = BoolectorMemory<State>;
+    type MemoryFilter = MemoryBucketingFilter<Self>;
     type PathSelector = DFSPathSelection<Self>;
     type ProgramMemory = Arc<Project<Boolector>>;
     type SMT = Boolector;
     type SmtExpression = BoolectorExpr;
     type SmtFPExpression = (BoolectorExpr, OperandType);
     type StateContainer = State;
-
-    fn logger<'a>() -> &'a mut Self::Logger {
-        todo!()
-    }
 }

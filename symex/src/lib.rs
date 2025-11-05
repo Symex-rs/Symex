@@ -38,6 +38,7 @@
 use std::fmt::Debug;
 
 use arch::{ArchError, ArchitectureOverride};
+use executor::memory_interface::MemoryFilter;
 use logging::Logger;
 use memory::MemoryError;
 use path_selection::PathSelector;
@@ -80,7 +81,7 @@ pub trait Composition: Clone + Debug {
 
     type PathSelector: PathSelector<Self>;
 
-    fn logger<'a>() -> &'a mut Self::Logger;
+    type MemoryFilter: MemoryFilter<Self>;
 }
 
 /// Helper to mask fields from a type.

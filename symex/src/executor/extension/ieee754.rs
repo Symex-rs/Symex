@@ -59,7 +59,7 @@ where
                 ResultOrTerminate::Result(res)
             }
             OperandStorage::Register { id, ty } => {
-                let hook = self.state.hooks.reader(&mut self.state.memory).read_fp_register(&id, ty, destination_ty, rm, true);
+                let hook = self.state.reader().read_fp_register(&id, ty, destination_ty, rm, true);
 
                 match hook {
                     ResultOrHook::Hook(hook) => ResultOrTerminate::Result(hook(&mut self.state)),
@@ -117,7 +117,7 @@ where
                     Err(e) => return ResultOrTerminate::Result(Err(e).context("Tried to resolve as a bitvector")),
                 };
                 let address = extract!(Ok(self.get_operand_value(&address, logger)));
-                match self.state.hooks.writer(&mut self.state.memory).write_memory(&address, value.clone()) {
+                match self.state.writer().write_memory(&address, value.clone()) {
                     ResultOrHook::Hook(hook) => ResultOrTerminate::Result(hook(&mut self.state, address, value).context("While writing a floating point value to an address")),
                     ResultOrHook::Hooks(_) => todo!(),
                     ResultOrHook::EndFailure(e) => ResultOrTerminate::Failure(format!("{e} @ {}", self.state.debug_string())),
@@ -133,7 +133,7 @@ where
                         Err(crate::GAError::InternalError(InternalError::TypeError)).context(format!("While writing {ty:?} to {:?} register", value.ty())),
                     );
                 }
-                let hook = self.state.hooks.writer(&mut self.state.memory).write_fp_register(&id, &value, rm, true);
+                let hook = self.state.writer().write_fp_register(&id, &value, rm, true);
 
                 match hook {
                     ResultOrHook::Hook(hook) => ResultOrTerminate::Result(hook(&mut self.state, value)),

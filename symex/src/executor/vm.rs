@@ -23,7 +23,7 @@ impl<C: Composition> VM<C> {
     /// Creates a new virtual machine.
     pub fn new(
         project: <C::Memory as SmtMap>::ProgramMemory,
-        ctx: &C::SMT,
+        ctx: &mut C::SMT,
         function: &SubProgram,
         end_pc: u64,
         state_container: C::StateContainer,

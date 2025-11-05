@@ -7,13 +7,14 @@ use general_assembly::prelude::Condition;
 
 use super::{
     extension::ieee754::FpState,
-    hooks::{HookContainer, PCHook, Reader, ResultOrHook, Writer},
+    hooks::{HookContainer, PCHook, ResultOrHook},
     instruction::Instruction,
     ResultOrTerminate,
 };
 use crate::{
     arch::{InterfaceRegister, SupportedArchitecture, TryAsMut},
     debug,
+    executor::memory_interface::{MemoryFilter, Reader, Writer},
     extract,
     logging::Logger,
     project::{
@@ -59,6 +60,7 @@ pub struct GAState<C: Composition> {
     pub fp_state: FpState,
     pub line_lookup: LineMap,
     pub entry_subprogram: Option<SubProgram>,
+    pub memory_filter: C::MemoryFilter,
     debug_data: Option<DebugData>,
 }
 
@@ -67,7 +69,7 @@ impl<C: Composition> GAState<C> {
     #[allow(clippy::too_many_arguments)]
     /// Create a new state.
     pub fn new(
-        ctx: &C::SMT,
+        ctx: &mut C::SMT,
         constraints: C::SMT,
         project: <C::Memory as SmtMap>::ProgramMemory,
         hooks: HookContainer<C>,
@@ -91,6 +93,10 @@ impl<C: Composition> GAState<C> {
 
         let endianness = project.get_endianness();
         let initial_sp = ctx.from_u64(sp_reg, ptr_size);
+
+        let mut memory_filter = C::MemoryFilter::new();
+        memory_filter.define_regions(ctx, &project);
+
         let mut memory = C::Memory::new(ctx.clone(), project, endianness, initial_sp, &state, &architecture)?;
         let pc_expr = ctx.from_u64(pc_reg, ptr_size);
         memory.set_register("PC", pc_expr)?;
@@ -122,6 +128,7 @@ impl<C: Composition> GAState<C> {
             line_lookup,
             debug_data: Some(debug_data),
             entry_subprogram,
+            memory_filter,
         };
 
         ret.architecture.initiate_state()(&mut ret);
@@ -228,7 +235,7 @@ impl<C: Composition> GAState<C> {
     #[allow(clippy::too_many_arguments)]
     pub fn create_test_state(
         project: <C::Memory as SmtMap>::ProgramMemory,
-        ctx: C::SMT,
+        mut ctx: C::SMT,
         constraints: C::SMT,
         start_pc: u64,
         start_stack: u64,
@@ -245,6 +252,9 @@ impl<C: Composition> GAState<C> {
         debug!("Found stack start at addr: {:#X}.", sp_reg);
         let end = project.get_endianness();
         let initial_sp = ctx.from_u64(start_stack, 32);
+
+        let mut memory_filter = C::MemoryFilter::new();
+        memory_filter.define_regions(&mut ctx, &project);
 
         let memory = C::Memory::new(ctx, project, end, initial_sp, &state, &architecture).unwrap();
         let mut registers = HashMap::new();
@@ -274,6 +284,7 @@ impl<C: Composition> GAState<C> {
             line_lookup: LineMap::empty(),
             debug_data: None,
             entry_subprogram: None,
+            memory_filter,
         };
         ret.architecture.initiate_state()(&mut ret);
 
@@ -286,11 +297,11 @@ impl<C: Composition> GAState<C> {
         if &register.to_string() == "PC" {
             return self
                 .hooks
-                .writer(&mut self.memory)
+                .writer(&mut self.memory, &mut self.memory_filter)
                 .write_pc(expr.get_constant().ok_or(GAError::NonDeterministicPC)? as u32)
                 .map_err(|e| GAError::SmtMemoryError(e).into());
         }
-        match self.hooks.writer(&mut self.memory).write_register(&register.to_string(), &expr) {
+        match self.hooks.writer(&mut self.memory, &mut self.memory_filter).write_register(&register.to_string(), &expr) {
             ResultOrHook::Hook(hook) => hook(self, expr)?,
             ResultOrHook::Hooks(hooks) => {
                 for hook in hooks {
@@ -307,9 +318,13 @@ impl<C: Composition> GAState<C> {
     pub fn get_register(&mut self, register: &(impl ToString + ?Sized)) -> Result<C::SmtExpression> {
         // crude solution should probably change
         if &register.to_string() == "PC" {
-            return self.hooks.reader(&mut self.memory).read_pc().map_err(|e| GAError::SmtMemoryError(e).into());
+            return self
+                .hooks
+                .reader(&mut self.memory, &mut self.memory_filter)
+                .read_pc()
+                .map_err(|e| GAError::SmtMemoryError(e).into());
         }
-        match self.hooks.reader(&mut self.memory).read_register(&register.to_string()) {
+        match self.hooks.reader(&mut self.memory, &mut self.memory_filter).read_register(&register.to_string()) {
             ResultOrHook::Hook(hook) => hook(self),
             ResultOrHook::Hooks(_hooks) => todo!("Handle multiple hooks on read"),
             ResultOrHook::Result(Err(e)) => Err(GAError::SmtMemoryError(e).into()),
@@ -320,7 +335,7 @@ impl<C: Composition> GAState<C> {
 
     /// Set the value of a flag.
     pub fn set_flag(&mut self, flag: &(impl ToString + ?Sized), expr: &C::SmtExpression) -> Result<()> {
-        match self.hooks.writer(&mut self.memory).write_flag(&flag.to_string(), expr) {
+        match self.hooks.writer(&mut self.memory, &mut self.memory_filter).write_flag(&flag.to_string(), expr) {
             ResultOrHook::Hook(hook) => hook(self, expr.clone())?,
             ResultOrHook::Hooks(hooks) => {
                 for hook in hooks {
@@ -336,7 +351,7 @@ impl<C: Composition> GAState<C> {
 
     /// Get the value of a flag.
     pub fn get_flag(&mut self, flag: &(impl ToString + ?Sized)) -> Result<C::SmtExpression> {
-        match self.hooks.reader(&mut self.memory).read_flag(&flag.to_string()) {
+        match self.hooks.reader(&mut self.memory, &mut self.memory_filter).read_flag(&flag.to_string()) {
             ResultOrHook::Hook(hook) => hook(self),
             ResultOrHook::Hooks(_hooks) => todo!("Handle multiple hooks on read"),
             ResultOrHook::Result(Err(e)) => Err(GAError::SmtMemoryError(e).into()),
@@ -443,14 +458,6 @@ impl<C: Composition> GAState<C> {
         Ok(self.instruction_from_array_ptr(&self.memory.get_from_instruction_memory(pc)?)?)
     }
 
-    //fn write_word_from_memory_no_static(
-    //    &mut self,s
-    //    address: &C::SmtExpression,
-    //    value: C::SmtExpression,
-    //) -> Result<()> {
-    //    Ok(self.memory.set(address, value)?)
-    //}
-
     /// Read a word form memory. Will respect the endianness of the project.
     pub fn read_word_from_memory(&mut self, address: &C::SmtExpression) -> ResultOrTerminate<C::SmtExpression> {
         self.memory.get(address, self.memory.get_word_size())
@@ -466,11 +473,11 @@ impl<C: Composition> GAState<C> {
     }
 
     pub const fn reader(&mut self) -> Reader<'_, C> {
-        self.hooks.reader(&mut self.memory)
+        self.hooks.reader(&mut self.memory, &mut self.memory_filter)
     }
 
     pub const fn writer(&mut self) -> Writer<'_, C> {
-        self.hooks.writer(&mut self.memory)
+        self.hooks.writer(&mut self.memory, &mut self.memory_filter)
     }
 
     pub fn debug_string_new_pc(&self) -> String {
