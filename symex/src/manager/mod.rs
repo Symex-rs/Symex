@@ -57,15 +57,6 @@ impl<C: Composition> SymexArbiter<C> {
     }
 }
 
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize))]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize))]
-pub struct MemoryRegion {
-    pub priority: u64,
-    pub start: u64,
-    pub end: u64,
-}
-
 impl<C: Composition> SymexArbiter<C> {
     pub fn add_hooks<F: FnMut(&mut HookContainer<C>, &SubProgramMap)>(&mut self, mut f: F) -> &mut Self {
         f(&mut self.hooks, &self.symbol_lookup);
