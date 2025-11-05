@@ -108,7 +108,7 @@ impl<UserState: UserStateContainer> SmtMap for Z3Array<UserState> {
             return ResultOrTerminate::Result(
                 self.program_memory
                     .get(address, size as u32, &self.static_writes, &self.ram)
-                    .context("While reading from progam memory"),
+                    .context("While reading from program memory"),
             );
         }
         ResultOrTerminate::Result(
@@ -466,13 +466,13 @@ impl Z3Fp {
             return None;
         }
         let mut buffer: u64 = 0;
-        println!("Getting moddel");
+        println!("Getting model");
 
         let model = unsafe { z3_sys::Z3_solver_get_model(*self.ctx.ctx, *self.ctx.solver) };
         unsafe { z3_sys::Z3_model_inc_ref(*self.ctx.ctx, model) };
         println!("Got a model");
         let mut c = Z3Fp::_from_f64(self.ctx.clone(), 0., self.ty());
-        println!("Evaluating valiable in the model");
+        println!("Evaluating variable in the model");
         let success = unsafe { z3_sys::Z3_model_eval(*self.ctx.ctx, model, self.term, true, core::ptr::from_mut(&mut c.term)) };
         if !success {
             println!("Evaluation failed :(");
@@ -1155,13 +1155,13 @@ impl SmtExpr for Z3Bv {
             return None;
         }
         let mut buffer: u64 = 0;
-        println!("Getting moddel");
+        println!("Getting model");
 
         let model = unsafe { z3_sys::Z3_solver_get_model(*self.ctx.ctx, *self.ctx.solver) };
         unsafe { z3_sys::Z3_model_inc_ref(*self.ctx.ctx, model) };
         println!("Got a model");
         let mut c = Z3Bv::_from_u64(self.ctx.clone(), 0, self._size());
-        println!("Evaluating valiable in the model");
+        println!("Evaluating variable in the model");
         let success = unsafe { z3_sys::Z3_model_eval(*self.ctx.ctx, model, self.term, true, core::ptr::from_mut(&mut c.term)) };
         if !success {
             println!("Evaluation failed :(");

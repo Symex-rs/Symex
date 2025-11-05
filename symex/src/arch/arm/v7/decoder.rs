@@ -428,7 +428,7 @@ impl Convert for (usize, V7Operation) {
                     rn:u32 = rn;
                     rd = rd & nmask;
                     // Assume happy case here
-                    // NOTE: These are assumed to be checked by the calle.
+                    // NOTE: These are assumed to be checked by the caller.
                     let intermediate:u32 = Resize(Resize(rn<diff:0>,u31),u32) << lsb.local_into();
                     rd |= intermediate;
                 ])

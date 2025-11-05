@@ -83,7 +83,7 @@ impl<Override: ArchitectureOverride> Architecture<Override> for RISCV {
 
         debug!("PC{:#x} -> Running {:?}", state.memory.get_pc().unwrap().get_constant().unwrap(), instr);
         let instr = instr?;
-        // Hippomenes is a single cycle processor, all intructions are guaranteed to
+        // Hippomenes is a single cycle processor, all instructions are guaranteed to
         // take 1 cycle. https://riscv-europe.org/summit/2024/media/proceedings/posters/116_poster.pdf
         let timing = Self::cycle_count_hippomenes(&instr);
         let ops: Vec<Operation> = Self::instruction_to_ga_operations(&instr);
@@ -137,10 +137,10 @@ impl<Override: ArchitectureOverride> Architecture<Override> for RISCV {
         };
 
         if cfg.add_pc_hook_regex(map, r"^symbolic_size$", &PCHook::Intrinsic(symbolic_sized)).is_err() {
-            debug!("Could not add symoblic hook, must not contain any calls to `symbolic_size`");
+            debug!("Could not add symbolic hook, must not contain any calls to `symbolic_size`");
         }
         if cfg.add_pc_hook_regex(map, r"^symbolic_size<.+>$", &PCHook::Intrinsic(symbolic_sized)).is_err() {
-            debug!("Could not add symoblic hook, must not contain any calls to `symbolic_size<.+>`");
+            debug!("Could not add symbolic hook, must not contain any calls to `symbolic_size<.+>`");
         }
 
         if cfg.add_pc_hook_regex(map, r"^HardFault.*$", &PCHook::EndFailure("Hardfault")).is_err() {

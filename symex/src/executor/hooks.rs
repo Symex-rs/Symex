@@ -144,14 +144,14 @@ impl<C: Composition> HookContainer<C> {
             self.add_memory_write_hook(addr, hook);
         }
 
-        for (addr, preconditons) in other.pc_preconditions {
-            for precondition in preconditons {
+        for (addr, preconditions) in other.pc_preconditions {
+            for precondition in preconditions {
                 self.add_pc_precondition(addr, precondition);
             }
         }
 
-        for (addr, preconditons) in other.pc_preconditions_one_shots {
-            for precondition in preconditons {
+        for (addr, preconditions) in other.pc_preconditions_one_shots {
+            for precondition in preconditions {
                 self.add_pc_precondition_oneshot(addr, precondition);
             }
         }

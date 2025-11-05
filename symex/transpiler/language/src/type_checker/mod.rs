@@ -235,7 +235,7 @@ impl TypeCheck for IRExpr {
                         if let Some(ty) = rhs_ty {
                             match ty {
                                 Type::F16 | Type::F32 | Type::F64 | Type::F128 => {
-                                    return Err(TypeError::UnsuportedOperation(
+                                    return Err(TypeError::UnsupportedOperation(
                                         "Cannot compute bitwise not on floating point values."
                                             .to_string(),
                                         rhs.span(),
@@ -247,7 +247,7 @@ impl TypeCheck for IRExpr {
                         } else if let Some(dest) = dest_ty {
                             match dest {
                                 Type::F16 | Type::F32 | Type::F64 | Type::F128 => {
-                                    return Err(TypeError::UnsuportedOperation(
+                                    return Err(TypeError::UnsupportedOperation(
                                         "Cannot compute bitwise not on floating point values."
                                             .to_string(),
                                         rhs.span(),
@@ -294,7 +294,7 @@ impl TypeCheck for IRExpr {
                 };
                 match ty {
                     Type::F16 | Type::F32 | Type::F64 | Type::F128 => {
-                        Err(TypeError::UnsuportedOperation(
+                        Err(TypeError::UnsupportedOperation(
                             "Cannot branch to a floating point address.".to_string(),
                             target_id.span(),
                         ))
@@ -385,7 +385,7 @@ impl TypeCheck for IRExpr {
                     }
                     (None, Some(lhs), Some(rhs)) if lhs == rhs => (lhs, rhs),
                     (None, Some(lhs), Some(rhs)) if !op.is_shift() => {
-                        return Err(TypeError::UnsuportedOperation(
+                        return Err(TypeError::UnsupportedOperation(
                             format!("Cannot perform {lhs:?} {op:?} {rhs:?}"),
                             {
                                 let mut span = dest.span();
@@ -425,7 +425,7 @@ impl TypeCheck for IRExpr {
                 lhs_operand.set_type(lhs);
 
                 if lhs != rhs && !op.is_shift() {
-                    return Err(TypeError::UnsuportedOperation(
+                    return Err(TypeError::UnsupportedOperation(
                         format!("Cannot apply binary operation to operands of differing types. {lhs:?} != {rhs:?}"),
                                 {
                                     let mut span = lhs_operand.span();
@@ -453,7 +453,7 @@ impl TypeCheck for IRExpr {
                     | (BinaryOperation::LogicalRightShift, Type::U(_size) | Type::I(_size))
                     | (BinaryOperation::ArithmeticRightShift, Type::U(_size) | Type::I(_size)) => {
                          match rhs {
-                            Type::F16 | Type::F32 | Type::F64 | Type::F128 => return Err(TypeError::UnsuportedOperation(
+                            Type::F16 | Type::F32 | Type::F64 | Type::F128 => return Err(TypeError::UnsupportedOperation(
                             "Cannot shift using a floating point variable as the shifting amount.".to_string(),rhs_operand.span()
                             )),
 
@@ -461,9 +461,9 @@ impl TypeCheck for IRExpr {
                             Type::I(size2) | Type::U(size2) if size2 != 0 => {
                                 lhs
                             },
-                            Type::Unit => return Err(TypeError::UnsuportedOperation(
+                            Type::Unit => return Err(TypeError::UnsupportedOperation(
                         "Cannot shift using unit type as shift amount.".to_string(),rhs_operand.span())),
-                            _ => {return Err(TypeError::UnsuportedOperation(
+                            _ => {return Err(TypeError::UnsupportedOperation(
                         "Shift amount must be the same size as the operand".to_string(),lhs_operand.span().join(rhs_operand.span()).expect("Same file")))
 
                             }
@@ -472,7 +472,7 @@ impl TypeCheck for IRExpr {
                     }
                     (BinaryOperation::Compare(_), _) => Type::U(1),
                     _ => {
-                        return Err(TypeError::UnsuportedOperation(
+                        return Err(TypeError::UnsupportedOperation(
                             format!("Cannot apply {op:?} to {lhs:?}",),
                             {
                                 let mut span = lhs_operand.span();
@@ -673,7 +673,7 @@ impl TypeCheck for DynamicFieldExtract {
         };
 
         match ty {
-            Type::F128 | Type::F64 | Type::F32 | Type::F16 => Err(TypeError::UnsuportedOperation(
+            Type::F128 | Type::F64 | Type::F32 | Type::F16 => Err(TypeError::UnsupportedOperation(
                 "Cannot dynamically bitfield extract on a floating point value".to_string(),
                 self.span(),
             )),
@@ -707,19 +707,19 @@ impl TypeCheck for FieldExtract {
         // TODO: Add in limit checking here.
 
         if end < start {
-            return Err(TypeError::UnsuportedOperation(
+            return Err(TypeError::UnsupportedOperation(
                 "Fields must be supplied as start:end".to_string(),
                 self.span(),
             ));
         }
 
         match ty {
-            Type::F128 | Type::F64 | Type::F32 | Type::F16 => Err(TypeError::UnsuportedOperation(
+            Type::F128 | Type::F64 | Type::F32 | Type::F16 => Err(TypeError::UnsupportedOperation(
                 "Cannot bitfield extract on a floating point value".to_string(),
                 self.span(),
             )),
             Type::I(size) | Type::U(size) if *end < size => Ok(Some(Type::U(*end - *start + 1))),
-            Type::I(_size) | Type::U(_size) => Err(TypeError::UnsuportedOperation(
+            Type::I(_size) | Type::U(_size) => Err(TypeError::UnsupportedOperation(
                 "Cannot bitfield extract out side of type width".to_string(),
                 self.span(),
             )),
@@ -854,7 +854,7 @@ impl TypeCheck for Intrinsic {
                 match ty {
                     Type::I(_) | Type::U(_) => Ok(Some(ty)),
                     Type::F16 | Type::F32 | Type::F64 | Type::F128 => {
-                        Err(TypeError::UnsuportedOperation(
+                        Err(TypeError::UnsupportedOperation(
                             "Cannot apply ror to a floating point value".to_owned(),
                             operand.span(),
                         ))
@@ -877,7 +877,7 @@ impl TypeCheck for Intrinsic {
                 match ty {
                     Type::I(_) | Type::U(_) => Ok(Some(ty)),
                     Type::F16 | Type::F32 | Type::F64 | Type::F128 => {
-                        Err(TypeError::UnsuportedOperation(
+                        Err(TypeError::UnsupportedOperation(
                             "Cannot apply sra to a floating point value".to_owned(),
                             operand.span(),
                         ))
@@ -944,14 +944,14 @@ impl TypeCheck for Intrinsic {
                 };
                 match ty {
                     Type::F16 | Type::F32 | Type::F64 | Type::F128 => {
-                        Err(TypeError::UnsuportedOperation(
+                        Err(TypeError::UnsupportedOperation(
                             "Cannot set n flag for floating point values.".to_string(),
                             operand.span(),
                         ))
                     }
                     // Set N flag should not be used to assign.
                     Type::I(1..) | Type::U(1..) => Ok(None),
-                    Type::I(0) | Type::U(0) => Err(TypeError::UnsuportedOperation(
+                    Type::I(0) | Type::U(0) => Err(TypeError::UnsupportedOperation(
                         "Cannot set n flag for zero sized operands".to_string(),
                         operand.span(),
                     )),
@@ -973,14 +973,14 @@ impl TypeCheck for Intrinsic {
                 };
                 match ty {
                     Type::F16 | Type::F32 | Type::F64 | Type::F128 => {
-                        Err(TypeError::UnsuportedOperation(
+                        Err(TypeError::UnsupportedOperation(
                             "Cannot set z flag for floating point values.".to_string(),
                             operand.span(),
                         ))
                     }
                     // Set N flag should not be used to assign.
                     Type::I(1..) | Type::U(1..) => Ok(None),
-                    Type::I(0) | Type::U(0) => Err(TypeError::UnsuportedOperation(
+                    Type::I(0) | Type::U(0) => Err(TypeError::UnsupportedOperation(
                         "Cannot set z flag for zero sized operands".to_string(),
                         operand.span(),
                     )),
@@ -1018,7 +1018,7 @@ impl TypeCheck for Intrinsic {
                 };
                 match ty1 {
                     Type::F16 | Type::F32 | Type::F64 | Type::F128 => {
-                        return Err(TypeError::UnsuportedOperation(
+                        return Err(TypeError::UnsupportedOperation(
                             "Cannot set v flag for floating point values.".to_string(),
                             operand1.span(),
                         ))
@@ -1026,7 +1026,7 @@ impl TypeCheck for Intrinsic {
                     // Set N flag should not be used to assign.
                     Type::I(1..) | Type::U(1..) => {}
                     Type::I(0) | Type::U(0) => {
-                        return Err(TypeError::UnsuportedOperation(
+                        return Err(TypeError::UnsupportedOperation(
                             "Cannot set v flag for zero sized operands".to_string(),
                             operand1.span(),
                         ))
@@ -1035,7 +1035,7 @@ impl TypeCheck for Intrinsic {
                 };
                 match ty2 {
                     Type::F16 | Type::F32 | Type::F64 | Type::F128 => {
-                        return Err(TypeError::UnsuportedOperation(
+                        return Err(TypeError::UnsupportedOperation(
                             "Cannot set v flag for floating point values.".to_string(),
                             operand2.span(),
                         ))
@@ -1043,7 +1043,7 @@ impl TypeCheck for Intrinsic {
                     // Set N flag should not be used to assign.
                     Type::I(1..) | Type::U(1..) => {}
                     Type::I(0) | Type::U(0) => {
-                        return Err(TypeError::UnsuportedOperation(
+                        return Err(TypeError::UnsupportedOperation(
                             "Cannot set v flag for zero sized operands".to_string(),
                             operand2.span(),
                         ))
@@ -1083,7 +1083,7 @@ impl TypeCheck for Intrinsic {
                 };
                 match ty1 {
                     Type::F16 | Type::F32 | Type::F64 | Type::F128 => {
-                        return Err(TypeError::UnsuportedOperation(
+                        return Err(TypeError::UnsupportedOperation(
                             "Cannot set c flag for floating point values.".to_string(),
                             operand1.span(),
                         ))
@@ -1091,7 +1091,7 @@ impl TypeCheck for Intrinsic {
                     // Set N flag should not be used to assign.
                     Type::I(1..) | Type::U(1..) => {}
                     Type::I(0) | Type::U(0) => {
-                        return Err(TypeError::UnsuportedOperation(
+                        return Err(TypeError::UnsupportedOperation(
                             "Cannot set c flag for zero sized operands".to_string(),
                             operand1.span(),
                         ))
@@ -1100,7 +1100,7 @@ impl TypeCheck for Intrinsic {
                 };
                 match ty2 {
                     Type::F16 | Type::F32 | Type::F64 | Type::F128 => {
-                        return Err(TypeError::UnsuportedOperation(
+                        return Err(TypeError::UnsupportedOperation(
                             "Cannot set c flag for floating point values.".to_string(),
                             operand2.span(),
                         ))
@@ -1108,7 +1108,7 @@ impl TypeCheck for Intrinsic {
                     // Set N flag should not be used to assign.
                     Type::I(1..) | Type::U(1..) => {}
                     Type::I(0) | Type::U(0) => {
-                        return Err(TypeError::UnsuportedOperation(
+                        return Err(TypeError::UnsupportedOperation(
                             "Cannot set c flag for zero sized operands".to_string(),
                             operand2.span(),
                         ))
@@ -1139,12 +1139,12 @@ impl TypeCheck for Intrinsic {
                 };
                 match ty {
                     Type::F16 | Type::F32 | Type::F64 | Type::F128 => {
-                        Err(TypeError::UnsuportedOperation(
+                        Err(TypeError::UnsupportedOperation(
                             "Cannot zero extend floating point values.".to_string(),
                             operand.span(),
                         ))
                     }
-                    Type::I(n) | Type::U(n) if n > *bits => Err(TypeError::UnsuportedOperation(
+                    Type::I(n) | Type::U(n) if n > *bits => Err(TypeError::UnsupportedOperation(
                         "Cannot zero extend to a format, did you mean to use resize?".to_string(),
                         operand.span(),
                     )),
@@ -1173,13 +1173,13 @@ impl TypeCheck for Intrinsic {
                 };
                 match ty {
                     Type::F16 | Type::F32 | Type::F64 | Type::F128 => {
-                        Err(TypeError::UnsuportedOperation(
+                        Err(TypeError::UnsupportedOperation(
                             "Cannot sign extend floating point values.".to_string(),
                             operand.span(),
                         ))
                     }
                     Type::I(n) | Type::U(n) if n > *target_size => {
-                        Err(TypeError::UnsuportedOperation(
+                        Err(TypeError::UnsupportedOperation(
                             "Cannot sign extend to a format, did you mean to use resize?"
                                 .to_string(),
                             operand.span(),
@@ -1201,7 +1201,7 @@ impl TypeCheck for Intrinsic {
                 let operand2 = match operand2 {
                     Some(val) => val,
                     None => {
-                        return Err(TypeError::UnsuportedOperation(
+                        return Err(TypeError::UnsupportedOperation(
                             "Cannot set c flag for rotations that have no operand2".to_string(),
                             self.span(),
                         ))
@@ -1216,7 +1216,7 @@ impl TypeCheck for Intrinsic {
                 let ty = match meta.get_ty(name) {
                     Some(ty) => ty,
                     None => {
-                        return Err(TypeError::UnsuportedOperation(
+                        return Err(TypeError::UnsupportedOperation(
                             "Cannot use an untyped local as an address.".to_string(),
                             name.span(),
                         ))
@@ -1224,7 +1224,7 @@ impl TypeCheck for Intrinsic {
                 };
                 if let Type::U(_bits) = ty {
                 } else {
-                    return Err(TypeError::UnsuportedOperation(
+                    return Err(TypeError::UnsupportedOperation(
                         "Cannot use a non unsigned bit vector as an address.".to_string(),
                         name.span(),
                     ));
@@ -1239,7 +1239,7 @@ impl TypeCheck for Intrinsic {
                     Some(Type::U(size)) => Ok(Some(Type::U(size))),
                     Some(Type::F16 | Type::F32 | Type::F64 | Type::F128) => Ok(ty),
 
-                    Some(Type::Unit) => Err(TypeError::UnsuportedOperation(
+                    Some(Type::Unit) => Err(TypeError::UnsupportedOperation(
                         "Cannot compute absolute value of a unit type value.".to_string(),
                         operand.span(),
                     )),
@@ -1253,7 +1253,7 @@ impl TypeCheck for Intrinsic {
                 let ty = operand.type_check(meta)?;
                 match ty {
                     Some(Type::F16 | Type::F32 | Type::F64 | Type::F128) => Ok(ty),
-                    Some(ty) => Err(TypeError::UnsuportedOperation(
+                    Some(ty) => Err(TypeError::UnsupportedOperation(
                         format!("Cannot compute sqrt for type {ty:?}"),
                         operand.span(),
                     )),
@@ -1292,7 +1292,7 @@ impl TypeCheck for Intrinsic {
                     | (Type::F32, Type::I(32))
                     | (Type::F64, Type::I(64))
                     | (Type::F128, Type::I(128)) => Ok(Some(*target_type)),
-                    _ => Err(TypeError::UnsuportedOperation(
+                    _ => Err(TypeError::UnsupportedOperation(
                         format!("Cannot cast {ty:?} to {target_type:?}"),
                         operand.span(),
                     )),
@@ -1304,7 +1304,7 @@ impl TypeCheck for Intrinsic {
                     "Cannot compute is nan for untyped variables.".to_string(),
                     operand.span(),
                 )),
-                Some(Type::U(_) | Type::I(_) | Type::Unit) => Err(TypeError::UnsuportedOperation(
+                Some(Type::U(_) | Type::I(_) | Type::Unit) => Err(TypeError::UnsupportedOperation(
                     "Cannot compute isNaN for non floating point values".to_string(),
                     operand.span(),
                 )),
@@ -1322,7 +1322,7 @@ impl TypeCheck for Intrinsic {
                         ))
                     }
                     Some(Type::U(_) | Type::I(_) | Type::Unit) => {
-                        return Err(TypeError::UnsuportedOperation(
+                        return Err(TypeError::UnsupportedOperation(
                             "Cannot compute fma for non floating point values".to_string(),
                             lhs.span(),
                         ))
@@ -1341,7 +1341,7 @@ impl TypeCheck for Intrinsic {
                         ))
                     }
                     Some(Type::U(_) | Type::I(_) | Type::Unit) => {
-                        return Err(TypeError::UnsuportedOperation(
+                        return Err(TypeError::UnsupportedOperation(
                             "Cannot compute fma for non floating point values".to_string(),
                             rhs.span(),
                         ))
@@ -1360,7 +1360,7 @@ impl TypeCheck for Intrinsic {
                         ))
                     }
                     Some(Type::U(_) | Type::I(_) | Type::Unit) => {
-                        return Err(TypeError::UnsuportedOperation(
+                        return Err(TypeError::UnsupportedOperation(
                             "Cannot compute fma for non floating point values".to_string(),
                             addend.span(),
                         ))
@@ -1368,13 +1368,13 @@ impl TypeCheck for Intrinsic {
                 };
 
                 if rhs_ty != lhs_ty {
-                    return Err(TypeError::UnsuportedOperation(
+                    return Err(TypeError::UnsupportedOperation(
                         format!("Cannot multiply {lhs_ty} and  {rhs_ty}"),
                         lhs.span().join(rhs.span()).expect("Same file"),
                     ));
                 }
                 if addend_ty != lhs_ty {
-                    return Err(TypeError::UnsuportedOperation(
+                    return Err(TypeError::UnsupportedOperation(
                         format!("Cannot add {lhs_ty} and  {addend_ty}"),
                         lhs.span()
                             .join(rhs.span())
@@ -1392,7 +1392,7 @@ impl TypeCheck for Intrinsic {
                     "Cannot compute is normal for untyped variables.".to_string(),
                     operand.span(),
                 )),
-                Some(Type::U(_) | Type::I(_) | Type::Unit) => Err(TypeError::UnsuportedOperation(
+                Some(Type::U(_) | Type::I(_) | Type::Unit) => Err(TypeError::UnsupportedOperation(
                     "Cannot compute is normal for non floating point values".to_string(),
                     operand.span(),
                 )),
@@ -1403,7 +1403,7 @@ impl TypeCheck for Intrinsic {
                     "Cannot compute is finite for untyped variables.".to_string(),
                     operand.span(),
                 )),
-                Some(Type::U(_) | Type::I(_) | Type::Unit) => Err(TypeError::UnsuportedOperation(
+                Some(Type::U(_) | Type::I(_) | Type::Unit) => Err(TypeError::UnsupportedOperation(
                     "Cannot compute is finite for non floating point values".to_string(),
                     operand.span(),
                 )),
@@ -1418,16 +1418,16 @@ impl TypeCheck for Intrinsic {
                 match ty {
                     Some(Type::I(_) | Type::U(_)) => Ok(Some(Type::Unit)),
                     Some(Type::F16 | Type::F32 | Type::F64 | Type::F128) => {
-                        Err(TypeError::UnsuportedOperation(
+                        Err(TypeError::UnsupportedOperation(
                             "Cannot log floating point values yet.".to_string(),
                             operand.span(),
                         ))
                     }
-                    Some(Type::Unit) => Err(TypeError::UnsuportedOperation(
+                    Some(Type::Unit) => Err(TypeError::UnsupportedOperation(
                         "Cannot log unit type values.".to_string(),
                         operand.span(),
                     )),
-                    None => Err(TypeError::UnsuportedOperation(
+                    None => Err(TypeError::UnsupportedOperation(
                         "Must know type of operand before logging.".to_string(),
                         operand.span(),
                     )),
@@ -1466,7 +1466,7 @@ impl Rotation {
 
         match rhs_ty {
             Type::F16 | Type::F32 | Type::F64 | Type::F128 => {
-                return Err(TypeError::UnsuportedOperation(
+                return Err(TypeError::UnsupportedOperation(
                     "Cannot use a floating point value as a rotation distance.".to_string(),
                     rhs.span(),
                 ))
@@ -1477,7 +1477,7 @@ impl Rotation {
 
         match lhs_ty {
             Type::F16 | Type::F32 | Type::F64 | Type::F128 => {
-                return Err(TypeError::UnsuportedOperation(
+                return Err(TypeError::UnsupportedOperation(
                     "Cannot apply a rotation to a floating point value".to_string(),
                     lhs.span(),
                 ))
@@ -1516,7 +1516,7 @@ impl CompareOperation {
             }
         };
         if lhs_ty != rhs_ty {
-            return Err(TypeError::UnsuportedOperation(
+            return Err(TypeError::UnsupportedOperation(
                 "Cannot compare different types.".to_string(),
                 {
                     let mut span = lhs.span();
@@ -1533,7 +1533,7 @@ impl CompareOperation {
 impl crate::ast::operand::Type {
     fn can_field_extract(&self) -> Result<(), TypeError> {
         match self {
-            Self::F16 | Self::F32 | Self::F64 | Self::F128 => Err(TypeError::UnsuportedOperation("Cannot bit field extract on floating point values. Please convert to a bitvector first.".to_owned(),Span::call_site())),
+            Self::F16 | Self::F32 | Self::F64 | Self::F128 => Err(TypeError::UnsupportedOperation("Cannot bit field extract on floating point values. Please convert to a bitvector first.".to_owned(),Span::call_site())),
             Self::I(_) => Ok(()),
             Self::U(_) => Ok(()),
             Type::Unit => panic!("Cannot use unit types for expressions"),

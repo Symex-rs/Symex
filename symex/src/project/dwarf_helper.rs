@@ -438,7 +438,7 @@ impl DebugData {
             return None;
         }
         let val = &call_trace[0];
-        let current_frame = rust_debug::call_stack::create_stack_frame(self.dwarf, val.clone(), &registers, dap, "").expect("Stack trace being createable");
+        let current_frame = rust_debug::call_stack::create_stack_frame(self.dwarf, val.clone(), &registers, dap, "").expect("Stack trace being creatable");
         let stack_trace = call_trace
             .iter()
             .map(|el| {
@@ -455,14 +455,14 @@ impl DebugData {
                 registers.program_counter_register = arch.register_name_to_number("PC").map(|el| el as usize);
                 registers.stack_pointer_register = arch.register_name_to_number("SP").map(|el| el as usize);
 
-                let frame = rust_debug::call_stack::create_stack_frame(self.dwarf, val.clone(), &registers, dap, "").expect("Stack trace being createable");
+                let frame = rust_debug::call_stack::create_stack_frame(self.dwarf, val.clone(), &registers, dap, "").expect("Stack trace being creatable");
 
                 let args = frame
                     .arguments
                     .iter()
                     .map(|el| {
                         (
-                            el.name.clone().unwrap_or_else(|| "Unnamed arguement".to_string()),
+                            el.name.clone().unwrap_or_else(|| "Unnamed argument".to_string()),
                             el.value.clone().to_value().map_or_else(|| "Unable to get value".to_string(), |el| el.to_string()),
                         )
                     })

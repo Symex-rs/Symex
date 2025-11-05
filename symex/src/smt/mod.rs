@@ -97,7 +97,7 @@ pub trait ProgramMemory<E: SmtExpr>: Debug + Clone {
         self.get_ptr_size()
     }
 
-    /// Returns the availiable sub programs.
+    /// Returns the available sub programs.
     fn borrow_symtab(&self) -> &SubProgramMap;
 
     #[must_use]

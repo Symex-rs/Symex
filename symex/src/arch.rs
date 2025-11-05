@@ -159,7 +159,7 @@ pub trait Architecture<Override: ArchitectureOverride>: Debug + Display + Into<S
     where
         C: Composition<ArchitectureOverride = Override>;
 
-    /// Allows the architecture to define behaviour that must happen befor an
+    /// Allows the architecture to define behaviour that must happen before an
     /// instruction is executed.
     fn pre_instruction_loading_hook<C>(state: &mut GAState<C>)
     where
@@ -170,7 +170,7 @@ pub trait Architecture<Override: ArchitectureOverride>: Debug + Display + Into<S
     ///
     /// # Note
     ///
-    /// When this instruction is called it is gauranteed that the instruction
+    /// When this instruction is called it is guaranteed that the instruction
     /// will be executed.
     #[allow(unused)]
     fn pre_instruction_execution_hook<C>(state: &mut GAState<C>)
@@ -307,7 +307,7 @@ impl<Override: ArchitectureOverride> SupportedArchitecture<Override> {
         }
     }
 
-    /// Allows the architecture to define behaviour that must happen befor an
+    /// Allows the architecture to define behaviour that must happen before an
     /// instruction is loaded.
     pub fn pre_instruction_loading_hook<C>(&self) -> fn(&mut GAState<C>)
     where

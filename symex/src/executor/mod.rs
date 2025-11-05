@@ -300,7 +300,7 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
                         return Ok(PathResult::Failure(data));
                     }
                     PCHook::Suppress => {
-                        debug!("Supressing path");
+                        debug!("Suppressing path");
                         logger.warn("Suppressing path");
                         self.state.increment_cycle_count();
                         return Ok(PathResult::Suppress);
@@ -658,7 +658,7 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
             // NOTE: We should likely not break here but allow for a configurable number
             // paths.
             crate::smt::Solutions::AtLeast(_) => {
-                warn!("Number of soltions exceeeds 255.");
+                warn!("Number of solutions exceeds 255.");
 
                 return ResultOrTerminate::Result(Err(SolverError::TooManySolutions.into()));
             }
@@ -752,7 +752,7 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
                             // NOTE: We should likely not break here but allow for a configurable number
                             // paths.
                             crate::smt::Solutions::AtLeast(_) => {
-                                warn!("Number of soltions exceeeds 2.");
+                                warn!("Number of solutions exceeds 2.");
                                 break 'bucket;
                             }
                         };
@@ -791,7 +791,7 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
                     // NOTE: We should likely not break here but allow for a configurable number
                     // paths.
                     crate::smt::Solutions::AtLeast(_) => {
-                        warn!("Number of soltions exceeeds 2.");
+                        warn!("Number of solutions exceeds 2.");
 
                         return ResultOrTerminate::Result(Ok(None));
                     }

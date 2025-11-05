@@ -369,7 +369,7 @@ impl<Override: ArchitectureOverride> Architecture<Override> for ArmV7EM {
         trace!("ITSTATE.IT as {cond}");
         trace!("ITSTATE.IT as {it:?}");
         let cond = Condition::try_from(cond)
-            .expect("Internal conditon checks produced invalid instruction condition.")
+            .expect("Internal condition checks produced invalid instruction condition.")
             .local_into();
         // state.instruction_conditions.clear();
         if general_assembly::condition::Condition::None == cond {
@@ -378,7 +378,7 @@ impl<Override: ArchitectureOverride> Architecture<Override> for ArmV7EM {
 
         if let Some(it) = it {
             if it.mask::<1, 3>() != 0b111 {
-                trace!("Pushing CONDITON {cond:?}");
+                trace!("Pushing CONDITION {cond:?}");
                 state.architecture.as_v7().in_it_block = true;
                 state.instruction_conditions.push_back(cond);
             }
@@ -437,10 +437,10 @@ impl<Override: ArchitectureOverride> Architecture<Override> for ArmV7EM {
         };
 
         if cfg.add_pc_hook_regex(map, r"^symbolic_size$", &PCHook::Intrinsic(symbolic_sized)).is_err() {
-            debug!("Could not add symoblic hook, must not contain any calls to `symbolic_size`");
+            debug!("Could not add symbolic hook, must not contain any calls to `symbolic_size`");
         }
         if cfg.add_pc_hook_regex(map, r"^symbolic_size<.+>$", &PCHook::Intrinsic(symbolic_sized)).is_err() {
-            debug!("Could not add symoblic hook, must not contain any calls to `symbolic_size<.+>`");
+            debug!("Could not add symbolic hook, must not contain any calls to `symbolic_size<.+>`");
         }
 
         if cfg.add_pc_hook_regex(map, r"^HardFault.*$", &PCHook::EndFailure("Hardfault")).is_err() {

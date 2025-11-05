@@ -83,7 +83,7 @@ pub enum TypeError {
     },
 
     /// The requested operation was not valid for the specified type.
-    UnsuportedOperation(String, Span),
+    UnsupportedOperation(String, Span),
 
     /// A foreign type that is not supported.
     UnsupportedType(String, Span),
@@ -97,7 +97,7 @@ impl TypeError {
                 let str = format!("Unsupported type, {s}");
                 quote_spanned! {*span => compile_error!(#str)}
             }
-            Self::UnsuportedOperation(s, span) => {
+            Self::UnsupportedOperation(s, span) => {
                 let str = format!("Unsupported operation, {s}");
                 quote_spanned! {*span => compile_error!(#str)}
             }

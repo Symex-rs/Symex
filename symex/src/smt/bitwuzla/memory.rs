@@ -208,13 +208,8 @@ impl<State: UserStateContainer> SmtMap for BitwuzlaMemory<State> {
             return ResultOrTerminate::Result(
                 self.program_memory
                     .get(address, size, &self.static_writes, &self.ram)
-                    .context("While reading from progam memory"),
+                    .context("While reading from program memory"),
             );
-            /* DataWord::Word8(value) => self.from_u64(value.into(), 8),
-             * DataWord::Word16(value) => self.from_u64(value.into(), 16),
-             * DataWord::Word32(value) => self.from_u64(value.into(), 32),
-             * DataWord::Word64(value) => self.from_u64(value, 32),
-             * DataWord::Bit(value) => self.from_u64(value.into(), 1), */
         }
         trace!("Got NON deterministic address {idx:?} from ram");
         ResultOrTerminate::Result(self.ram.read(idx, size).context("While reading from a non constant address pointing to symbolic memory"))

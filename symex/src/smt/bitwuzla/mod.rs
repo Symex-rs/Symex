@@ -1930,7 +1930,7 @@ mod test {
                 .round_to_integral(RoundingMode::TiesTowardZero)
                 .expect("Roundable")
                 .to_bv(RoundingMode::TiesTowardZero, true)
-                .expect("Convertable")
+                .expect("Convertible")
                 .get_constant()
         );
 

@@ -218,7 +218,7 @@ impl<S: SmtSolver> ProgramMemory<S::Expression> for std::sync::Arc<Project<S>> {
             return Ok(ret);
         }
 
-        // TODO: Convert to propper errors
+        // TODO: Convert to proper errors
         if bits == word_size {
             // full word
             Ok(ctx.new_from_u64(self.get_word(address).unwrap().into(), bits))
@@ -290,7 +290,7 @@ impl<S: SmtSolver> ProgramMemory<S::Expression> for std::sync::Arc<Project<S>> {
                     address += 1;
                 }
             }
-            _ => unimplemented!("Unsuported bitwidth"),
+            _ => unimplemented!("Unsupported bitwidth"),
         }
         Ok(())
     }

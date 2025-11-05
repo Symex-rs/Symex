@@ -31,7 +31,7 @@
     clippy::match_bool,
     clippy::used_underscore_items,
 )]
-// If the user wants to use boolector or other deprectated dependencies inform them that they may
+// If the user wants to use boolector or other deprecated dependencies inform them that they may
 // not work as intended.
 #![cfg_attr(feature = "deprecated", warn(warnings))]
 
