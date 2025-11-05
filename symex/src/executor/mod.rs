@@ -549,9 +549,6 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
                     return ResultOrTerminate::Result(hooks[0](&mut self.state, addr));
                 }
                 todo!("Handle multiple hooks.");
-                //for hook in hooks {
-                //    hook(&mut self.state, address)?;
-                //}
             }
             hooks::ResultOrHook::Result(result) => result,
             hooks::ResultOrHook::EndFailure(e) => return ResultOrTerminate::Failure(format!("{e} @ {}", self.state.debug_string())),
@@ -569,9 +566,6 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
                     return ResultOrTerminate::Result(hooks[0](&mut self.state, sym_addr));
                 }
                 todo!("Handle multiple hooks.");
-                //for hook in hooks {
-                //    hook(&mut self.state, address)?;
-                //}
             }
             hooks::ResultOrHook::Result(result) => result,
             hooks::ResultOrHook::EndFailure(e) => return ResultOrTerminate::Failure(format!("{e} @ {}", self.state.debug_string())),
@@ -581,8 +575,6 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
     #[allow(dead_code)]
     /// Sets the memory at `address` to `data`.
     fn set_memory(&mut self, data: C::SmtExpression, addr: C::SmtExpression, bits: u32) -> ResultOrTerminate<()> {
-        // trace!("Setting memory addr: {:?}", address);
-        // let addr = self.state.memory.from_u64(address, self.project.get_ptr_size());
         ResultOrTerminate::Result(match self.state.writer().write_memory(&addr, data.resize_unsigned(bits)) {
             hooks::ResultOrHook::Hook(hook) => hook(&mut self.state, data, addr),
             hooks::ResultOrHook::Hooks(hooks) => {
@@ -590,9 +582,6 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
                     return ResultOrTerminate::Result(hooks[0](&mut self.state, data, addr));
                 }
                 todo!("Handle multiple hooks (write).");
-                //for hook in hooks {
-                //    hook(&mut self.state, address)?;
-                //}
             }
             hooks::ResultOrHook::Result(result) => result.map_err(Into::into),
             hooks::ResultOrHook::EndFailure(e) => return ResultOrTerminate::Failure(format!("{e} @ {}", self.state.debug_string())),
@@ -601,7 +590,6 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
 
     /// Sets the memory at `address` to `data`.
     fn set_memory_constant(&mut self, data: C::SmtExpression, addr: u64, bits: u32) -> ResultOrTerminate<()> {
-        // trace!("Setting memory addr: {:?}", address);
         let sym_addr = self.state.memory.from_u64(addr, self.project.get_ptr_size());
         ResultOrTerminate::Result(match self.state.writer().write_memory_constant(addr, data.resize_unsigned(bits)) {
             hooks::ResultOrHook::Hook(hook) => hook(&mut self.state, data, sym_addr),
@@ -610,9 +598,6 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
                     return ResultOrTerminate::Result(hooks[0](&mut self.state, data, sym_addr));
                 }
                 todo!("Handle multiple hooks (write).");
-                //for hook in hooks {
-                //    hook(&mut self.state, address)?;
-                //}
             }
             hooks::ResultOrHook::Result(result) => result.map_err(Into::into),
             hooks::ResultOrHook::EndFailure(e) => return ResultOrTerminate::Failure(format!("{e} @ {}", self.state.debug_string())),

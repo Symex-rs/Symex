@@ -21,10 +21,6 @@ use crate::{
 
 impl From<IR> for Result<TokenStream, Error> {
     fn from(value: IR) -> Result<TokenStream, Error> {
-        // let mut declarations: Vec<TokenStream> = vec![];
-        // self.extensions
-        //     .iter()
-        //     .for_each(|el| el.declare(&mut declarations));
         let mut state = TranspilerState::new();
         state.enter_scope();
 
@@ -139,9 +135,6 @@ impl Compile for (Ident, Statement) {
         let ret = match self.1.clone() {
             Statement::If(e, happy_case_in, Some(sad_case_in)) => {
                 state.enter_scope();
-                // let to_declare_global: Vec<Ident> = state.to_declare()?;
-                // let declaration_strings_global = to_declare_global.iter().map(|el|
-                // el.to_string());
 
                 let mut happy_case: Vec<TokenStream> = Vec::new();
                 for el in (*happy_case_in).into_iter() {
@@ -159,8 +152,6 @@ impl Compile for (Ident, Statement) {
                     state.to_declare()?.iter().map(|el| el.into()).collect();
 
                 Ok(quote!(
-                    // #(let #to_declare_global =
-                        // Operand::Local(#declaration_strings_global.to_owned());)*
                     if #e {
                         #(#to_declare_happy)*
                         #(#happy_case;)*
@@ -172,10 +163,6 @@ impl Compile for (Ident, Statement) {
             }
             Statement::If(e, happy_case_in, None) => {
                 state.enter_scope();
-                // let to_declare_global: Vec<Ident> = state.to_declare()?;
-                // let declaration_strings_global = to_declare_global.iter().map(|el|
-                // el.to_string());
-
                 let mut happy_case: Vec<TokenStream> = Vec::new();
                 for el in (*happy_case_in).into_iter() {
                     happy_case.push((self.0.clone(), el).compile(state)?);
@@ -193,9 +180,6 @@ impl Compile for (Ident, Statement) {
             }
             Statement::For(i, e, block_in) => {
                 state.enter_scope();
-                // let to_declare_global: Vec<Ident> = state.to_declare()?;
-                // let declaration_strings_global = to_declare_global.iter().map(|el|
-                // el.to_string());
                 let mut block: Vec<TokenStream> = Vec::new();
                 for el in (*block_in).into_iter() {
                     block.push((self.0.clone(), el).compile(state)?);
@@ -203,8 +187,6 @@ impl Compile for (Ident, Statement) {
                 let to_declare_inner: Vec<WrappedLocalDeclaration> =
                     state.to_declare()?.iter().map(|el| el.into()).collect();
                 Ok(quote!(
-                    // #(let #to_declare_global =
-                        // Operand::Local(#declaration_strings_global.to_owned());)*
                     for #i in #e {
                         #(#to_declare_inner)*
                         #(#block;)*

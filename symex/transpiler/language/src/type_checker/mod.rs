@@ -51,12 +51,6 @@ use crate::{
 };
 
 impl TypeCheckMeta {
-    //fn update_expr_operand_ty(&mut self, op: &mut ExprOperand, ty:
-    // crate::ast::operand::Type) {    match op {
-    //        ExprOperand::Paren(_) => {},
-    //        ExprOperand::Literal()
-    //    }
-    //}
     fn get_ty(&self, id: &syn::Ident) -> Option<crate::ast::operand::Type> {
         self.lookup.get(id).cloned()
     }
@@ -534,14 +528,6 @@ impl TypeCheck for IRExpr {
 
                 if let Some(ty) = dest_ty {
                     match (ty, result_ty) {
-                        //(Type::U(16) | Type::I(16), Type::F16) => Ok(Some(Type::Unit)),
-                        //(Type::U(32) | Type::I(32), Type::F32) => Ok(Some(Type::Unit)),
-                        //(Type::U(64) | Type::I(64), Type::F64) => Ok(Some(Type::Unit)),
-                        //(Type::U(128) | Type::I(128), Type::F128) => Ok(Some(Type::Unit)),
-                        //(Type::F16, Type::U(16) | Type::I(16)) => Ok(Some(Type::Unit)),
-                        //(Type::F32, Type::U(32) | Type::I(32)) => Ok(Some(Type::Unit)),
-                        //(Type::F32, Type::U(64) | Type::I(64)) => Ok(Some(Type::Unit)),
-                        //(Type::F32, Type::U(128) | Type::I(128)) => Ok(Some(Type::Unit)),
                         (t1, t2) if t1 == t2 => Ok(Some(Type::Unit)),
                         _ => Err(TypeError::InvalidType {
                             expected: ty,
@@ -594,7 +580,6 @@ impl TypeCheck for Operand {
                 };
                 if let Ok(Some(inner_ty)) = ret {
                     *ty = Some(inner_ty);
-                    //meta.update_expr_operand_ty(&op, inner_ty);
                 }
                 ret
             }
@@ -614,7 +599,6 @@ impl TypeCheck for Operand {
                 if let Ok(Some(inner_ty)) = ret {
                     *ty = Some(inner_ty);
                     meta.set_ty(id.ident.clone(), inner_ty);
-                    //meta.update_expr_operand_ty(&op, inner_ty);
                 }
 
                 ret
@@ -635,7 +619,6 @@ impl TypeCheck for Operand {
                 if let Ok(Some(inner_ty)) = &ret {
                     inner_ty.can_field_extract()?;
                     *ty = Some(*inner_ty);
-                    //meta.update_expr_operand_ty(&op, inner_ty);
                 } else if ret.is_ok() {
                     return Err(TypeError::TypeMustBeKnown("Cannot bitfield extract from arbitrary data. You must specify the type before this.".to_owned(),op.span()));
                 }
@@ -658,7 +641,6 @@ impl TypeCheck for Operand {
                 if let Ok(Some(inner_ty)) = &ret {
                     inner_ty.can_field_extract()?;
                     *ty = Some(*inner_ty);
-                    //meta.update_expr_operand_ty(&op, inner_ty);
                 } else if ret.is_ok() {
                     return Err(TypeError::TypeMustBeKnown("Cannot bitfield extract from arbitrary data. You must specify the type before this.".to_owned(),op.span()));
                 }
@@ -1450,54 +1432,7 @@ impl TypeCheck for Intrinsic {
                         operand.span(),
                     )),
                 }
-            } /* Intrinsic::Saturate(Saturate {
-               *     lhs,
-               *     rhs,
-               *     operation,
-               * }) => {
-               *     let lhs_type =
-               *         match lhs.type_check(meta)? {
-               *             Some(val) => val,
-               *             None => return Err(TypeError::UnsuportedOperation(
-               *                 "Must know type of operand before using it in a saturating
-               * operation."                     .to_string(),
-               *                 lhs.span(),
-               *             )),
-               *         };
-               *     let rhs_type =
-               *         match rhs.type_check(meta)? {
-               *             Some(val) => val,
-               *             None => return Err(TypeError::UnsuportedOperation(
-               *                 "Must know type of operand before using it in a saturating
-               * operation."                     .to_string(),
-               *                 lhs.span(),
-               *             )),
-               *         };
-               *     if lhs_type != rhs_type {
-               *         return Err(TypeError::UnsuportedOperation(
-               *             format!("Operation {lhs_type} {operation:?} {rhs_type} is
-               * undefined"),             lhs.span(),
-               *         ));
-               *     }
-               *     let lhs = lhs_type;
-               *
-               *     Ok(Some(match operation {
-               *         BinaryOperation::Sub => lhs,
-               *         BinaryOperation::Add => lhs,
-               *         BinaryOperation::Mul => lhs,
-               *         BinaryOperation::Div => lhs,
-               *         BinaryOperation::SSub => lhs,
-               *         BinaryOperation::SAdd => lhs,
-               *         BinaryOperation::BitwiseOr => lhs,
-               *         BinaryOperation::BitwiseAnd => lhs,
-               *         BinaryOperation::BitwiseXor => lhs,
-               *         BinaryOperation::AddWithCarry => lhs,
-               *         BinaryOperation::LogicalLeftShift => lhs,
-               *         BinaryOperation::LogicalRightShift => lhs,
-               *         BinaryOperation::ArithmeticRightShift => lhs,
-               *         BinaryOperation::Compare(_) => Type::U(1),
-               *     }))
-               * } */
+            }
         }
     }
 }

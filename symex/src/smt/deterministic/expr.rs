@@ -6,12 +6,6 @@ use bitwuzla::{Btor, BV};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BitwuzlaExpr(pub(crate) BV<Rc<Btor>>);
 
-//impl BitwuzlaExpr {
-//    fn unbounded(bv: BV<Rc<Btor>>) {
-//        BV::new(btor, width, symbol)
-//    }
-//}
-//
 impl BitwuzlaExpr {
     pub fn get_ctx(&self) -> Rc<Btor> {
         let ctx = self.0.get_btor();

@@ -425,11 +425,6 @@ impl<Override: ArchitectureOverride> Architecture<Override> for ArmV7EM {
             let symb_value = state.memory.unconstrained(&name, size as u32);
             // We should be able to do this now!
             // TODO: We need to label this with proper variable names if possible.
-            //state.marked_symbolic.push(Variable {
-            //    name: Some(name),
-            //    value: symb_value.clone(),
-            //    ty: ExpressionType::Integer(size as usize),
-            //});
 
             match state.memory.set(&value_ptr, symb_value) {
                 Ok(()) => {}
@@ -466,14 +461,6 @@ impl<Override: ArchitectureOverride> Architecture<Override> for ArmV7EM {
             let new_pc = state.memory.from_u64(register - size as u64 + 4, state.memory.get_word_size()).simplify();
             Ok(new_pc)
         };
-        // let read_primask = |state: &mut GAState<C>| {
-        //     let primask: C::SmtExpression = state.memory.from_u64(0,
-        // state.memory.get_word_size()).simplify();     Ok(primask)
-        // };
-        //
-        // let write_primask = |_state: &mut GAState<C>, _| {
-        //     panic!("Cannot write to PRIMASK");
-        // };
 
         let read_any = |state: &mut GAState<C>| Ok(state.memory.unconstrained_unnamed(32));
 

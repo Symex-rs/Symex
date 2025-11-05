@@ -14,14 +14,11 @@ impl Compile for Operand {
     ) -> Result<Self::Output, Error> {
         match self {
             Self::Expr((e, ty)) => (e.clone(), ty.expect("Type check pass faulty")).compile(state),
-            Self::Ident((i, ty)) => {
-                //state.access(i.ident.clone());
-                (
-                    i.clone(),
-                    ty.expect("Type check pass faulty for Ident operands"),
-                )
-                    .compile(state)
-            }
+            Self::Ident((i, ty)) => (
+                i.clone(),
+                ty.expect("Type check pass faulty for Ident operands"),
+            )
+                .compile(state),
             Self::FieldExtract(f) => f.compile(state),
             Self::WrappedLiteral(l) => l.compile(state),
             Self::DynamicFieldExtract(f) => f.compile(state),
@@ -168,7 +165,6 @@ impl Compile for (DynamicFieldExtract, Option<Type>) {
             self.0.start.clone().compile(state)?,
             self.0.end.clone().compile(state)?,
         );
-        // let (start, end) = (self.0.start, self.0.end);
 
         state.to_insert_above.extend([quote! (
             general_assembly::operation::Operation::BitFieldExtract{
@@ -192,10 +188,6 @@ impl Compile for (FieldExtract, Option<Type>) {
         let intermediate = state.intermediate(self.1.expect("Bitfield extractions cannot be performed if the type is not known. Type checker must be faulty")).compile(state)?;
         let operand = self.0.operand.clone();
         state.access(operand.clone());
-        // let (start, end) = (
-        // self.0.start.clone().compile(state)?,
-        // self.0.end.clone().compile(state)?,
-        // );
         let (start, end) = (self.0.start, self.0.end);
 
         state.to_insert_above.extend([quote! (
@@ -207,36 +199,5 @@ impl Compile for (FieldExtract, Option<Type>) {
             }
         )]);
         Ok(quote! {#intermediate})
-
-        //let intermediate2 = state.intermediate().compile(state)?;
-        //state.access(self.operand.clone());
-        //let ty = self.ty.clone().unwrap_or(syn::parse_quote!(u32));
-        //state.to_insert_above.extend([
-        //    quote!(
-        //        Operation::Srl {
-        //            destination: #intermediate1.clone(),
-        //            operand: #operand.clone(),
-        //            shift: Operand::Immediate((#start as #ty).into())
-        //        }
-        //    ),
-        //    quote!(
-        //        #[allow(clippy::unnecessary_cast)]
-        //        Operation::And {
-        //            destination: #intermediate2.clone(),
-        //            operand1: #intermediate1.clone(),
-        //            operand2: Operand::Immediate(
-        //                (
-        //                    (
-        //                        (
-        //                            (0b1u64 << (#end as u64 - #start as u64 +
-        // 1u64)) as u64                        ) - (1 as u64)
-        //                    )as #ty
-        //                ).into()
-        //            )
-        //
-        //        }
-        //    ),
-        //]);
-        //Ok(quote!(#intermediate2))
     }
 }

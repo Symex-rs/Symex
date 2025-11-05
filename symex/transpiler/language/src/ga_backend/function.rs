@@ -73,30 +73,6 @@ impl Compile for (FunctionCall, Type) {
         })
     }
 }
-//
-//impl Compile for Signed {
-//    type Output = TokenStream;
-//
-//    fn compile(&self, state: &mut TranspilerState<Self::Output>) ->
-// Result<Self::Output, Error> {        let lhs = self.op1.clone();
-//        let rhs = self.op2.clone();
-//        let mut op = self.operation.clone();
-//        op.signed();
-//        let dst = state.intermediate();
-//        let operation = BinOp {
-//            lhs,
-//            rhs,
-//            dest: Operand::Ident(dst.clone()),
-//            op,
-//        }
-//        .compile(state)?;
-//        state.to_insert_above.push(operation);
-//        let dst = dst.compile(state)?;
-//        Ok(quote!(
-//        #dst
-//        ))
-//    }
-//}
 
 impl Compile for LocalAddress {
     type Output = TokenStream;
@@ -414,12 +390,6 @@ impl Compile for Resize {
                 },
                 )));
             }
-            // // No conversion needed.
-            // (Type::U(size1) | Type::I(size1), Type::U(size2) | Type::I(size2))
-            //     if size1 == size2 =>
-            // {
-            //     return Ok(quote! {#operand})
-            // }
             (Type::I(_size1), Type::U(size2) ) => {
                 state
                     .to_insert_above
@@ -712,7 +682,6 @@ impl Compile for IsFinite {
 
     fn compile(&self, state: &mut TranspilerState<Self::Output>) -> Result<Self::Output, Error> {
         let inner = self.operand.compile(state)?;
-        //let ty = self.operand.get_type();
         let intermediate = state.intermediate(Type::U(1)).compile(state)?;
 
         state.to_insert_above.push(quote! {
@@ -732,7 +701,6 @@ impl Compile for IsNaN {
 
     fn compile(&self, state: &mut TranspilerState<Self::Output>) -> Result<Self::Output, Error> {
         let inner = self.operand.compile(state)?;
-        //let ty = self.operand.get_type();
         let intermediate = state.intermediate(Type::U(1)).compile(state)?;
 
         state.to_insert_above.push(quote! {
@@ -752,7 +720,6 @@ impl Compile for IsNormal {
 
     fn compile(&self, state: &mut TranspilerState<Self::Output>) -> Result<Self::Output, Error> {
         let inner = self.operand.compile(state)?;
-        //let ty = self.operand.get_type();
         let intermediate = state.intermediate(Type::U(1)).compile(state)?;
 
         state.to_insert_above.push(quote! {
@@ -865,13 +832,3 @@ impl Compile for Log {
         }})
     }
 }
-// //
-// impl Compile for Saturate {
-//    type Output = TokenStream;
-//     fn compile(&self, state: &mut TranspilerState<Self::Output>) -> Result<Self::Output, Error> {
-//
-//         let Self { lhs, rhs, operation } = self;
-//
-//
-//     }
-// }

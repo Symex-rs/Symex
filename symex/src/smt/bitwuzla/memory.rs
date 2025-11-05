@@ -224,23 +224,9 @@ impl<State: UserStateContainer> SmtMap for BitwuzlaMemory<State> {
         if let Some(address) = idx.get_constant() {
             if self.program_memory.address_in_range(address) {
                 assert!(value.size() % 8 == 0, "Value must be a multiple of 8 bits to be written to program memory");
-                let _ = self.program_memory.set(
-                    address,
-                    value,
-                    // match value.len() / 8 {
-                    //     1 => DataWord::Word8((const_value & u8::MAX as u64) as u8),
-                    //     2 => DataWord::Word16((const_value & u16::MAX as u64) as u16),
-                    //     4 => DataWord::Word32((const_value & u32::MAX as u64) as u32),
-                    //     8 => DataWord::Word64(const_value),
-                    //     _ => unimplemented!("Unsupported bitwidth"),
-                    // },
-                    &mut self.static_writes,
-                    &mut self.ram,
-                );
+                let _ = self.program_memory.set(address, value, &mut self.static_writes, &mut self.ram);
                 return Ok(());
-                //Return Ok(self.program_memory.set(address, value)?);
             }
-            // todo!("Handle non static program memory writes");
         }
         self.ram.write(idx, value);
         Ok(())
@@ -308,8 +294,6 @@ impl<State: UserStateContainer> SmtMap for BitwuzlaMemory<State> {
         if self.variables.get(idx).is_none() {
             self.variables.insert(idx.to_owned(), ret.clone());
         }
-        // Ensure that any read from the same register returns the
-        //self.register_file.get(idx);
         Ok(ret)
     }
 
@@ -333,8 +317,6 @@ impl<State: UserStateContainer> SmtMap for BitwuzlaMemory<State> {
         if self.variables.get(idx).is_none() {
             self.fp_variables.insert(idx.to_owned(), ret.clone());
         }
-        // Ensure that any read from the same register returns the
-        //self.register_file.get(idx);
         Ok(ret)
     }
 
@@ -356,8 +338,6 @@ impl<State: UserStateContainer> SmtMap for BitwuzlaMemory<State> {
         let value = match ty {
             OperandType::Binary16 => {
                 todo!("No support in the rust compiler for binary16");
-                // let value = (value as f16).to_bits() ;
-                // self.from_u64(value, size)
             }
             OperandType::Binary32 => {
                 let value = u64::from((value as f32).to_bits());
@@ -369,8 +349,6 @@ impl<State: UserStateContainer> SmtMap for BitwuzlaMemory<State> {
             }
             OperandType::Binary128 => {
                 todo!("TODO! Represent 128 bit numbers");
-                // let value = (value as f64).to_bits() ;
-                // self.from_u64(value, size)
             }
             OperandType::Integral { size: _, signed: _ } => panic!("Cannot create fp expression from binary"),
         };
@@ -462,12 +440,6 @@ impl<State: UserStateContainer> SmtMap for BitwuzlaMemory<State> {
         self.register_file.clone()
     }
 }
-
-//impl From<MemoryError> for crate::smt::MemoryError {
-//    fn from(value: MemoryError) -> Self {
-//        Self::MemoryFileError(value)
-//
-//}
 
 impl<State: UserStateContainer> Display for BitwuzlaMemory<State> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

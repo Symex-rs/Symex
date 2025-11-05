@@ -210,9 +210,6 @@ impl Parse for Jump {
                 condition: Some(conditions),
             })
         } else {
-            // if !content.is_empty() {
-            //     return Err(content.error("Too many arguments"));
-            // }
             Ok(Self {
                 target,
                 condition: None,
@@ -870,25 +867,3 @@ impl Parse for MultiplyAndAccumulate {
         Ok(Self { lhs, rhs, addend })
     }
 }
-// impl Parse for Saturate {
-//     fn parse(input: ParseStream) -> Result<Self> {
-//         let speculative = input.fork();
-//         let ident: Ident = speculative.parse()?;
-//         if ident.to_string().to_lowercase().as_str() != "saturate" {
-//             return Err(input.error("saturate"));
-//         }
-//         let _: Ident = input.parse()?;
-//
-//         let inner;
-//         parenthesized!(inner in input);
-//         let lhs = inner.parse()?;
-//         let operation = inner.parse()?;
-//         let rhs = inner.parse()?;
-//
-//         Ok(Self {
-//             lhs,
-//             operation,
-//             rhs,
-//         })
-//     }
-// }

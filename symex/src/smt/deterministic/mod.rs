@@ -594,10 +594,6 @@ impl SmtExpr for BitwuzlaExpr {
 
     #[inline(always)]
     fn simplify(self) -> Self {
-        //self.0.get_btor().simplify();
-        //if let Some(c) = self.get_constant() {
-        //    return Self(BV::from_u64(self.0.get_btor(), c, self.0.get_width()));
-        //}
         self
     }
 

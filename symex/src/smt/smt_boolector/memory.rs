@@ -233,21 +233,8 @@ impl<State: UserStateContainer> SmtMap for BoolectorMemory<State> {
         if let Some(address) = idx.get_constant() {
             if self.program_memory.address_in_range(address) {
                 assert!(value.size() % 8 == 0, "Value must be a multiple of 8 bits to be written to program memory");
-                let _ = self.program_memory.set(
-                    address,
-                    value,
-                    // match value.len() / 8 {
-                    //     1 => DataWord::Word8((const_value & u8::MAX as u64) as u8),
-                    //     2 => DataWord::Word16((const_value & u16::MAX as u64) as u16),
-                    //     4 => DataWord::Word32((const_value & u32::MAX as u64) as u32),
-                    //     8 => DataWord::Word64(const_value),
-                    //     _ => unimplemented!("Unsupported bitwidth"),
-                    // },
-                    &mut self.static_writes,
-                    &mut self.ram.ctx,
-                );
+                let _ = self.program_memory.set(address, value, &mut self.static_writes, &mut self.ram.ctx);
                 return Ok(());
-                //Return Ok(self.program_memory.set(address, value)?);
             }
         }
         Ok(self.ram.write(idx, value)?)

@@ -90,7 +90,6 @@ impl SubProgramMap {
     }
 
     pub fn insert_symtab(&mut self, symtab: HashMap<String, u64>) {
-        //println!("Loading symtab {:?}", symtab);
         for (key, value) in symtab {
             let _ = self.symtab.insert(key.clone(), SubProgram {
                 name: key,
@@ -282,9 +281,6 @@ impl std::fmt::Display for LineInfo {
     }
 }
 
-//fn line_map<R:gimli::Reader>(pc:
-//
-
 /// All credit goes to [The gimli developers](https://github.com/gimli-rs/gimli/blob/master/crates/examples/src/bin/simple_line.rs#L20)
 pub(crate) fn line_program(object: &object::File<'_>, endian: gimli::RunTimeEndian) -> Result<LineMap, Box<dyn std::error::Error>> {
     // Load a section and return as `Cow<[u8]>`.
@@ -349,28 +345,6 @@ pub(crate) fn line_program(object: &object::File<'_>, endian: gimli::RunTimeEndi
                         file: path.display().to_string(),
                         line,
                     };
-                    // 'text: {
-                    //     // The output is wrapped in a Result to allow matching on errors.
-                    //     // Returns an Iterator to the Reader of the lines of the file.
-                    //     fn read_lines<P>(filename: P) ->
-                    // std::io::Result<std::io::Lines<std::io::BufReader<std::fs::File>>>
-                    //     where
-                    //         P: AsRef<std::path::Path>,
-                    //     {
-                    //         let file = std::fs::File::open(filename)?;
-                    //         Ok(std::io::BufReader::new(file).lines())
-                    //     }
-                    //     if path.exists() {
-                    //         match read_lines(path) {
-                    //             Ok(mut val) => {
-                    //                 if let Some(Ok(line)) = val.nth(line as usize) {
-                    //                     meta.text = Some(line);
-                    //                 }
-                    //             }
-                    //             Err(_) => break 'text,
-                    //         }
-                    //     }
-                    // }
                     let _ = map.try_insert(row.address(), meta);
                 }
             }

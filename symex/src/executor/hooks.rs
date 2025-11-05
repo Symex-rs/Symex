@@ -335,12 +335,7 @@ impl<C: Composition> HookContainer<C> {
     /// Adds a pc hook via regex matching in the dwarf data.
     pub fn add_pc_hook_regex(&mut self, map: &SubProgramMap, pattern: &'static str, hook: &PCHook<C>) -> Result<()> {
         let mut added = false;
-        // println!("Looking in {map:?}");
         for program in map.get_all_by_regex(pattern) {
-            // if program.bounds.1 == program.bounds.0 {
-            //     println!("[{pattern}]: Ignoring {:?} as it has 0 length", program);
-            //     continue;
-            // }
             trace!("[{pattern}]: Adding hooks for subprogram {:?}", program);
             self.add_pc_hook(program.bounds.0 & ((u64::MAX >> 1) << 1), hook.clone());
             added = true;

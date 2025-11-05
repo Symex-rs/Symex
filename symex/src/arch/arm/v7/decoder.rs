@@ -706,18 +706,10 @@ impl Convert for (usize, V7Operation) {
                 vec![]
             }
             V7Operation::It(it) => {
-                // let bits = (it.conds.initial_bit_pattern as u32).local_into();
-                // let drop_mask = (!0b1111_1111u32).local_into();
                 let bits = (it.bit_pattern as u32).local_into();
                 pseudo!([
-                    // bits:u32;
-                    // let it:u32 = Register("ITSTATE.IT") & drop_mask ;
                     Register("ITSTATE.IT") = bits;
                 ])
-
-                // vec![Operation::ConditionalExecution {
-                // conditions: it.conds.conditions.into_iter().map(|el|
-                // el.local_into()).collect(), }]
             }
             V7Operation::Ldm(ldm) => {
                 consume!((
@@ -2464,24 +2456,6 @@ impl Convert for (usize, V7Operation) {
                         rd.local_into().unwrap_or(rn.clone()),
                         rm.local_into()
                         ) from shsub);
-                // TODO! Check that the overflow here is not problematic
-                //
-                // // SInt()
-                // // ======
-                //integer SInt(bits(N) x)
-                //result = 0;
-                //for i = 0 to N-1
-                //if x<i> == ‘1’ then result = result + 2^i;
-                //if x<N-1> == ‘1’ then result = result - 2^N;
-                //return result;
-                //UInt(x) is the integer whose unsigned representation is x:
-                // // UInt()
-                // // ======
-                //integer UInt(bits(N) x)
-                //result = 0;
-                //for i = 0 to N-1
-                //if x<i> == ‘1’ then result = result + 2^i;
-                //return result;
                 pseudo!([
                         rn:u32 = rn;
                         rm:u32 = rm;

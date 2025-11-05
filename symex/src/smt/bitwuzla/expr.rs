@@ -266,29 +266,16 @@ impl SmtExpr for BitwuzlaExpr {
 
     #[inline(always)]
     fn simplify(self) -> Self {
-        //self.0.get_btor().simplify();
-        //if let Some(c) = self.get_constant() {
-        //    return Self(BV::from_u64(self.0.get_btor(), c, self.0.get_width()));
-        //}
         self
     }
 
     fn get_constant(&self) -> Option<u64> {
-        // let str = self.0.as_binary_str().unwrap_or("Could not get value as
-        // string!".to_string()); println!("Binary str : {str}");
         let sols = self.0.get_solutions(2);
         if sols.len() != 1 {
             return None;
         }
         let sol = &sols[0];
         sol.as_u64()
-        //match self.0.get_btor().sat() {
-        //    SolverResult::Sat => {}
-        //    _ => return None,
-        //}
-        //let sol = self.0.get_a_solution().deterministic()?;
-        //
-        //sol.as_u64()
     }
 
     fn get_identifier(&self) -> Option<String> {
@@ -306,15 +293,6 @@ impl SmtExpr for BitwuzlaExpr {
 
     fn get_constant_bool(&self) -> Option<bool> {
         Some(self.0.as_binary_str()? == "1")
-
-        //debug!("Trying to resolve {self:?} as boolean");
-        //match self.0.get_btor().sat() {
-        //    SolverResult::Sat => {}
-        //    _ => return None,
-        //}
-        //let sol = self.0.get_a_solution().deterministic()?;
-        //
-        //sol.as_bool()
     }
 
     fn to_binary_string(&self) -> String {

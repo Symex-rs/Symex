@@ -110,11 +110,6 @@ impl<UserState: UserStateContainer> SmtMap for Z3Array<UserState> {
                     .get(address, size as u32, &self.static_writes, &self.ram)
                     .context("While reading from progam memory"),
             );
-            /* DataWord::Word8(value) => self.from_u64(value.into(), 8),
-             * DataWord::Word16(value) => self.from_u64(value.into(), 16),
-             * DataWord::Word32(value) => self.from_u64(value.into(), 32),
-             * DataWord::Word64(value) => self.from_u64(value, 32),
-             * DataWord::Bit(value) => self.from_u64(value.into(), 1), */
         }
         ResultOrTerminate::Result(
             self.ram
@@ -127,23 +122,9 @@ impl<UserState: UserStateContainer> SmtMap for Z3Array<UserState> {
         if let Some(address) = idx.get_constant() {
             if self.program_memory.address_in_range(address) {
                 assert!(value.size() % 8 == 0, "Value must be a multiple of 8 bits to be written to program memory");
-                self.program_memory.set(
-                    address,
-                    value,
-                    // match value.len() / 8 {
-                    //     1 => DataWord::Word8((const_value & u8::MAX as u64) as u8),
-                    //     2 => DataWord::Word16((const_value & u16::MAX as u64) as u16),
-                    //     4 => DataWord::Word32((const_value & u32::MAX as u64) as u32),
-                    //     8 => DataWord::Word64(const_value),
-                    //     _ => unimplemented!("Unsupported bitwidth"),
-                    // },
-                    &mut self.static_writes,
-                    &mut self.ram,
-                );
+                self.program_memory.set(address, value, &mut self.static_writes, &mut self.ram);
                 return Ok(());
-                //Return Ok(self.program_memory.set(address, value)?);
             }
-            // todo!("Handle non static program memory writes");
         }
         Ok(self.ram.write(idx, value)?)
     }
@@ -205,8 +186,6 @@ impl<UserState: UserStateContainer> SmtMap for Z3Array<UserState> {
         if self.variables.get(idx).is_none() {
             self.variables.insert(idx.to_owned(), ret.clone());
         }
-        // Ensure that any read from the same register returns the
-        //self.register_file.get(idx);
         Ok(ret)
     }
 
@@ -558,45 +537,6 @@ impl SmtFPExpr for Z3Fp {
     }
 
     fn convert_from_bv(bv: Self::Expression, rm: RoundingMode, source_ty: OperandType, dest_ty: OperandType, signed: bool) -> crate::Result<Self> {
-        // match source_ty {
-        //     OperandType::Binary16 => {
-        //         return Ok(Self {
-        //             ctx: FpOrBv::Fp(FP::from_ieee754_bv(&bv.0, &conv_ty(&dest_ty))),
-        //             ty: dest_ty,
-        //         })
-        //     }
-        //
-        //     OperandType::Binary32 => {
-        //         return Ok(Self {
-        //             ctx: FpOrBv::Fp(FP::from_ieee754_bv(&bv.0, &conv_ty(&dest_ty))),
-        //             ty: dest_ty,
-        //         })
-        //     }
-        //     OperandType::Binary64 => {
-        //         return Ok(Self {
-        //             ctx: FpOrBv::Fp(FP::from_ieee754_bv(&bv.0, &conv_ty(&dest_ty))),
-        //             ty: dest_ty,
-        //         })
-        //     }
-        //     OperandType::Binary128 => {
-        //         return Ok(Self {
-        //             ctx: FpOrBv::Fp(FP::from_ieee754_bv(&bv.0, &conv_ty(&dest_ty))),
-        //             ty: dest_ty,
-        //         })
-        //     }
-        //     _ => {}
-        // }
-        //
-        // let ctx = match signed {
-        //     true => FP::from_sbv(bv.0, conv_rm(&rm), &conv_ty(&dest_ty)),
-        //     false => FP::from_ubv(bv.0, conv_rm(&rm), &conv_ty(&dest_ty)),
-        // };
-        //
-        // Ok(Self {
-        //     ctx: FpOrBv::Fp(ctx),
-        //     ty: dest_ty,
-        // })v
-
         let new = Self::unconstrained(bv.ctx.clone(), dest_ty, None);
         let new_int = new.round_to_integral(rm.clone())?;
         let new_bv = new_int.to_bv(rm, signed)?;
@@ -671,14 +611,6 @@ impl SmtFPExpr for Z3Fp {
     }
 
     fn get_const(&self) -> Option<f64> {
-        // let value = unsafe { z3_sys::Z3_solver_check(*self.ctx.ctx, *self.ctx.solver)
-        // };
-        //
-        // if value != Z3_L_TRUE {
-        //     println!("UNSAT!!");
-        //     return None;
-        // }
-
         let success = unsafe { z3_sys::Z3_get_numeral_double(*self.ctx.ctx, self.term) };
         Some(success)
     }
@@ -835,9 +767,6 @@ impl SmtSolver for Z3Solver {
     fn new() -> Self {
         unsafe {
             let cfg = z3_sys::Z3_mk_config();
-            // let name = CStr::from_ptr("verbose".as_ptr() as *const i8);
-            // let value = CStr::from_ptr("1".as_ptr() as *const i8);
-            // z3_sys::Z3_set_param_value(cfg, name.as_ptr(), value.as_ptr());
             let ctx = z3_sys::Z3_mk_context(cfg);
             let solver = z3_sys::Z3_mk_solver(ctx);
             z3_sys::Z3_solver_inc_ref(ctx, solver);
@@ -1201,13 +1130,6 @@ impl SmtExpr for Z3Bv {
 
         self.pop();
         println!("Results {buffer:?}");
-        // return buffer.get(0).cloned();
-        //
-        // let success = unsafe { z3_sys::Z3_get_numeral_uint64(*self.ctx.ctx,
-        // self.term, core::ptr::from_mut(&mut buffer)) }; if success {
-        //     return Some(buffer);
-        // }
-        // println!("Was not a numeral?? {self:?}");
         if buffer.len() != 1 {
             return None;
         }

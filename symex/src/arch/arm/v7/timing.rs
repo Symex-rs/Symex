@@ -192,30 +192,9 @@ impl super::ArmV7EM {
                     // This is a gross over estimation, it should be more like 1+1
                     CycleCount::Value(1 + 3)
                 } else {
-                    let counter = |state: &mut GAState<C>| {
-                        // match (state.get_next_instruction(), state.get_has_jumped()) {
-                        //     (
-                        //         Ok(crate::general_assembly::state::HookOrInstruction::Instruction(
-                        //             instr,
-                        //         )),
-                        //         true,
-                        //     ) => {
-                        //         let ops = instr.operations.len();
-                        //         match (ops, instr.operations.get(0)) {
-                        //             (1, Some(Operation::Nop)) => {
-                        //                 return 2;
-                        //             }
-                        //             _ => {}
-                        //         }
-                        //     }
-                        //
-                        //     _ => {}
-                        // }
-                        //
-                        match state.get_has_jumped() {
-                            true => 1 + 3,
-                            false => 1,
-                        }
+                    let counter = |state: &mut GAState<C>| match state.get_has_jumped() {
+                        true => 1 + 3,
+                        false => 1,
                     };
                     CycleCount::Function(counter)
                 }
@@ -250,7 +229,6 @@ impl super::ArmV7EM {
                 #[allow(clippy::match_single_binding)]
                 let counter = |state: &mut GAState<C>| match state.get_last_instruction() {
                     Some(instr) => match instr.instruction_size {
-                        // 16 => 0,
                         _ => 1,
                     },
                     None => 1,
