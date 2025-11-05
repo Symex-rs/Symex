@@ -4,7 +4,6 @@ members = [
     "cargo-symex",
     "crates/symex_lib",
     "crates/valid_derive",
-    # "armv6-m-examples", # <- has its own profiles, so not proper member
     "symex",
 ]
 

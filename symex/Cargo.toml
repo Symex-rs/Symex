@@ -4,30 +4,19 @@ version = "0.2.0"
 edition = "2021"
 
 [dependencies]
+# Error handling and interface
 anyhow = "1.0"
 thiserror = "1.0"
-rustc-demangle = "0.1.21"
 tracing = "0.1"
-tracing-subscriber = "0.3"
-paste = "1.0.14"
-
-indenter = "0.3"
-colored = "2.0"
-rand = "0.8.5"
-object = "0.36.0"
-
-gimli = "0.31.1"
-regex = "1.10.2"
-rust-debug = { path = "../rust-debug/" }
-
 
 # Internal language.
 transpiler = { path = "../symex/transpiler" }
 general_assembly = { path = "../symex/general_assembly" }
 
-# SMT-backends
+# SMT-backends.
 boolector = { version  = "0.4.3", optional = true }
 bitwuzla = { git = "https://github.com/ivajon/boolector-rs.git", branch = "bitwuzla", optional = true }
+z3-sys = { version = "0.8.1", optional = true }
 
 
 # Parsing-backends.
@@ -35,15 +24,21 @@ armv6-m-instruction-parser = "0.3.0-rc1"
 disarmv7 = { git = "https://github.com/ivajon/disarmv7" }
 risc-v-disassembler = "0.0.1"
 
-# External dependencies
-hashbrown = "0.15.2"
-kd-tree = "0.6.0"
-fst = "0.4.7"
-regex-automata = { version = "0.1.9", features = ["transducer"] }
-dyn-clone = "1.0.18"
-z3-sys = { version = "0.8.1", optional = true }
+## Binary parsing
+gimli = "0.31.1"
+object = "0.36.0"
+rust-debug = { path = "../rust-debug/" }
+
+## String parsing
+regex = "1.10.2"
 serde = { version = "1.0.219", features = ["derive"], optional = true }
 
+# External dependencies
+hashbrown = "0.15.2"
+colored = "2.0"
+
+# Code generation
+paste = "1.0.14"
 
 [features]
 # Solvers
@@ -64,7 +59,7 @@ bitwuzla-exact-fp = ["experimental"]
 
 exact = ["bitwuzla-exact-fp"]
 
-default = ["bitwuzla","boolector"]
+default = ["bitwuzla"]
 
 log = []
 

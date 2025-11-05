@@ -25,7 +25,7 @@ tracing-subscriber = "0.3"
 logging=["symex/log"]
 bitwuzla=["symex/bitwuzla"]
 boolector=["symex/boolector"]
-default=["bitwuzla", "boolector"]
+default=["bitwuzla"]
 
 [profile.release]
 debug = true
