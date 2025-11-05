@@ -2,13 +2,12 @@
   SYMEX
 </h1>
 
-Symex is a symbolic execution engine operating on compile binaries for one of the following targets at the users discretion:
+Symex is a symbolic execution engine, producing cycle accurate Worst Case Execution Time estimates for certain architectures under certain conditions. This is achieved by operating on compile binaries for one of the following targets at the users discretion:
 
 - ARMv6-M
 - ARMv7-M/ARMv7-EM
 - RISC-V (only RV32I base integer instruction set is currently supported), for the [Hippomenes architecture](https://github.com/perlindgren/hippomenes).
 
-The engine can provide cycle accurate results for the worst case execution time for applications compiled for `ARMv6-M` and `RISC-V` under certain conditions.
 As the engine operates on compiled binaries it is language agnostic at the core. However, the testing has been focused on Rust applications, more specifically [`RTIC-v1`](https://github.com/rtic-rs/rtic/tree/release/v1) applications.
 
 
