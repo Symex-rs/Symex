@@ -14,8 +14,8 @@ transpiler = { path = "../symex/transpiler" }
 general_assembly = { path = "../symex/general_assembly" }
 
 # SMT-backends.
-boolector = { version  = "0.4.3", optional = true }
 bitwuzla = { git = "https://github.com/ivajon/boolector-rs.git", branch = "bitwuzla", optional = true }
+boolector = { version = "0.4.3", optional = true }
 z3-sys = { version = "0.8.1", optional = true }
 
 
@@ -27,7 +27,7 @@ risc-v-disassembler = "0.0.1"
 ## Binary parsing
 gimli = "0.31.1"
 object = "0.36.0"
-rust-debug = {version = "0.1.0", git = "https://github.com/ivajon/rust-debug"}
+rust-debug = { version = "0.1.0", git = "https://github.com/ivajon/rust-debug" }
 
 ## String parsing
 regex = "1.10.2"
@@ -43,8 +43,10 @@ paste = "1.0.14"
 [features]
 # Solvers
 bitwuzla = ["dep:bitwuzla"]
+build-bitwuzla = ["dep:bitwuzla", "bitwuzla/vendor-cadical"]
+
 ## Deprecated since 0.2.0 as it does not support lambdas.
-boolector = ["dep:boolector","deprecated"]
+boolector = ["dep:boolector", "deprecated"]
 z3 = ["incomplete", "dep:z3-sys"]
 
 # Denotes that a feature is experimental.
