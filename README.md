@@ -24,6 +24,18 @@ cargo install --path cargo-symex
 <details>
   <summary>If the compiler does not find Cadical</summary>
   If you are building with bitwuzla as the solver you need to install all of bitwuzlas dependencies, this includes a SAT solver called Cadical which likely can be installed with your system package manager. Please install this and try again.
+  <details>
+    <summary>For Mac users</summary>
+If installing Cadical via e.g. Homebrew, `rustc` does not by default look for libraries in the Homebrew lib dir, you will need to point it in the right direction.
+
+For instance,
+
+```
+RUSTFLAGS='-L /opt/homebrew/lib' cargo install --path=cargo-symex --features=bitwuzla-vendor-cadical
+```
+
+adds the Homebrew lib directory to the library search path and builds and installs `cargo-symex`.
+  </details>
 </details>
 
 This can then be used to compile examples or binaries and executing the (mangled) name of the function like so:
