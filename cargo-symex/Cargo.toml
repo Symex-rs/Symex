@@ -23,6 +23,7 @@ tracing-subscriber = "0.3"
 
 [features]
 logging = ["symex/log"]
+verbose-results = ["symex/verbose-results"]
 bitwuzla = ["symex/bitwuzla"]
 build-bitwuzla = ["symex/build-bitwuzla"]
 boolector = ["symex/boolector"]

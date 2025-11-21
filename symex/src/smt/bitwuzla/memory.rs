@@ -11,10 +11,7 @@ use crate::{
     memory::{MemoryError, BITS_IN_BYTE},
     project::Project,
     smt::{Context, ProgramMemory, SmtExpr, SmtFPExpr, SmtMap, SmtSolver},
-    trace,
-    warn,
-    Endianness,
-    UserStateContainer,
+    trace, warn, Endianness, UserStateContainer,
 };
 
 #[derive(Debug, Clone)]
@@ -438,34 +435,75 @@ impl<State: UserStateContainer> SmtMap for BitwuzlaMemory<State> {
 
 impl<State: UserStateContainer> Display for BitwuzlaMemory<State> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("\tVariables:\r\n")?;
+        f.write_str("Variables:\r\n")?;
         for (key, value) in &self.variables {
-            write!(f, "\t\t{key} : {}\r\n", match value.get_constant() {
-                Some(_value) => value.to_binary_string(),
-                _ => strip(format!("{value:?}")),
-            })?;
+            // In reality, this should probably be a flag to cargo-symex or so...
+            #[cfg(feature = "verbose-results")]
+            write!(
+                f,
+                "\t\t{key} :\t {}\r\n",
+                match value.get_constant() {
+                    Some(_value) => {
+                        format!("Constant: 0b{}", value.to_binary_string())
+                    }
+                    _ => {
+                        format!("Solution: {}\n\t\t\t Expression: {}", value.to_binary_string(), strip(format!("{value:?}")))
+                    }
+                }
+            )?;
+            #[cfg(not(feature = "verbose-results"))]
+            write!(
+                f,
+                "\t\t{key} : {}\r\n",
+                match value.get_constant() {
+                    Some(_value) => value.to_binary_string(),
+                    _ => strip(format!("{value:?}")),
+                }
+            )?;
         }
         f.write_str("\tFP Variables:\r\n")?;
         for (key, value) in &self.fp_variables {
-            write!(f, "\t\t{key} : {}\r\n", match value.get_const() {
-                Some(value) => value.to_string(),
-                _ => strip(format!("{value:?}")),
-            })?;
+            write!(
+                f,
+                "\t\t{key} : {}\r\n",
+                match value.get_const() {
+                    Some(value) => value.to_string(),
+                    _ => strip(format!("{value:?}")),
+                }
+            )?;
         }
         f.write_str("\tRegister file:\r\n")?;
         for (key, value) in &self.register_file {
-            write!(f, "\t\t{key} : {}\r\n", match value.get_constant() {
-                Some(_value) => value.to_binary_string(),
-                _ => strip(format!("{value:?}")),
-            })?;
+            #[cfg(feature = "verbose-results")]
+            write!(
+                f,
+                "\t\t{key} :\t {}\r\n",
+                match value.get_constant() {
+                    Some(_value) => format!("Constant: 0b{}", value.to_binary_string()),
+                    _ => format!("Solution: {}\n\t\t\t Expression: {}", value.to_binary_string(), strip(format!("{value:?}"))),
+                }
+            )?;
+            #[cfg(not(feature = "verbose-results"))]
+            write!(
+                f,
+                "\t\t{key} : {}\r\n",
+                match value.get_constant() {
+                    Some(_value) => value.to_binary_string(),
+                    _ => strip(format!("{value:?}")),
+                }
+            )?;
         }
         f.write_str("\tFlags:\r\n")?;
 
         for (key, value) in &self.flags {
-            write!(f, "\t\t{key} : {}\r\n", match value.get_constant() {
-                Some(_value) => value.to_binary_string(),
-                _ => strip(format!("{value:?}")),
-            })?;
+            write!(
+                f,
+                "\t\t{key} : {}\r\n",
+                match value.get_constant() {
+                    Some(_value) => value.to_binary_string(),
+                    _ => strip(format!("{value:?}")),
+                }
+            )?;
         }
         Ok(())
     }
