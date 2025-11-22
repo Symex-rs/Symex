@@ -105,4 +105,4 @@ jobs:
       - name: cargo test
         run: |
           ls -la
-          cargo +nightly test
+          cargo test --features=build-bitwuzla,exact
