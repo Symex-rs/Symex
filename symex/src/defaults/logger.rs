@@ -187,7 +187,7 @@ impl Logger for SimplePathLogger {
             .is_some_and(|el| self.current_region.as_ref().is_some_and(|other| other != el) || self.current_region.is_none())
         {
             let region = unsafe { region.as_ref().unwrap_unchecked() };
-            self.visited.push(region.name.to_string());
+            self.visited.push(region.name.clone());
         }
         self.current_region = region;
     }

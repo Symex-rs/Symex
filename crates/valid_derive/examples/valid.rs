@@ -44,9 +44,9 @@ impl IsValid for Enum {
 
 impl IsValid for Enum2 {
     fn is_valid(&self) -> bool {
-        if let Enum2::U1 = self {
+        if matches!(self, Enum2::U1) {
             true
-        } else if let Enum2::U2 = self {
+        } else if matches!(self, Enum2::U2) {
             true
         } else {
             false

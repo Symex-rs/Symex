@@ -234,7 +234,7 @@ impl Bitwuzla {
     /// Solve for the solver state with the assumption of the passed constraint.
     pub fn _is_sat_with_constraint(&self, constraint: &BitwuzlaExpr) -> Result<bool, SolverError> {
         // Assume the constraint, will be forgotten after the next call to `is_sat`.
-        Ok(match self.ctx.check_sat_assuming(&[constraint.0.clone()]) {
+        Ok(match self.ctx.check_sat_assuming(std::slice::from_ref(&constraint.0)) {
             SolverResult::Sat => true,
             SolverResult::Unsat => false,
             SolverResult::Unknown => false,
