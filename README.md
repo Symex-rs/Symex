@@ -15,10 +15,11 @@ As the engine operates on compiled binaries it is language agnostic at the core.
 
 The easiest way to use Symex is by the cargo-symex tool.
 
-Symex has support for a number of SMT solver backends, the default choice is [Bitwuzla](https://github.com/bitwuzla/bitwuzla).
+Symex has support for a number of SMT solver backends, the default, and recommended, choice is [Bitwuzla](https://github.com/bitwuzla/bitwuzla).
 Installing `cargo-symex` using Bitwuzla as backend, there are two options, either using a standalone, system-wide installation of Bitwuzla, or building Bitwuzla directly as part of building `symex`.
 
 ## Installing using standalone Bitwuzla
+
 This requires Bitwuzla is installed on your system, this is typically available from your system package manager.
 Once Bitwuzla has been installed, one can install `cargo-symex` by running:
 
@@ -27,12 +28,15 @@ cargo install --path cargo-symex
 ```
 
 ## Installing without standalone Bitwuzla
+
 If installing Bitwuzla shows to be problematic, both `symex` and `cargo-symex` include a feature `build-bitwuzla` which builds `bitwuzla` instead of using the system version, this doesn't require a standalone installation of Bitwuzla, although it does require `Cadical`,  which is also typically available from your system package manager.
 
 Once Cadical has been installed, one can install `cargo-symex` by running:
+
 ```bash
 cargo install --path cargo-symex --feature=build-bitwuzla
 ```
+
 <details>
   <summary>If the compiler does not find Cadical</summary>
   If you are building with bitwuzla as the solver you need to install all of bitwuzlas dependencies, this includes a SAT solver called Cadical which likely can be installed with your system package manager. Please install this and try again.
