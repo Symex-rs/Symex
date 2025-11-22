@@ -14,16 +14,44 @@ As the engine operates on compiled binaries it is language agnostic at the core.
 # Getting started
 
 The easiest way to use Symex is by the cargo-symex tool.
-To install it you must first install the SMT solver of choice, by default this is [bitwuzla](https://github.com/bitwuzla/bitwuzla), typically this can be installed from your system package manager.
-Once the smt-solver has been installed, one can install cargo-symex by running:
+
+Symex has support for a number of SMT solver backends, the default, and recommended, choice is [Bitwuzla](https://github.com/bitwuzla/bitwuzla).
+Installing `cargo-symex` using Bitwuzla as backend, there are two options, either using a standalone, system-wide installation of Bitwuzla, or building Bitwuzla directly as part of building `symex`.
+
+## Installing using standalone Bitwuzla
+
+This requires Bitwuzla is installed on your system, this is typically available from your system package manager.
+Once Bitwuzla has been installed, one can install `cargo-symex` by running:
 
 ```bash
 cargo install --path cargo-symex
 ```
 
+## Installing without standalone Bitwuzla
+
+If installing Bitwuzla shows to be problematic, both `symex` and `cargo-symex` include a feature `build-bitwuzla` which builds `bitwuzla` instead of using the system version, this doesn't require a standalone installation of Bitwuzla, although it does require `Cadical`,  which is also typically available from your system package manager.
+
+Once Cadical has been installed, one can install `cargo-symex` by running:
+
+```bash
+cargo install --path cargo-symex --feature=build-bitwuzla
+```
+
 <details>
   <summary>If the compiler does not find Cadical</summary>
   If you are building with bitwuzla as the solver you need to install all of bitwuzlas dependencies, this includes a SAT solver called Cadical which likely can be installed with your system package manager. Please install this and try again.
+  <details>
+    <summary>For Mac users</summary>
+If installing Cadical via e.g. Homebrew, `rustc` does not by default look for libraries in the Homebrew lib dir, you will need to point it in the right direction.
+
+For instance,
+
+```
+RUSTFLAGS='-L /opt/homebrew/lib' cargo install --path=cargo-symex --features=build-bitwuzla
+```
+
+adds the Homebrew lib directory to the library search path and builds and installs `cargo-symex`.
+  </details>
 </details>
 
 This can then be used to compile examples or binaries and executing the (mangled) name of the function like so:
