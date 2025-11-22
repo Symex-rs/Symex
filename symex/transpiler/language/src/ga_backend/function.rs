@@ -94,9 +94,7 @@ impl Compile for LocalAddress {
 
         let span = self.name.span();
         let inner = quote_spanned! {span => AddressInLocal(#name_stripped.to_owned(),#bits)};
-        Ok(
-            quote!(general_assembly::operand::Operand::#inner),
-        )
+        Ok(quote!(general_assembly::operand::Operand::#inner))
     }
 }
 
@@ -286,29 +284,41 @@ impl Compile for SetCFlag {
          }))
     }
 }
-impl<T:Compile<Output = TokenStream>> Compile for Option<T>{ 
+impl<T: Compile<Output = TokenStream>> Compile for Option<T> {
     type Output = T::Output;
+
     fn compile(&self, state: &mut TranspilerState<Self::Output>) -> Result<Self::Output, Error> {
         Ok(match self {
-            Self::Some(s) =>{
+            Self::Some(s) => {
                 let inner = s.compile(state)?;
                 quote! {Some(#inner)}
-            },
-            None => quote! {None}
+            }
+            None => quote! {None},
         })
     }
 }
-impl Compile for RoundingMode{ 
+impl Compile for RoundingMode {
     type Output = TokenStream;
+
     fn compile(&self, _state: &mut TranspilerState<Self::Output>) -> Result<Self::Output, Error> {
         Ok(match self {
             Self::Exact => quote! {general_assembly::extension::ieee754::RoundingMode::Exact},
-            Self::TiesTowardNegative => quote! {general_assembly::extension::ieee754::RoundingMode::TiesTowardNegative},
-            Self::TiesTowardPositive => quote! {general_assembly::extension::ieee754::RoundingMode::TiesTowardPositive},
-            Self::TiesToEven => quote! {general_assembly::extension::ieee754::RoundingMode::TiesToEven},
-            Self::TiesToAway => quote! {general_assembly::extension::ieee754::RoundingMode::TiesToAway},
-            Self::TiesTowardZero=> quote! {general_assembly::extension::ieee754::RoundingMode::TiesTowardZero},
-            Self::Runtime(i) => quote! {#i}
+            Self::TiesTowardNegative => {
+                quote! {general_assembly::extension::ieee754::RoundingMode::TiesTowardNegative}
+            }
+            Self::TiesTowardPositive => {
+                quote! {general_assembly::extension::ieee754::RoundingMode::TiesTowardPositive}
+            }
+            Self::TiesToEven => {
+                quote! {general_assembly::extension::ieee754::RoundingMode::TiesToEven}
+            }
+            Self::TiesToAway => {
+                quote! {general_assembly::extension::ieee754::RoundingMode::TiesToAway}
+            }
+            Self::TiesTowardZero => {
+                quote! {general_assembly::extension::ieee754::RoundingMode::TiesTowardZero}
+            }
+            Self::Runtime(i) => quote! {#i},
         })
     }
 }
@@ -550,7 +560,9 @@ impl Compile for Ite {
 
         state.access_operand(self.rhs.clone());
         let rhs = self.rhs.compile(state)?;
-        let ty = self.comparison_type.expect("Could not get comparison type. Type checker must be faulty");
+        let ty = self
+            .comparison_type
+            .expect("Could not get comparison type. Type checker must be faulty");
         let operation = (self.operation.clone(), ty).compile(state)?;
         let mut then = Vec::with_capacity(self.then.len());
         for el in &self.then {
@@ -665,7 +677,7 @@ impl Compile for MultiplyAndAccumulate {
 
         // TODO: implement for other types.
 
-        state.to_insert_above.push(quote! { 
+        state.to_insert_above.push(quote! {
             general_assembly::operation::Operation::Ieee754(general_assembly::extension::ieee754::Operations::FusedMultiplication {
                 lhs:#lhs,
                 rhs:#rhs,
@@ -752,7 +764,7 @@ impl Compile for Cast {
                         source: general_assembly::extension::ieee754::Operand {ty: #target_ty_fp, value: general_assembly::extension::ieee754::OperandStorage::CoreOperand{
                             operand: #inner,
                             ty: #target_ty_fp,
-                            signed: false 
+                            signed: false
                         }}
                     })
                 }
@@ -776,7 +788,7 @@ impl Compile for Cast {
                         destination: general_assembly::extension::ieee754::Operand {ty: #ty_fp, value: general_assembly::extension::ieee754::OperandStorage::CoreOperand{
                             operand: #intermediate,
                             ty: #ty_fp,
-                            signed: false 
+                            signed: false
                         }}
                     })
                 }
@@ -804,15 +816,19 @@ impl Compile for Cast {
 
 impl Compile for Log {
     type Output = TokenStream;
-    
-    fn compile(&self, state: &mut TranspilerState<Self::Output>) -> Result<Self::Output, Error> {
 
-        let Self { level, operand, meta, call_site } = self;
+    fn compile(&self, state: &mut TranspilerState<Self::Output>) -> Result<Self::Output, Error> {
+        let Self {
+            level,
+            operand,
+            meta,
+            call_site,
+        } = self;
         let ty = operand.get_type();
 
         match ty {
-            Type::I(_) | Type::U(_) => {},
-            _ => todo!("Add debugging for other types")
+            Type::I(_) | Type::U(_) => {}
+            _ => todo!("Add debugging for other types"),
         }
 
         let log_message = quote_spanned! {*call_site => Log};
@@ -822,13 +838,15 @@ impl Compile for Log {
             LogLevel::Warn => quote! {general_assembly::operand::LogLevel::Warn},
             LogLevel::Debug => quote! {general_assembly::operand::LogLevel::Debug},
             LogLevel::Info => quote! {general_assembly::operand::LogLevel::Info},
-            LogLevel::Trace=> quote! {general_assembly::operand::LogLevel::Trace},
+            LogLevel::Trace => quote! {general_assembly::operand::LogLevel::Trace},
         };
 
-        Ok(quote! {general_assembly::operation::Operation::#log_message {
-            level:#level,
-            operand:#operand,
-            meta:#meta.to_string(),
-        }})
+        Ok(
+            quote! {general_assembly::operation::Operation::#log_message {
+                level:#level,
+                operand:#operand,
+                meta:#meta.to_string(),
+            }},
+        )
     }
 }
