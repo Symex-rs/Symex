@@ -440,7 +440,6 @@ impl<State: UserStateContainer> Display for BitwuzlaMemory<State> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("Variables:\r\n")?;
         for (key, value) in &self.variables {
-            // In reality, this should probably be a flag to cargo-symex or so...
             #[cfg(feature = "verbose-results")]
             write!(f, "\t\t{key} :\t {}\r\n", match value.get_constant() {
                 Some(_value) => {
