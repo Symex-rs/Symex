@@ -6,18 +6,18 @@ pub const BITS_IN_BYTE: u32 = 8;
 /// Converts number of bits to bytes, returning an error if `bits` are not a
 /// multiple of `[BITS_IN_BYTE]`.
 pub const fn to_bytes(size: u64) -> Result<u64, MemoryError> {
-    if size % BITS_IN_BYTE as u64 != 0 {
-        Err(MemoryError::BitsNotMultipleOfBytes(size))
-    } else {
+    if size.is_multiple_of(BITS_IN_BYTE as u64) {
         Ok(size / 8)
+    } else {
+        Err(MemoryError::BitsNotMultipleOfBytes(size))
     }
 }
 
 pub const fn to_bytes_u32(size: u32) -> Result<u32, MemoryError> {
-    if size % BITS_IN_BYTE != 0 {
-        Err(MemoryError::BitsNotMultipleOfBytes(size as u64))
-    } else {
+    if size.is_multiple_of(BITS_IN_BYTE) {
         Ok(size / 8)
+    } else {
+        Err(MemoryError::BitsNotMultipleOfBytes(size as u64))
     }
 }
 
