@@ -105,4 +105,7 @@ jobs:
       - name: cargo test
         run: |
           ls -la
+          # HACK: Install bitwuzla dependencies on the fly, this needs to be cached.
+          sudo apt-get update
+          sudo apt-get install -y libgmp-dev libmpfr-dev ninja-build meson cython3 python3-pytest libgtest-dev
           cargo test --features=build-bitwuzla,exact
