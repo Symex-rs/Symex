@@ -377,7 +377,7 @@ impl<Override: ArchitectureOverride> Architecture<Override> for ArmV7EM {
         }
 
         if let Some(it) = it {
-            if it.mask::<1, 3>() != 0b111 {
+            if it.mask::<0, 3>() != 0 {
                 trace!("Pushing CONDITION {cond:?}");
                 state.architecture.as_v7().in_it_block = true;
                 state.instruction_conditions.push_back(cond);
