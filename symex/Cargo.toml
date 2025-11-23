@@ -49,6 +49,8 @@ build-bitwuzla = ["dep:bitwuzla", "bitwuzla/vendor-cadical"]
 boolector = ["dep:boolector", "deprecated"]
 z3 = ["incomplete", "dep:z3-sys"]
 
+verbose-results = []
+
 # Denotes that a feature is experimental.
 experimental = []
 

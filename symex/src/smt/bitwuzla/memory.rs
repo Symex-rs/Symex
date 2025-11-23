@@ -438,8 +438,18 @@ impl<State: UserStateContainer> SmtMap for BitwuzlaMemory<State> {
 
 impl<State: UserStateContainer> Display for BitwuzlaMemory<State> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("\tVariables:\r\n")?;
+        f.write_str("Variables:\r\n")?;
         for (key, value) in &self.variables {
+            #[cfg(feature = "verbose-results")]
+            write!(f, "\t\t{key} :\t {}\r\n", match value.get_constant() {
+                Some(_value) => {
+                    format!("Constant: 0b{}", value.to_binary_string())
+                }
+                _ => {
+                    format!("Solution: {}\n\t\t\t Expression: {}", value.to_binary_string(), strip(format!("{value:?}")))
+                }
+            })?;
+            #[cfg(not(feature = "verbose-results"))]
             write!(f, "\t\t{key} : {}\r\n", match value.get_constant() {
                 Some(_value) => value.to_binary_string(),
                 _ => strip(format!("{value:?}")),
@@ -454,6 +464,12 @@ impl<State: UserStateContainer> Display for BitwuzlaMemory<State> {
         }
         f.write_str("\tRegister file:\r\n")?;
         for (key, value) in &self.register_file {
+            #[cfg(feature = "verbose-results")]
+            write!(f, "\t\t{key} :\t {}\r\n", match value.get_constant() {
+                Some(_value) => format!("Constant: 0b{}", value.to_binary_string()),
+                _ => format!("Solution: {}\n\t\t\t Expression: {}", value.to_binary_string(), strip(format!("{value:?}"))),
+            })?;
+            #[cfg(not(feature = "verbose-results"))]
             write!(f, "\t\t{key} : {}\r\n", match value.get_constant() {
                 Some(_value) => value.to_binary_string(),
                 _ => strip(format!("{value:?}")),
@@ -472,7 +488,12 @@ impl<State: UserStateContainer> Display for BitwuzlaMemory<State> {
 }
 
 fn strip(s: String) -> String {
+    #[cfg(not(feature = "verbose-results"))]
     if 50 < s.len() {
+        return "Large symbolic expression".to_string();
+    }
+    #[cfg(feature = "verbose-results")]
+    if 100 < s.len() {
         return "Large symbolic expression".to_string();
     }
     s
