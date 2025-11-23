@@ -510,7 +510,12 @@ impl<State: UserStateContainer> Display for BitwuzlaMemory<State> {
 }
 
 fn strip(s: String) -> String {
+    #[cfg(not(feature = "verbose-results"))]
     if 50 < s.len() {
+        return "Large symbolic expression".to_string();
+    }
+    #[cfg(feature = "verbose-results")]
+    if 100 < s.len() {
         return "Large symbolic expression".to_string();
     }
     s
