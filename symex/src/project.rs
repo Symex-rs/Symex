@@ -197,7 +197,7 @@ impl<S: SmtSolver> ProgramMemory<S::Expression> for std::sync::Arc<Project<S>> {
     fn get<Expr: SmtExpr, Ctx: Context<Expr = Expr>>(&self, address: u64, bits: u32, writes: &HashMap<u64, Expr>, ctx: &Ctx) -> std::result::Result<Expr, crate::smt::MemoryError> {
         let word_size = self.get_word_size();
         let bytes = bits as u64 / 8;
-        assert!(bits % 8 == 0);
+        assert!(bits.is_multiple_of(8));
         let mut written = false;
         for idx in address..(address + bytes) {
             if writes.contains_key(&idx) {
@@ -222,7 +222,7 @@ impl<S: SmtSolver> ProgramMemory<S::Expression> for std::sync::Arc<Project<S>> {
         if bits == word_size {
             // full word
             Ok(ctx.new_from_u64(self.get_word(address).unwrap().into(), bits))
-        } else if bits % word_size == 0 {
+        } else if bits.is_multiple_of(word_size) {
             let mut ret = ctx.new_from_u64(0, bits);
             for _word in 0..(bits / word_size) {
                 let new_ret = ctx.new_from_u64(self.get_word(address).unwrap().into(), word_size).resize_unsigned(bits);

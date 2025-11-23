@@ -1385,7 +1385,7 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
                     _ => return ResultOrTerminate::Failure("None of the ITE paths were possible".to_string()),
                 }
             }
-            Operation::Abort { error } => return ResultOrTerminate::Failure(error.to_string()),
+            Operation::Abort { error } => return ResultOrTerminate::Failure(error.clone()),
             Operation::Ieee754(inner) => return self.execute_ieee754(inner.clone(), logger),
             #[allow(dead_code, unused)]
             Operation::Log { operand, meta, level } => {
